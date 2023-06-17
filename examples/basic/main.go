@@ -14,8 +14,70 @@
 
 package main
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"sync"
+
+	"github.com/gsalomao/melitte"
+)
 
 func main() {
-	fmt.Println("Hello world!")
+	s := melitte.NewServer(melitte.NewDefaultOptions())
+	defer s.Close()
+
+	l := loggingHook{}
+	err := s.AddHook(&l)
+	if err != nil {
+		log.Fatal("Failed to add logging hook into the server")
+	}
+
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		<-signals
+	}()
+
+	err = s.Start(context.Background())
+	if err != nil {
+		log.Fatal("Failed to start server")
+	}
+
+	wg.Wait()
+	_ = s.Stop(context.Background())
+}
+
+type loggingHook struct {
+}
+
+func (h *loggingHook) Name() string {
+	return "logging"
+}
+
+func (h *loggingHook) OnServerStart(_ *melitte.Server) error {
+	fmt.Println("Server starting")
+	return nil
+}
+
+func (h *loggingHook) OnServerStarted(_ *melitte.Server) {
+	fmt.Println("Server started")
+}
+
+func (h *loggingHook) OnServerStartFailed(_ *melitte.Server, err error) {
+	fmt.Println("Failed to start server: " + err.Error())
+}
+
+func (h *loggingHook) OnServerStop(_ *melitte.Server) {
+	fmt.Println("Server stopping")
+}
+
+func (h *loggingHook) OnServerStopped(_ *melitte.Server) {
+	fmt.Println("Server stopped")
 }
