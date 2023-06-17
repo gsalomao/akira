@@ -16,7 +16,6 @@ package melitte
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 )
@@ -200,7 +199,7 @@ func (h *hooks) onStart() error {
 
 		err := hk.OnStart()
 		if err != nil {
-			return fmt.Errorf("%s.OnStart: %w", hook.Name(), err)
+			return err
 		}
 	}
 
@@ -226,7 +225,7 @@ func (h *hooks) onServerStart(s *Server) error {
 
 		err := hk.OnServerStart(s)
 		if err != nil {
-			return fmt.Errorf("%s.OnServerStart: %w", hook.Name(), err)
+			return err
 		}
 	}
 
@@ -286,7 +285,7 @@ func (h *hooks) onClientOpen(s *Server, l Listener, c *Client) error {
 
 		err := hk.OnClientOpen(s, l, c)
 		if err != nil {
-			return fmt.Errorf("%s.OnClientOpen: %w", hook.Name(), err)
+			return err
 		}
 	}
 

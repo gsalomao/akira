@@ -17,7 +17,6 @@ package melitte
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -110,7 +109,7 @@ func (s *Server) AddHook(h Hook) error {
 		if hook, ok := h.(OnStartHook); ok {
 			err := hook.OnStart()
 			if err != nil {
-				return fmt.Errorf("%s.OnStart: %w", h.Name(), err)
+				return err
 			}
 		}
 	}
