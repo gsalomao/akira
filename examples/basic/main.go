@@ -29,8 +29,16 @@ func main() {
 	s := melitte.NewServer(melitte.NewDefaultOptions())
 	defer s.Close()
 
-	l := loggingHook{}
-	err := s.AddHook(&l)
+	l := melitte.NewTCPListener("tcp", ":1883", nil)
+	defer func() { _ = l.Close() }()
+
+	err := s.AddListener(l)
+	if err != nil {
+		log.Fatal("Failed to add TCP listener into the server")
+	}
+
+	h := loggingHook{}
+	err = s.AddHook(&h)
 	if err != nil {
 		log.Fatal("Failed to add logging hook into the server")
 	}
@@ -82,19 +90,19 @@ func (h *loggingHook) OnServerStopped(_ *melitte.Server) {
 	fmt.Println("Server stopped")
 }
 
-func (h *loggingHook) OnConnectionOpen(_ *mqtt.Server, _ mqtt.Listener) error {
+func (h *loggingHook) OnConnectionOpen(_ *melitte.Server, _ melitte.Listener) error {
 	fmt.Println("Client open")
 	return nil
 }
 
-func (h *loggingHook) OnConnectionOpened(_ *mqtt.Server, _ mqtt.Listener) {
+func (h *loggingHook) OnConnectionOpened(_ *melitte.Server, _ melitte.Listener) {
 	fmt.Println("Client opened")
 }
 
-func (h *loggingHook) OnConnectionClose(_ *mqtt.Server, _ mqtt.Listener) {
+func (h *loggingHook) OnConnectionClose(_ *melitte.Server, _ melitte.Listener) {
 	fmt.Println("Client close")
 }
 
-func (h *loggingHook) OnConnectionClosed(_ *mqtt.Server, _ mqtt.Listener) {
+func (h *loggingHook) OnConnectionClosed(_ *melitte.Server, _ melitte.Listener) {
 	fmt.Println("Client closed")
 }
