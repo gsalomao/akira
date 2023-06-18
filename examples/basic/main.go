@@ -81,3 +81,20 @@ func (h *loggingHook) OnServerStop(_ *melitte.Server) {
 func (h *loggingHook) OnServerStopped(_ *melitte.Server) {
 	fmt.Println("Server stopped")
 }
+
+func (h *loggingHook) OnConnectionOpen(_ *mqtt.Server, _ mqtt.Listener) error {
+	fmt.Println("Client open")
+	return nil
+}
+
+func (h *loggingHook) OnConnectionOpened(_ *mqtt.Server, _ mqtt.Listener) {
+	fmt.Println("Client opened")
+}
+
+func (h *loggingHook) OnConnectionClose(_ *mqtt.Server, _ mqtt.Listener) {
+	fmt.Println("Client close")
+}
+
+func (h *loggingHook) OnConnectionClosed(_ *mqtt.Server, _ mqtt.Listener) {
+	fmt.Println("Client closed")
+}

@@ -258,14 +258,14 @@ func (s *Server) startEventLoop(ctx context.Context) {
 }
 
 func (s *Server) handleConnection(l Listener, nc net.Conn) {
-	c := newClient(nc, s.Options.Config, s.hooks)
+	c := newClient(nc, s, l)
 
-	if err := s.hooks.onClientOpen(s, l, c); err != nil {
+	if err := s.hooks.onConnectionOpen(s, l); err != nil {
 		c.Close()
 		return
 	}
 
-	s.hooks.onClientOpened(s, l, c)
+	s.hooks.onConnectionOpened(s, l)
 	s.handleClient(c)
 }
 
@@ -281,7 +281,7 @@ func (s *Server) handleClient(c *Client) {
 		buf := make([]byte, 1)
 
 		for {
-			_, err := c.netConn.Read(buf)
+			_, err := c.connection.netConn.Read(buf)
 			if err != nil {
 				return
 			}

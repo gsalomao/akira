@@ -26,32 +26,23 @@ type ClientTestSuite struct {
 }
 
 func (s *ClientTestSuite) TestNewClient() {
-	conf := NewDefaultConfig()
+	srv := NewServer(NewDefaultOptions())
+	defer srv.Close()
 	c1, c2 := net.Pipe()
 	defer func() { _ = c1.Close() }()
 	defer func() { _ = c2.Close() }()
 
-	c := newClient(c2, conf, nil)
+	c := newClient(c2, srv, nil)
 	s.Require().NotNil(c)
-	s.Assert().Equal(conf, c.conf)
-	s.Assert().False(c.Closed())
-}
-
-func (s *ClientTestSuite) TestNewClientDefaultConfig() {
-	c1, c2 := net.Pipe()
-	defer func() { _ = c1.Close() }()
-	defer func() { _ = c2.Close() }()
-
-	c := newClient(c2, nil, nil)
-	s.Require().NotNil(c)
-	s.Assert().Equal(NewDefaultConfig(), c.conf)
 	s.Assert().False(c.Closed())
 }
 
 func (s *ClientTestSuite) TestClose() {
+	srv := NewServer(NewDefaultOptions())
+	defer srv.Close()
 	c1, c2 := net.Pipe()
-	c := newClient(c2, NewDefaultConfig(), nil)
 	defer func() { _ = c1.Close() }()
+	c := newClient(c2, srv, nil)
 
 	c.Close()
 	<-c.Done()

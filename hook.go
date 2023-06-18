@@ -30,97 +30,92 @@ const (
 	onServerStartedHook
 	onServerStopHook
 	onServerStoppedHook
-	onClientOpenHook
-	onClientOpenedHook
-	onClientCloseHook
-	onClientClosedHook
+	onConnectionOpenHook
+	onConnectionOpenedHook
+	onConnectionCloseHook
+	onConnectionClosedHook
 	numHookTypes
 )
 
 // ErrHookAlreadyExists indicates that the Hook already exists based on its name.
 var ErrHookAlreadyExists = errors.New("hook already exists")
 
-// Hook represents the base interface which any hook must implement. All others hook interfaces are optional.
-// A hook is a way to extend the Server based on different events which happens in the Server. For each event, the
-// Server calls the respective hook method.
+// Hook is the minimal interface which any hook must implement. All others hook interfaces are optional.
+// During the lifecycle of the Server, several events are generated which can be handled by the hook
+// based on each handler it implements.
 type Hook interface {
-	// Name returns the name of the Hook. The Server supports only one Hook for each name. If a Hook is added into the
-	// Server with the same name of another hook, the ErrHookAlreadyExists is returned.
+	// Name returns the name of the hook. The Server supports only one hook for each name. If a hook is added into the
+	// server with the same name of another hook, the ErrHookAlreadyExists is returned.
 	Name() string
 }
 
-// OnStartHook represents a hook which receives the event to start it.
+// OnStartHook is a hook which receives the event to start it.
 type OnStartHook interface {
-	// OnStart is called by the Server to start the Hook. If this method returns any error, the Server considers that
-	// the Hook failed to start.
+	// OnStart is called by the server to start the hook. If this method returns any error, the server considers that
+	// the hook failed to start.
 	OnStart() error
 }
 
-// OnStopHook represents a hook which receives the event to stop it.
+// OnStopHook is a hook which receives the event to stop it.
 type OnStopHook interface {
-	// OnStop is called by the Server to stop the Hook.
+	// OnStop is called by the server to stop the hook.
 	OnStop()
 }
 
-// OnServerStartHook represents a hook which receives the event indicating the Server started the start process.
+// OnServerStartHook is a hook which receives the event indicating the server is starting.
 type OnServerStartHook interface {
-	// OnServerStart is called by the Server when it starts the start process. When this method is called, the Server
-	// is in ServerStarting state. If this method returns any error, the start process stops, and the ServerState
-	// changes to the ServerFailed state.
-	OnServerStart(*Server) error
+	// OnServerStart is called by the server when it is starting. When this method is called, the server
+	// is in ServerStarting state. If this method returns any error, the start process fails.
+	OnServerStart(s *Server) error
 }
 
-// OnServerStartFailedHook represents a hook which receives the event indicating the Server failed to start.
+// OnServerStartFailedHook is a hook which receives the event indicating the server has failed to start.
 type OnServerStartFailedHook interface {
-	// OnServerStartFailed is called by the Server during the start process when the Server failed to start and
-	// changed to the ServerFailed state.
-	OnServerStartFailed(*Server, error)
+	// OnServerStartFailed is called by the server when it has failed to start.
+	OnServerStartFailed(s *Server, err error)
 }
 
-// OnServerStartedHook represents a hook which receives the event indicating the Server completed the start process
-// with success.
+// OnServerStartedHook is a hook which receives the event indicating the server has started.
 type OnServerStartedHook interface {
-	// OnServerStarted is called by the Server when it completed the start process and changed to the ServerRunning
-	// state.
-	OnServerStarted(*Server)
+	// OnServerStarted is called by the server when it has started with success.
+	OnServerStarted(s *Server)
 }
 
-// OnServerStopHook represents a hook which receives the event indicating the Server started the stop process.
+// OnServerStopHook is a hook which receives the event indicating the server is stopping.
 type OnServerStopHook interface {
-	// OnServerStop is called by the Server when it starts the stop process and changed to the ServerStopping state.
-	OnServerStop(*Server)
+	// OnServerStop is called by the server when it is stopping.
+	OnServerStop(s *Server)
 }
 
-// OnServerStoppedHook represents a hook which receives the event indicating the Server completed the stop process.
+// OnServerStoppedHook is a hook which receives the event indicating the server has stopped.
 type OnServerStoppedHook interface {
-	// OnServerStopped is called by the Server when it completed the stop process and changed to the ServerStopped
-	// State.
-	OnServerStopped(*Server)
+	// OnServerStopped is called by the server when it has stopped.
+	OnServerStopped(s *Server)
 }
 
-// OnClientOpenHook represents a hook which receives the event indicating that a new Client is being opened.
-type OnClientOpenHook interface {
-	// OnClientOpen is called by the Server when a new Client is being opened. If this method returns any error,
-	// the Client is closed.
-	OnClientOpen(*Server, Listener, *Client) error
+// OnConnectionOpenHook is a hook which receives the event indicating that a new connection is being opened.
+type OnConnectionOpenHook interface {
+	// OnConnectionOpen is called by the server when a new connection is being opened. If this method returns any
+	// error, the connection is closed.
+	OnConnectionOpen(s *Server, l Listener) error
 }
 
-// OnClientOpenedHook represents a hook which receives the event indicating that a new Client was opened.
-type OnClientOpenedHook interface {
-	// OnClientOpened is called by the Server when a new Client was opened.
-	OnClientOpened(*Server, Listener, *Client)
+// OnConnectionOpenedHook is a hook which receives the event indicating that a new connection was opened.
+type OnConnectionOpenedHook interface {
+	// OnConnectionOpened is called by the server when a new connection was opened.
+	OnConnectionOpened(s *Server, l Listener)
 }
 
-// OnClientCloseHook represents a hook which receives the event indicating that the Client is being closed.
+// OnClientCloseHook is a hook which receives the event indicating that the connection is being closed.
 type OnClientCloseHook interface {
-	// OnClientClose is called by the Server when the Client is being closed.
-	OnClientClose(*Client)
+	// OnConnectionClose is called by the server when the connection is being closed.
+	OnConnectionClose(s *Server, l Listener)
 }
 
-// OnClientClosedHook represents a hook which receives the event indicating that the Client was closed.
-type OnClientClosedHook interface {
-	// OnClientClosed is called by the Server when the Client was closed.
-	OnClientClosed(*Client)
+// OnConnectionClosedHook is a hook which receives the event indicating that the connection was closed.
+type OnConnectionClosedHook interface {
+	// OnConnectionClosed is called by the server when the connection was closed.
+	OnConnectionClosed(s *Server, l Listener)
 }
 
 var hooksRegistries = map[hookType]func(*hooks, Hook, hookType){
@@ -131,10 +126,10 @@ var hooksRegistries = map[hookType]func(*hooks, Hook, hookType){
 	onServerStartedHook:     registerHook[OnServerStartedHook],
 	onServerStopHook:        registerHook[OnServerStopHook],
 	onServerStoppedHook:     registerHook[OnServerStoppedHook],
-	onClientOpenHook:        registerHook[OnClientOpenHook],
-	onClientOpenedHook:      registerHook[OnClientOpenedHook],
-	onClientCloseHook:       registerHook[OnClientCloseHook],
-	onClientClosedHook:      registerHook[OnClientClosedHook],
+	onConnectionOpenHook:    registerHook[OnConnectionOpenHook],
+	onConnectionOpenedHook:  registerHook[OnConnectionOpenedHook],
+	onConnectionCloseHook:   registerHook[OnClientCloseHook],
+	onConnectionClosedHook:  registerHook[OnConnectionClosedHook],
 }
 
 func registerHook[T any](h *hooks, hook Hook, t hookType) {
@@ -272,18 +267,18 @@ func (h *hooks) onServerStopped(s *Server) {
 	}
 }
 
-func (h *hooks) onClientOpen(s *Server, l Listener, c *Client) error {
-	if !h.hasHook(onClientOpenHook) {
+func (h *hooks) onConnectionOpen(s *Server, l Listener) error {
+	if !h.hasHook(onConnectionOpenHook) {
 		return nil
 	}
 
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	for _, hook := range h.hooks[onClientOpenHook] {
-		hk := hook.(OnClientOpenHook)
+	for _, hook := range h.hooks[onConnectionOpenHook] {
+		hk := hook.(OnConnectionOpenHook)
 
-		err := hk.OnClientOpen(s, l, c)
+		err := hk.OnConnectionOpen(s, l)
 		if err != nil {
 			return err
 		}
@@ -292,44 +287,44 @@ func (h *hooks) onClientOpen(s *Server, l Listener, c *Client) error {
 	return nil
 }
 
-func (h *hooks) onClientOpened(s *Server, l Listener, c *Client) {
-	if !h.hasHook(onClientOpenedHook) {
+func (h *hooks) onConnectionOpened(s *Server, l Listener) {
+	if !h.hasHook(onConnectionOpenedHook) {
 		return
 	}
 
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	for _, hook := range h.hooks[onClientOpenedHook] {
-		hk := hook.(OnClientOpenedHook)
-		hk.OnClientOpened(s, l, c)
+	for _, hook := range h.hooks[onConnectionOpenedHook] {
+		hk := hook.(OnConnectionOpenedHook)
+		hk.OnConnectionOpened(s, l)
 	}
 }
 
-func (h *hooks) onClientClose(c *Client) {
-	if !h.hasHook(onClientCloseHook) {
+func (h *hooks) onConnectionClose(s *Server, l Listener) {
+	if !h.hasHook(onConnectionCloseHook) {
 		return
 	}
 
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	for _, hook := range h.hooks[onClientCloseHook] {
+	for _, hook := range h.hooks[onConnectionCloseHook] {
 		hk := hook.(OnClientCloseHook)
-		hk.OnClientClose(c)
+		hk.OnConnectionClose(s, l)
 	}
 }
 
-func (h *hooks) onClientClosed(c *Client) {
-	if !h.hasHook(onClientClosedHook) {
+func (h *hooks) onConnectionClosed(s *Server, l Listener) {
+	if !h.hasHook(onConnectionClosedHook) {
 		return
 	}
 
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	for _, hook := range h.hooks[onClientClosedHook] {
-		hk := hook.(OnClientClosedHook)
-		hk.OnClientClosed(c)
+	for _, hook := range h.hooks[onConnectionClosedHook] {
+		hk := hook.(OnConnectionClosedHook)
+		hk.OnConnectionClosed(s, l)
 	}
 }

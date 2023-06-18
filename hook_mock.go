@@ -67,22 +67,22 @@ func (h *mockHook) OnServerStopped(s *Server) {
 	h.Called(s)
 }
 
-func (h *mockHook) OnClientOpen(s *Server, l Listener, c *Client) error {
-	args := h.Called(s, l, c)
+func (h *mockHook) OnConnectionOpen(s *Server, l Listener) error {
+	args := h.Called(s, l)
 	if len(args) > 0 {
 		return args.Error(0)
 	}
 	return nil
 }
 
-func (h *mockHook) OnClientOpened(s *Server, l Listener, c *Client) {
-	h.Called(s, l, c)
+func (h *mockHook) OnConnectionOpened(s *Server, l Listener) {
+	h.Called(s, l)
 }
 
-func (h *mockHook) OnClientClose(c *Client) {
-	h.Called(c)
+func (h *mockHook) OnConnectionClose(s *Server, l Listener) {
+	h.Called(s, l)
 }
 
-func (h *mockHook) OnClientClosed(c *Client) {
-	h.Called(c)
+func (h *mockHook) OnConnectionClosed(s *Server, l Listener) {
+	h.Called(s, l)
 }

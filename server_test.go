@@ -26,16 +26,16 @@ import (
 
 type ServerTestSuite struct {
 	suite.Suite
-	srv  *Server
-	lsn  *mockListener
-	hook *mockHook
+	server   *Server
+	listener *mockListener
+	hook     *mockHook
 }
 
 func (s *ServerTestSuite) SetupTest() {
-	s.srv = NewServer(NewDefaultOptions())
-	s.lsn = newMockListener("mock", ":1883")
+	s.server = NewServer(NewDefaultOptions())
+	s.listener = newMockListener("mock", ":1883")
 	s.hook = nil
-	_ = s.srv.AddListener(s.lsn)
+	_ = s.server.AddListener(s.listener)
 }
 
 func (s *ServerTestSuite) TearDownTest() {
@@ -47,29 +47,29 @@ func (s *ServerTestSuite) TearDownTest() {
 func (s *ServerTestSuite) addHook() {
 	s.hook = newMockHook()
 
-	err := s.srv.AddHook(s.hook)
+	err := s.server.AddHook(s.hook)
 	s.Require().NoError(err)
 }
 
 func (s *ServerTestSuite) startServer() {
 	if s.hook != nil {
-		s.hook.On("OnServerStart", s.srv)
+		s.hook.On("OnServerStart", s.server)
 		s.hook.On("OnStart")
-		s.hook.On("OnServerStarted", s.srv)
+		s.hook.On("OnServerStarted", s.server)
 	}
 
-	err := s.srv.Start(context.Background())
+	err := s.server.Start(context.Background())
 	s.Require().NoError(err)
 }
 
 func (s *ServerTestSuite) stopServer() {
 	if s.hook != nil {
-		s.hook.On("OnServerStop", s.srv)
+		s.hook.On("OnServerStop", s.server)
 		s.hook.On("OnStop")
-		s.hook.On("OnServerStopped", s.srv)
+		s.hook.On("OnServerStopped", s.server)
 	}
 
-	err := s.srv.Stop(context.Background())
+	err := s.server.Stop(context.Background())
 	s.Require().NoError(err)
 }
 
@@ -90,34 +90,34 @@ func (s *ServerTestSuite) TestNewServerDefaultConfig() {
 func (s *ServerTestSuite) TestAddListenerSuccess() {
 	l := newMockListener("mock2", ":1883")
 
-	err := s.srv.AddListener(l)
+	err := s.server.AddListener(l)
 	s.Require().NoError(err)
 
-	_, ok := s.srv.listeners.get(l.Name())
+	_, ok := s.server.listeners.get(l.Name())
 	s.Require().True(ok)
 }
 
 func (s *ServerTestSuite) TestAddListenerError() {
 	l := newMockListener("mock", ":1883")
 
-	err := s.srv.AddListener(l)
+	err := s.server.AddListener(l)
 	s.Require().ErrorIs(err, ErrListenerAlreadyExists)
 }
 
 func (s *ServerTestSuite) TestAddListenerServerRunning() {
-	_ = s.srv.Start(context.Background())
+	_ = s.server.Start(context.Background())
 	l := newMockListener("mock2", ":1883")
 
-	err := s.srv.AddListener(l)
+	err := s.server.AddListener(l)
 	s.Require().NoError(err)
 	s.Require().True(l.Listening())
 }
 
 func (s *ServerTestSuite) TestAddListenerServerRunningError() {
-	_ = s.srv.Start(context.Background())
+	_ = s.server.Start(context.Background())
 	l := newMockListener("mock2", "abc")
 
-	err := s.srv.AddListener(l)
+	err := s.server.AddListener(l)
 	s.Require().Error(err)
 	s.Require().False(l.Listening())
 }
@@ -146,7 +146,7 @@ func (s *ServerTestSuite) TestAddHookError() {
 	s.addHook()
 	hook := newMockHook()
 
-	err := s.srv.AddHook(hook)
+	err := s.server.AddHook(hook)
 	s.Assert().Error(err)
 }
 
@@ -155,16 +155,16 @@ func (s *ServerTestSuite) TestAddHookOnStartError() {
 	hook := newMockHook()
 	hook.On("OnStart").Return(errors.New("failed"))
 
-	err := s.srv.AddHook(hook)
+	err := s.server.AddHook(hook)
 	s.Assert().Error(err)
 	hook.AssertExpectations(s.T())
 }
 
 func (s *ServerTestSuite) TestStartSuccess() {
-	err := s.srv.Start(context.Background())
+	err := s.server.Start(context.Background())
 	s.Require().NoError(err)
-	s.Assert().Equal(ServerRunning, s.srv.State())
-	s.Assert().True(s.lsn.Listening())
+	s.Assert().Equal(ServerRunning, s.server.State())
+	s.Assert().True(s.listener.Listening())
 }
 
 func (s *ServerTestSuite) TestStartWithoutListeners() {
@@ -177,85 +177,85 @@ func (s *ServerTestSuite) TestStartWithoutListeners() {
 
 func (s *ServerTestSuite) TestStartWithHook() {
 	s.addHook()
-	s.hook.On("OnServerStart", s.srv)
+	s.hook.On("OnServerStart", s.server)
 	s.hook.On("OnStart")
-	s.hook.On("OnServerStarted", s.srv)
+	s.hook.On("OnServerStarted", s.server)
 
-	err := s.srv.Start(context.Background())
+	err := s.server.Start(context.Background())
 	s.Require().NoError(err)
-	s.Assert().Equal(ServerRunning, s.srv.State())
+	s.Assert().Equal(ServerRunning, s.server.State())
 }
 
 func (s *ServerTestSuite) TestStartWhenClosedError() {
 	s.addHook()
 	s.startServer()
 	s.stopServer()
-	s.srv.Close()
-	s.Require().Equal(ServerClosed, s.srv.State())
+	s.server.Close()
+	s.Require().Equal(ServerClosed, s.server.State())
 
-	err := s.srv.Start(context.Background())
+	err := s.server.Start(context.Background())
 	s.Require().Error(err, ErrInvalidServerState)
 }
 
 func (s *ServerTestSuite) TestStartOnServerStartError() {
 	s.addHook()
 	err := errors.New("failed")
-	s.hook.On("OnServerStart", s.srv).Return(err)
-	s.hook.On("OnServerStartFailed", s.srv, err)
+	s.hook.On("OnServerStart", s.server).Return(err)
+	s.hook.On("OnServerStartFailed", s.server, err)
 
-	err = s.srv.Start(context.Background())
+	err = s.server.Start(context.Background())
 	s.Require().Error(err)
-	s.Assert().Equal(ServerFailed, s.srv.State())
+	s.Assert().Equal(ServerFailed, s.server.State())
 }
 
 func (s *ServerTestSuite) TestStartOnStartError() {
 	s.addHook()
 	err := errors.New("failed")
-	s.hook.On("OnServerStart", s.srv)
+	s.hook.On("OnServerStart", s.server)
 	s.hook.On("OnStart").Return(err)
-	s.hook.On("OnServerStartFailed", s.srv, err)
+	s.hook.On("OnServerStartFailed", s.server, err)
 
-	err = s.srv.Start(context.Background())
+	err = s.server.Start(context.Background())
 	s.Require().Error(err)
-	s.Assert().Equal(ServerFailed, s.srv.State())
+	s.Assert().Equal(ServerFailed, s.server.State())
 }
 
 func (s *ServerTestSuite) TestStartListenerListenError() {
 	s.addHook()
-	s.hook.On("OnServerStart", s.srv)
+	s.hook.On("OnServerStart", s.server)
 	s.hook.On("OnStart")
-	s.hook.On("OnServerStartFailed", s.srv, mock.Anything)
+	s.hook.On("OnServerStartFailed", s.server, mock.Anything)
 	l := newMockListener("mock2", "abc")
-	_ = s.srv.AddListener(l)
+	_ = s.server.AddListener(l)
 
-	err := s.srv.Start(context.Background())
+	err := s.server.Start(context.Background())
 	s.Require().Error(err)
-	s.Assert().Equal(ServerFailed, s.srv.State())
+	s.Assert().Equal(ServerFailed, s.server.State())
 }
 
 func (s *ServerTestSuite) TestStop() {
 	s.startServer()
 
-	err := s.srv.Stop(context.Background())
+	err := s.server.Stop(context.Background())
 	s.Require().NoError(err)
-	s.Assert().Equal(ServerStopped, s.srv.State())
-	s.Assert().False(s.lsn.Listening())
+	s.Assert().Equal(ServerStopped, s.server.State())
+	s.Assert().False(s.listener.Listening())
 }
 
 func (s *ServerTestSuite) TestStopWithHook() {
 	s.addHook()
-	s.hook.On("OnServerStart", s.srv)
+	s.hook.On("OnServerStart", s.server)
 	s.hook.On("OnStart")
-	s.hook.On("OnServerStarted", s.srv)
-	s.hook.On("OnServerStop", s.srv)
+	s.hook.On("OnServerStarted", s.server)
+	s.hook.On("OnServerStop", s.server)
 	s.hook.On("OnStop")
-	s.hook.On("OnServerStopped", s.srv)
+	s.hook.On("OnServerStopped", s.server)
 	s.startServer()
 
-	err := s.srv.Stop(context.Background())
+	err := s.server.Stop(context.Background())
 	s.Require().NoError(err)
-	s.Assert().Equal(ServerStopped, s.srv.State())
-	s.Assert().False(s.lsn.Listening())
+	s.Assert().Equal(ServerStopped, s.server.State())
+	s.Assert().False(s.listener.Listening())
 }
 
 func (s *ServerTestSuite) TestStopCancelled() {
@@ -263,14 +263,14 @@ func (s *ServerTestSuite) TestStopCancelled() {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := s.srv.Stop(ctx)
+	err := s.server.Stop(ctx)
 	s.Require().Error(err)
 }
 
 func (s *ServerTestSuite) TestStopWhenNotStartedSuccess() {
 	s.addHook()
 
-	err := s.srv.Stop(context.Background())
+	err := s.server.Stop(context.Background())
 	s.Require().NoError(err)
 }
 
@@ -279,7 +279,7 @@ func (s *ServerTestSuite) TestStopWhenStoppedSuccess() {
 	s.startServer()
 	s.stopServer()
 
-	err := s.srv.Stop(context.Background())
+	err := s.server.Stop(context.Background())
 	s.Require().NoError(err)
 }
 
@@ -287,93 +287,81 @@ func (s *ServerTestSuite) TestCloseWhenStopping() {
 	s.startServer()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_ = s.srv.Stop(ctx)
+	_ = s.server.Stop(ctx)
 
-	s.srv.Close()
-	s.Require().Equal(ServerClosed, s.srv.State())
+	s.server.Close()
+	s.Require().Equal(ServerClosed, s.server.State())
 }
 
 func (s *ServerTestSuite) TestCloseWhenStopped() {
 	s.startServer()
-	_ = s.srv.Stop(context.Background())
+	_ = s.server.Stop(context.Background())
 
-	s.srv.Close()
-	s.Require().Equal(ServerClosed, s.srv.State())
+	s.server.Close()
+	s.Require().Equal(ServerClosed, s.server.State())
 }
 
 func (s *ServerTestSuite) TestCloseWhenRunning() {
 	s.addHook()
 	s.startServer()
-	s.hook.On("OnServerStop", s.srv)
+	s.hook.On("OnServerStop", s.server)
 	s.hook.On("OnStop")
-	s.hook.On("OnServerStopped", s.srv)
+	s.hook.On("OnServerStopped", s.server)
 
-	s.srv.Close()
-	s.Require().Equal(ServerClosed, s.srv.State())
+	s.server.Close()
+	s.Require().Equal(ServerClosed, s.server.State())
 }
 
 func (s *ServerTestSuite) TestCloseWhenNotStartedNoAction() {
 	s.addHook()
 
-	s.srv.Close()
-	s.Require().Equal(ServerClosed, s.srv.State())
+	s.server.Close()
+	s.Require().Equal(ServerClosed, s.server.State())
 }
 
 func (s *ServerTestSuite) TestHandleConnection() {
 	s.startServer()
 	c1, c2 := net.Pipe()
 
-	s.lsn.onConnection(c2)
+	s.listener.onConnection(c2)
 	_ = c1.Close()
 	s.stopServer()
-	s.Require().Equal(ServerStopped, s.srv.State())
+	s.Require().Equal(ServerStopped, s.server.State())
 }
 
 func (s *ServerTestSuite) TestHandleConnectionWithHook() {
-	var c *Client
 	s.addHook()
-	s.hook.On("OnServerStart", s.srv)
+	s.hook.On("OnServerStart", s.server)
 	s.hook.On("OnStart")
-	s.hook.On("OnServerStarted", s.srv)
-	s.hook.On("OnClientOpen", s.srv, s.lsn, mock.MatchedBy(func(cl *Client) bool {
-		c = cl
-		return true
-	}))
-	s.hook.On("OnClientOpened", s.srv, s.lsn, mock.MatchedBy(func(cl *Client) bool { return cl == c }))
-	s.hook.On("OnClientClose", mock.MatchedBy(func(cl *Client) bool { return cl == c }))
-	s.hook.On("OnClientClosed", mock.MatchedBy(func(cl *Client) bool { return cl == c }))
-	s.hook.On("OnServerStop", s.srv)
+	s.hook.On("OnServerStarted", s.server)
+	s.hook.On("OnConnectionOpen", s.server, s.listener)
+	s.hook.On("OnConnectionOpened", s.server, s.listener)
+	s.hook.On("OnConnectionClose", s.server, s.listener)
+	s.hook.On("OnConnectionClosed", s.server, s.listener)
+	s.hook.On("OnServerStop", s.server)
 	s.hook.On("OnStop")
-	s.hook.On("OnServerStopped", s.srv)
+	s.hook.On("OnServerStopped", s.server)
 	s.startServer()
 	c1, c2 := net.Pipe()
 
-	s.lsn.onConnection(c2)
+	s.listener.onConnection(c2)
 	_ = c1.Close()
 	s.stopServer()
-	s.Require().NotNil(c)
 }
 
 func (s *ServerTestSuite) TestOnConnectionOpenedError() {
-	var c *Client
 	s.addHook()
-	s.hook.On("OnServerStart", s.srv)
+	s.hook.On("OnServerStart", s.server)
 	s.hook.On("OnStart")
-	s.hook.On("OnServerStarted", s.srv)
-	s.hook.On("OnClientOpen", s.srv, s.lsn, mock.Anything).Return(errors.New("failed"))
-	s.hook.On("OnClientClose", mock.MatchedBy(func(cl *Client) bool {
-		c = cl
-		return true
-	}))
-	s.hook.On("OnClientClosed", mock.MatchedBy(func(cl *Client) bool {
-		return cl == c
-	}))
+	s.hook.On("OnServerStarted", s.server)
+	s.hook.On("OnConnectionOpen", s.server, s.listener).Return(errors.New("failed"))
+	s.hook.On("OnConnectionClose", s.server, s.listener)
+	s.hook.On("OnConnectionClosed", s.server, s.listener)
 	s.startServer()
 	c1, c2 := net.Pipe()
 	defer func() { _ = c1.Close() }()
 
-	s.lsn.onConnection(c2)
-	s.Require().NotNil(c)
+	s.listener.onConnection(c2)
 }
 
 func TestServerTestSuite(t *testing.T) {

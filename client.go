@@ -22,26 +22,28 @@ import (
 
 // Client represents a MQTT client.
 type Client struct {
-	netConn        net.Conn      // 16 bytes
-	outboundStream chan []byte   // 8 bytes
-	conf           *Config       // 8 bytes
-	hooks          *hooks        // 8 bytes
-	done           chan struct{} // 8 bytes
-	once           sync.Once     // 12 bytes
-	closed         atomic.Bool   // 4 bytes
+	connection connection    // 40 bytes
+	server     *Server       // 8 bytes
+	done       chan struct{} // 8 bytes
+	once       sync.Once     // 12 bytes
+	closed     atomic.Bool   // 4 bytes
 }
 
-func newClient(nc net.Conn, conf *Config, h *hooks) *Client {
-	if conf == nil {
-		conf = NewDefaultConfig()
-	}
+type connection struct {
+	netConn        net.Conn    // 16 bytes
+	listener       Listener    // 16 bytes
+	outboundStream chan []byte // 8 bytes
+}
 
+func newClient(nc net.Conn, s *Server, l Listener) *Client {
 	c := Client{
-		netConn:        nc,
-		conf:           conf,
-		hooks:          h,
-		outboundStream: make(chan []byte, conf.OutboundStreamSize),
-		done:           make(chan struct{}),
+		connection: connection{
+			netConn:        nc,
+			outboundStream: make(chan []byte, s.Options.Config.OutboundStreamSize),
+			listener:       l,
+		},
+		server: s,
+		done:   make(chan struct{}),
 	}
 	return &c
 }
@@ -50,18 +52,13 @@ func newClient(nc net.Conn, conf *Config, h *hooks) *Client {
 func (c *Client) Close() {
 	c.once.Do(func() {
 		c.closed.Store(true)
+		c.server.hooks.onConnectionClose(c.server, c.connection.listener)
 
-		if c.hooks != nil {
-			c.hooks.onClientClose(c)
-		}
+		_ = c.connection.netConn.Close()
+		c.connection.netConn = nil
 
-		_ = c.netConn.Close()
-		c.netConn = nil
 		close(c.done)
-
-		if c.hooks != nil {
-			c.hooks.onClientClosed(c)
-		}
+		c.server.hooks.onConnectionClosed(c.server, c.connection.listener)
 	})
 }
 
@@ -76,5 +73,5 @@ func (c *Client) Done() <-chan struct{} {
 }
 
 func (c *Client) packetToSend() <-chan []byte {
-	return c.outboundStream
+	return c.connection.outboundStream
 }

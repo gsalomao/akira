@@ -23,13 +23,13 @@ import (
 
 type HooksTestSuite struct {
 	suite.Suite
-	srv   *Server
-	hooks *hooks
-	hook  *mockHook
+	server *Server
+	hooks  *hooks
+	hook   *mockHook
 }
 
 func (s *HooksTestSuite) SetupTest() {
-	s.srv = NewServer(NewDefaultOptions())
+	s.server = NewServer(NewDefaultOptions())
 	s.hooks = newHooks()
 	s.hook = newMockHook()
 }
@@ -89,101 +89,97 @@ func (s *HooksTestSuite) TestOnStop() {
 }
 
 func (s *HooksTestSuite) TestOnServerStartSuccess() {
-	s.hook.On("OnServerStart", s.srv)
+	s.hook.On("OnServerStart", s.server)
 	s.addHook(s.hook)
 
-	err := s.hooks.onServerStart(s.srv)
+	err := s.hooks.onServerStart(s.server)
 	s.Require().NoError(err)
 }
 
 func (s *HooksTestSuite) TestOnServerStartError() {
-	s.hook.On("OnServerStart", s.srv).Return(errors.New("failed"))
+	s.hook.On("OnServerStart", s.server).Return(errors.New("failed"))
 	s.addHook(s.hook)
 
-	err := s.hooks.onServerStart(s.srv)
+	err := s.hooks.onServerStart(s.server)
 	s.Require().Error(err)
 }
 
 func (s *HooksTestSuite) TestOnServerStartFailed() {
 	err := errors.New("failed")
-	s.hook.On("OnServerStartFailed", s.srv, err)
+	s.hook.On("OnServerStartFailed", s.server, err)
 	s.addHook(s.hook)
 
-	s.hooks.onServerStartFailed(s.srv, err)
+	s.hooks.onServerStartFailed(s.server, err)
 }
 
 func (s *HooksTestSuite) TestOnServerStarted() {
-	s.hook.On("OnServerStarted", s.srv)
+	s.hook.On("OnServerStarted", s.server)
 	s.addHook(s.hook)
 
-	s.hooks.onServerStarted(s.srv)
+	s.hooks.onServerStarted(s.server)
 }
 
 func (s *HooksTestSuite) TestOnServerStop() {
-	s.hook.On("OnServerStop", s.srv)
+	s.hook.On("OnServerStop", s.server)
 	s.addHook(s.hook)
 
-	s.hooks.onServerStop(s.srv)
+	s.hooks.onServerStop(s.server)
 }
 
 func (s *HooksTestSuite) TestOnServerStopped() {
-	s.hook.On("OnServerStopped", s.srv)
+	s.hook.On("OnServerStopped", s.server)
 	s.addHook(s.hook)
 
-	s.hooks.onServerStopped(s.srv)
+	s.hooks.onServerStopped(s.server)
 }
 
-func (s *HooksTestSuite) TestOnClientOpenSuccess() {
-	l := newMockListener("mock")
-	c := newClient(nil, NewDefaultConfig(), nil)
-	s.hook.On("OnClientOpen", s.srv, l, c)
+func (s *HooksTestSuite) TestOnConnectionOpenSuccess() {
+	l := newMockListener("mock", ":1883")
+	s.hook.On("OnConnectionOpen", s.server, l)
 	s.addHook(s.hook)
 
-	err := s.hooks.onClientOpen(s.srv, l, c)
+	err := s.hooks.onConnectionOpen(s.server, l)
 	s.Require().NoError(err)
 }
 
-func (s *HooksTestSuite) TestOnClientOpenNoHookSuccess() {
-	l := newMockListener("mock")
-	c := newClient(nil, NewDefaultConfig(), nil)
+func (s *HooksTestSuite) TestOnConnectionOpenNoHookSuccess() {
+	l := newMockListener("mock", ":1883")
 
-	err := s.hooks.onClientOpen(s.srv, l, c)
+	err := s.hooks.onConnectionOpen(s.server, l)
 	s.Require().NoError(err)
 }
 
-func (s *HooksTestSuite) TestOnClientOpenError() {
-	l := newMockListener("mock")
-	c := newClient(nil, NewDefaultConfig(), nil)
-	s.hook.On("OnClientOpen", s.srv, l, c).Return(errors.New("failed"))
+func (s *HooksTestSuite) TestOnConnectionOpenError() {
+	l := newMockListener("mock", ":1883")
+	s.hook.On("OnConnectionOpen", s.server, l).Return(errors.New("failed"))
 	s.addHook(s.hook)
 
-	err := s.hooks.onClientOpen(s.srv, l, c)
+	err := s.hooks.onConnectionOpen(s.server, l)
 	s.Require().Error(err)
 }
 
-func (s *HooksTestSuite) TestOnClientOpened() {
-	l := newMockListener("mock")
-	c := newClient(nil, NewDefaultConfig(), nil)
-	s.hook.On("OnClientOpened", s.srv, l, c)
+func (s *HooksTestSuite) TestOnConnectionOpened() {
+	l := newMockListener("mock", ":1883")
+	s.hook.On("OnConnectionOpened", s.server, l)
 	s.addHook(s.hook)
 
-	s.hooks.onClientOpened(s.srv, l, c)
+	s.hooks.onConnectionOpened(s.server, l)
 }
 
-func (s *HooksTestSuite) TestOnClientClose() {
-	c := newClient(nil, NewDefaultConfig(), nil)
-	s.hook.On("OnClientClose", c)
+func (s *HooksTestSuite) TestOnConnectionClose() {
+	l := newMockListener("mock", ":1883")
+	s.hook.On("OnConnectionClose", s.server, l)
 	s.addHook(s.hook)
 
-	s.hooks.onClientClose(c)
+	s.hooks.onConnectionClose(s.server, l)
 }
 
-func (s *HooksTestSuite) TestOnClientClosed() {
-	c := newClient(nil, NewDefaultConfig(), nil)
-	s.hook.On("OnClientClosed", c)
+func (s *HooksTestSuite) TestOnConnectionClosed() {
+	l := newMockListener("mock", ":1883")
+	s.hook.On("OnConnectionClosed", s.server, l)
 	s.addHook(s.hook)
 
-	s.hooks.onClientClosed(c)
+	s.hooks.onConnectionClosed(s.server, l)
 }
 
 func TestHooksTestSuite(t *testing.T) {
