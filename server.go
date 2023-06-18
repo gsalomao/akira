@@ -60,7 +60,7 @@ type Server struct {
 	cancelCtx context.CancelFunc
 	state     atomic.Uint32
 	wg        sync.WaitGroup
-	once      sync.Once
+	stopOnce  sync.Once
 }
 
 // NewServer is the factory method responsible for creating an instance of the Server.
@@ -145,7 +145,7 @@ func (s *Server) Start(ctx context.Context) error {
 		return err
 	}
 
-	s.once = sync.Once{}
+	s.stopOnce = sync.Once{}
 	s.startEventLoop(newCtx)
 
 	_ = s.setState(ServerRunning)
@@ -166,7 +166,6 @@ func (s *Server) Stop(ctx context.Context) error {
 	stopped := make(chan struct{})
 	go func() {
 		s.wg.Wait()
-		_ = s.setState(ServerStopped)
 		close(stopped)
 	}()
 
@@ -174,6 +173,7 @@ func (s *Server) Stop(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-stopped:
+		_ = s.setState(ServerStopped)
 		return nil
 	}
 }
@@ -204,7 +204,7 @@ func (s *Server) State() ServerState {
 }
 
 func (s *Server) stop() {
-	s.once.Do(func() {
+	s.stopOnce.Do(func() {
 		_ = s.setState(ServerStopping)
 		s.listeners.stopAll()
 		s.cancelCtx()

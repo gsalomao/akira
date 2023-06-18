@@ -25,7 +25,7 @@ type Client struct {
 	connection connection    // 40 bytes
 	server     *Server       // 8 bytes
 	done       chan struct{} // 8 bytes
-	once       sync.Once     // 12 bytes
+	closeOnce  sync.Once     // 12 bytes
 	closed     atomic.Bool   // 4 bytes
 }
 
@@ -50,7 +50,7 @@ func newClient(nc net.Conn, s *Server, l Listener) *Client {
 
 // Close closes the Client.
 func (c *Client) Close() {
-	c.once.Do(func() {
+	c.closeOnce.Do(func() {
 		c.closed.Store(true)
 		c.server.hooks.onConnectionClose(c.server, c.connection.listener)
 

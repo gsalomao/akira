@@ -330,14 +330,20 @@ func (s *ServerTestSuite) TestHandleConnection() {
 }
 
 func (s *ServerTestSuite) TestHandleConnectionWithHook() {
+	connOpened := make(chan struct{})
+	connClosed := make(chan struct{})
 	s.addHook()
 	s.hook.On("OnServerStart", s.server)
 	s.hook.On("OnStart")
 	s.hook.On("OnServerStarted", s.server)
 	s.hook.On("OnConnectionOpen", s.server, s.listener)
-	s.hook.On("OnConnectionOpened", s.server, s.listener)
+	s.hook.On("OnConnectionOpened", s.server, s.listener).Run(func(_ mock.Arguments) {
+		close(connOpened)
+	})
 	s.hook.On("OnConnectionClose", s.server, s.listener)
-	s.hook.On("OnConnectionClosed", s.server, s.listener)
+	s.hook.On("OnConnectionClosed", s.server, s.listener).Run(func(_ mock.Arguments) {
+		close(connClosed)
+	})
 	s.hook.On("OnServerStop", s.server)
 	s.hook.On("OnStop")
 	s.hook.On("OnServerStopped", s.server)
@@ -345,7 +351,9 @@ func (s *ServerTestSuite) TestHandleConnectionWithHook() {
 	c1, c2 := net.Pipe()
 
 	s.listener.onConnection(c2)
+	<-connOpened
 	_ = c1.Close()
+	<-connClosed
 	s.stopServer()
 }
 
