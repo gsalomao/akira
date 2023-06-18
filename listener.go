@@ -26,29 +26,30 @@ var ErrListenerAlreadyExists = errors.New("listener already exists")
 // OnConnectionFunc is the function which the Listener must call when a new connection has been opened.
 type OnConnectionFunc func(Listener, net.Conn)
 
-// Listener is an interface which all network listeners must implement. A network Listener is responsible for listen
+// Listener is an interface which all network listeners must implement. A network listener is responsible for listen
 // for network connections and notify any incoming connection.
 type Listener interface {
-	// Name returns the name of the Listener. The Server supports only one Listener for each name. If a Listener is
-	// added into the Server with the same name of another listener, the ErrListenerAlreadyExists is returned.
+	// Name returns the name of the listener. The Server supports only one listener for each name. If a listener is
+	// added into the server with the same name of another listener, the ErrListenerAlreadyExists is returned.
 	Name() string
 
-	// Address returns the network address of the Listener.
+	// Address returns the network address of the listener.
 	Address() string
 
-	// Protocol returns the network protocol of the Listener.
+	// Protocol returns the network protocol of the listener.
 	Protocol() string
 
-	// Listen starts the Listener. The Listener must call the OnConnectionFunc for any incoming connection received.
-	// This function must not block the caller and returns a channel, which an event is sent when the Listener is
-	// ready for accept incoming requests, and closed when the Listener is closed.
-	Listen(OnConnectionFunc) <-chan bool
+	// Listen starts the listener. The listener calls the OnConnectionFunc for any received incoming connection.
+	// This function does not block the caller and returns a channel, which an event is sent when the listener is
+	// ready for accept incoming connection, and closed when the listener has stopped.
+	// It returns an error if the Listener fails to start.
+	Listen(OnConnectionFunc) (<-chan bool, error)
 
-	// Close closes the Listener. When the Listener is closed, the channel returned by the Listen method must be
-	// closed, and the Listener must not accept any other incoming connection.
-	Close()
+	// Stop stops the listener. When the listener is stopped, the channel returned by the Listen method is closed,
+	// and the listener does not accept any other incoming connection.
+	Stop()
 
-	// Listening returns whether the Listener is listening for incoming connection or not.
+	// Listening returns whether the listener is listening for incoming connection or not.
 	Listening() bool
 }
 
@@ -91,63 +92,48 @@ func (l *listeners) len() int {
 	return len(l.internal)
 }
 
-func (l *listeners) listen(lsn Listener, f OnConnectionFunc) {
+func (l *listeners) listen(lsn Listener, f OnConnectionFunc) error {
 	l.RLock()
 	defer l.RUnlock()
 
-	ready := make(chan struct{})
+	listening, err := lsn.Listen(f)
+	if err != nil {
+		return err
+	}
+
+	<-listening
 	l.wg.Add(1)
 
-	go func(lsn Listener) {
+	go func() {
 		defer l.wg.Done()
-
-		listening := lsn.Listen(f)
-
-		// Wait for Listener starts to listen.
-		<-listening
-		close(ready)
 
 		// Wait while Listener is listening.
 		<-listening
-	}(lsn)
+	}()
 
-	<-ready
+	return nil
 }
 
-func (l *listeners) listenAll(f OnConnectionFunc) {
-	l.RLock()
-	defer l.RUnlock()
-
-	ready := make(chan struct{}, len(l.internal))
-	l.wg.Add(len(l.internal))
-
-	for _, lsn := range l.internal {
-		go func(lsn Listener) {
-			defer l.wg.Done()
-
-			listening := lsn.Listen(f)
-
-			// Wait for Listener starts to listen.
-			<-listening
-			ready <- struct{}{}
-
-			// Wait while Listener is listening.
-			<-listening
-		}(lsn)
-	}
-
-	for i := 0; i < len(l.internal); i++ {
-		<-ready
-	}
-	close(ready)
-}
-
-func (l *listeners) closeAll() {
+func (l *listeners) listenAll(f OnConnectionFunc) error {
 	l.RLock()
 	defer l.RUnlock()
 
 	for _, lsn := range l.internal {
-		lsn.Close()
+		err := l.listen(lsn, f)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (l *listeners) stopAll() {
+	l.RLock()
+	defer l.RUnlock()
+
+	for _, lsn := range l.internal {
+		lsn.Stop()
 	}
 }
 

@@ -29,7 +29,7 @@ type ListenersTestSuite struct {
 
 func (s *ListenersTestSuite) SetupTest() {
 	s.listeners = newListeners()
-	s.listener = newMockListener("mock")
+	s.listener = newMockListener("mock", ":1883")
 }
 
 func (s *ListenersTestSuite) TestNewListeners() {
@@ -74,27 +74,29 @@ func (s *ListenersTestSuite) TestLen() {
 func (s *ListenersTestSuite) TestListen() {
 	s.listeners.add(s.listener)
 
-	s.listeners.listen(s.listener, func(_ Listener, _ net.Conn) {})
+	err := s.listeners.listen(s.listener, func(_ Listener, _ net.Conn) {})
+	s.Require().NoError(err)
 	s.Assert().True(s.listener.Listening())
 }
 
 func (s *ListenersTestSuite) TestListenAll() {
 	s.listeners.add(s.listener)
-	l := newMockListener("mock2")
+	l := newMockListener("mock2", ":1883")
 	s.listeners.add(l)
 
-	s.listeners.listenAll(func(_ Listener, _ net.Conn) {})
+	err := s.listeners.listenAll(func(_ Listener, _ net.Conn) {})
+	s.Require().NoError(err)
 	s.Assert().True(s.listener.Listening())
 	s.Assert().True(l.Listening())
 }
 
-func (s *ListenersTestSuite) TestCloseAll() {
+func (s *ListenersTestSuite) TestStopAll() {
 	s.listeners.add(s.listener)
-	l := newMockListener("mock2")
+	l := newMockListener("mock2", ":1883")
 	s.listeners.add(l)
-	s.listeners.listenAll(func(_ Listener, _ net.Conn) {})
+	_ = s.listeners.listenAll(func(_ Listener, _ net.Conn) {})
 
-	s.listeners.closeAll()
+	s.listeners.stopAll()
 	s.listeners.wait()
 	s.Assert().False(s.listener.Listening())
 	s.Assert().False(l.Listening())

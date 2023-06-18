@@ -26,18 +26,20 @@ type MockListenerTestSuite struct {
 }
 
 func (s *MockListenerTestSuite) SetupTest() {
-	s.listener = newMockListener("mock")
+	s.listener = newMockListener("mock", ":1883")
 }
 
 func (s *MockListenerTestSuite) TestNewMockListener() {
-	l := newMockListener("mock")
+	l := newMockListener("mock", ":1883")
 	s.Assert().Equal("mock", l.Name())
 	s.Assert().Equal(":1883", l.Address())
 	s.Assert().Equal("mock", l.Protocol())
 }
 
 func (s *MockListenerTestSuite) TestListen() {
-	listening := s.listener.Listen(nil)
+	listening, err := s.listener.Listen(nil)
+	s.Require().NotNil(listening)
+	s.Require().NoError(err)
 	s.Require().True(<-listening)
 	s.Require().True(s.listener.Listening())
 
@@ -45,21 +47,21 @@ func (s *MockListenerTestSuite) TestListen() {
 	<-listening
 }
 
-func (s *MockListenerTestSuite) TestClose() {
-	listening := s.listener.Listen(nil)
+func (s *MockListenerTestSuite) TestStop() {
+	listening, _ := s.listener.Listen(nil)
 	<-listening
 
-	s.listener.Close()
+	s.listener.Stop()
 	<-listening
 	s.Require().False(s.listener.Listening())
 }
 
 func (s *MockListenerTestSuite) TestListening() {
-	listening := s.listener.Listen(nil)
+	listening, _ := s.listener.Listen(nil)
 	<-listening
 	s.Require().True(s.listener.Listening())
 
-	s.listener.Close()
+	s.listener.Stop()
 	<-listening
 	s.Require().False(s.listener.Listening())
 }

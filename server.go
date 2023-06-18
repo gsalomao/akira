@@ -94,7 +94,10 @@ func (s *Server) AddListener(l Listener) error {
 	s.listeners.add(l)
 
 	if s.State() == ServerRunning {
-		s.listeners.listen(l, s.handleConnection)
+		err := s.listeners.listen(l, s.handleConnection)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -128,29 +131,24 @@ func (s *Server) Start(ctx context.Context) error {
 		return ErrInvalidServerState
 	}
 
-	s.setState(ServerStarting)
-
-	if err := s.hooks.onServerStart(s); err != nil {
-		s.setState(ServerFailed)
-		s.hooks.onServerStartFailed(s, err)
-		return err
-	}
-
-	if err := s.hooks.onStart(); err != nil {
-		s.setState(ServerFailed)
-		s.hooks.onServerStartFailed(s, err)
+	err := s.setState(ServerStarting)
+	if err != nil {
 		return err
 	}
 
 	newCtx, cancel := context.WithCancel(ctx)
 	s.cancelCtx = cancel
 
+	err = s.listeners.listenAll(s.handleConnection)
+	if err != nil {
+		_ = s.setState(ServerFailed)
+		return err
+	}
+
 	s.once = sync.Once{}
 	s.startEventLoop(newCtx)
-	s.listeners.listenAll(s.handleConnection)
 
-	s.setState(ServerRunning)
-	s.hooks.onServerStarted(s)
+	_ = s.setState(ServerRunning)
 	return nil
 }
 
@@ -168,7 +166,7 @@ func (s *Server) Stop(ctx context.Context) error {
 	stopped := make(chan struct{})
 	go func() {
 		s.wg.Wait()
-		s.stopped()
+		_ = s.setState(ServerStopped)
 		close(stopped)
 	}()
 
@@ -186,7 +184,7 @@ func (s *Server) Stop(ctx context.Context) error {
 func (s *Server) Close() {
 	state := s.State()
 	if state != ServerRunning && state != ServerStopping {
-		s.setState(ServerClosed)
+		_ = s.setState(ServerClosed)
 		return
 	}
 
@@ -194,10 +192,10 @@ func (s *Server) Close() {
 	s.wg.Wait()
 
 	if state == ServerRunning {
-		s.stopped()
+		_ = s.setState(ServerStopped)
 	}
 
-	s.setState(ServerClosed)
+	_ = s.setState(ServerClosed)
 }
 
 // State returns the current ServerState.
@@ -207,23 +205,43 @@ func (s *Server) State() ServerState {
 
 func (s *Server) stop() {
 	s.once.Do(func() {
-		s.setState(ServerStopping)
-
-		s.hooks.onServerStop(s)
-		s.hooks.onStop()
-
-		s.listeners.closeAll()
+		_ = s.setState(ServerStopping)
+		s.listeners.stopAll()
 		s.cancelCtx()
 	})
 }
 
-func (s *Server) stopped() {
-	s.setState(ServerStopped)
-	s.hooks.onServerStopped(s)
-}
+func (s *Server) setState(state ServerState) error {
+	var err error
 
-func (s *Server) setState(st ServerState) {
-	s.state.Store(uint32(st))
+	s.state.Store(uint32(state))
+
+	if state == ServerStarting {
+		err = s.hooks.onServerStart(s)
+		if err == nil {
+			err = s.hooks.onStart()
+		}
+	}
+
+	if state == ServerStopping {
+		s.hooks.onServerStop(s)
+		s.hooks.onStop()
+	}
+
+	if state == ServerStopped {
+		s.hooks.onServerStopped(s)
+	}
+
+	if state == ServerRunning {
+		s.hooks.onServerStarted(s)
+	}
+
+	if state == ServerFailed || err != nil {
+		s.state.Store(uint32(ServerFailed))
+		s.hooks.onServerStartFailed(s, err)
+	}
+
+	return err
 }
 
 func (s *Server) startEventLoop(ctx context.Context) {

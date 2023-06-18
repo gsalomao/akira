@@ -15,6 +15,7 @@
 package melitte
 
 import (
+	"errors"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -29,10 +30,10 @@ type mockListener struct {
 	listening atomic.Bool
 }
 
-func newMockListener(name string) *mockListener {
+func newMockListener(name, address string) *mockListener {
 	m := mockListener{
 		name:    name,
-		address: ":1883",
+		address: address,
 		done:    make(chan struct{}),
 	}
 	return &m
@@ -50,9 +51,14 @@ func (l *mockListener) Protocol() string {
 	return "mock"
 }
 
-func (l *mockListener) Listen(f OnConnectionFunc) <-chan bool {
+func (l *mockListener) Listen(f OnConnectionFunc) (<-chan bool, error) {
+	if _, _, err := net.SplitHostPort(l.address); err != nil {
+		return nil, errors.New("invalid address")
+	}
+
 	listening := make(chan bool, 1)
 
+	l.done = make(chan struct{})
 	l.handle = f
 	l.wg.Add(1)
 
@@ -67,10 +73,10 @@ func (l *mockListener) Listen(f OnConnectionFunc) <-chan bool {
 		l.listening.Store(false)
 	}()
 
-	return listening
+	return listening, nil
 }
 
-func (l *mockListener) Close() {
+func (l *mockListener) Stop() {
 	close(l.done)
 	l.wg.Wait()
 }

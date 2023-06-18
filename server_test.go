@@ -33,7 +33,7 @@ type ServerTestSuite struct {
 
 func (s *ServerTestSuite) SetupTest() {
 	s.srv = NewServer(NewDefaultOptions())
-	s.lsn = newMockListener("mock")
+	s.lsn = newMockListener("mock", ":1883")
 	s.hook = nil
 	_ = s.srv.AddListener(s.lsn)
 }
@@ -88,7 +88,7 @@ func (s *ServerTestSuite) TestNewServerDefaultConfig() {
 }
 
 func (s *ServerTestSuite) TestAddListenerSuccess() {
-	l := newMockListener("mock2")
+	l := newMockListener("mock2", ":1883")
 
 	err := s.srv.AddListener(l)
 	s.Require().NoError(err)
@@ -98,7 +98,7 @@ func (s *ServerTestSuite) TestAddListenerSuccess() {
 }
 
 func (s *ServerTestSuite) TestAddListenerError() {
-	l := newMockListener("mock")
+	l := newMockListener("mock", ":1883")
 
 	err := s.srv.AddListener(l)
 	s.Require().ErrorIs(err, ErrListenerAlreadyExists)
@@ -106,11 +106,20 @@ func (s *ServerTestSuite) TestAddListenerError() {
 
 func (s *ServerTestSuite) TestAddListenerServerRunning() {
 	_ = s.srv.Start(context.Background())
-	l := newMockListener("mock2")
+	l := newMockListener("mock2", ":1883")
 
 	err := s.srv.AddListener(l)
 	s.Require().NoError(err)
 	s.Require().True(l.Listening())
+}
+
+func (s *ServerTestSuite) TestAddListenerServerRunningError() {
+	_ = s.srv.Start(context.Background())
+	l := newMockListener("mock2", "abc")
+
+	err := s.srv.AddListener(l)
+	s.Require().Error(err)
+	s.Require().False(l.Listening())
 }
 
 func (s *ServerTestSuite) TestAddHookSuccess() {
@@ -207,6 +216,19 @@ func (s *ServerTestSuite) TestStartOnStartError() {
 	s.hook.On("OnServerStartFailed", s.srv, err)
 
 	err = s.srv.Start(context.Background())
+	s.Require().Error(err)
+	s.Assert().Equal(ServerFailed, s.srv.State())
+}
+
+func (s *ServerTestSuite) TestStartListenerListenError() {
+	s.addHook()
+	s.hook.On("OnServerStart", s.srv)
+	s.hook.On("OnStart")
+	s.hook.On("OnServerStartFailed", s.srv, mock.Anything)
+	l := newMockListener("mock2", "abc")
+	_ = s.srv.AddListener(l)
+
+	err := s.srv.Start(context.Background())
 	s.Require().Error(err)
 	s.Assert().Equal(ServerFailed, s.srv.State())
 }
