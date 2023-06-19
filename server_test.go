@@ -55,7 +55,7 @@ func (s *ServerTestSuite) addHook() {
 func (s *ServerTestSuite) startServer() {
 	if s.hook != nil {
 		s.hook.On("OnServerStart", s.server)
-		s.hook.On("OnStart")
+		s.hook.On("OnStart", s.server)
 		s.hook.On("OnServerStarted", s.server)
 	}
 
@@ -66,7 +66,7 @@ func (s *ServerTestSuite) startServer() {
 func (s *ServerTestSuite) stopServer() {
 	if s.hook != nil {
 		s.hook.On("OnServerStop", s.server)
-		s.hook.On("OnStop")
+		s.hook.On("OnStop", s.server)
 		s.hook.On("OnServerStopped", s.server)
 	}
 
@@ -136,7 +136,7 @@ func (s *ServerTestSuite) TestAddHookCallsOnStartWhenServerRunning() {
 	srv := NewServer(NewDefaultOptions())
 	_ = srv.Start(context.Background())
 	hook := newMockHook()
-	hook.On("OnStart")
+	hook.On("OnStart", srv)
 
 	err := srv.AddHook(hook)
 	s.Assert().NoError(err)
@@ -154,7 +154,7 @@ func (s *ServerTestSuite) TestAddHookError() {
 func (s *ServerTestSuite) TestAddHookOnStartError() {
 	s.startServer()
 	hook := newMockHook()
-	hook.On("OnStart").Return(errors.New("failed"))
+	hook.On("OnStart", s.server).Return(errors.New("failed"))
 
 	err := s.server.AddHook(hook)
 	s.Assert().Error(err)
@@ -179,10 +179,10 @@ func (s *ServerTestSuite) TestStartWithoutListeners() {
 func (s *ServerTestSuite) TestStartWithHook() {
 	s.addHook()
 	s.hook.On("OnServerStart", s.server)
-	s.hook.On("OnStart")
+	s.hook.On("OnStart", s.server)
 	s.hook.On("OnServerStarted", s.server)
 	s.hook.On("OnServerStop", s.server)
-	s.hook.On("OnStop")
+	s.hook.On("OnStop", s.server)
 	s.hook.On("OnServerStopped", s.server)
 
 	err := s.server.Start(context.Background())
@@ -216,7 +216,7 @@ func (s *ServerTestSuite) TestStartOnStartError() {
 	s.addHook()
 	err := errors.New("failed")
 	s.hook.On("OnServerStart", s.server)
-	s.hook.On("OnStart").Return(err)
+	s.hook.On("OnStart", s.server).Return(err)
 	s.hook.On("OnServerStartFailed", s.server, err)
 
 	err = s.server.Start(context.Background())
@@ -227,7 +227,7 @@ func (s *ServerTestSuite) TestStartOnStartError() {
 func (s *ServerTestSuite) TestStartListenerListenError() {
 	s.addHook()
 	s.hook.On("OnServerStart", s.server)
-	s.hook.On("OnStart")
+	s.hook.On("OnStart", s.server)
 	s.hook.On("OnServerStartFailed", s.server, mock.Anything)
 	l := newMockListener("mock2", "abc")
 	_ = s.server.AddListener(l)
@@ -249,10 +249,10 @@ func (s *ServerTestSuite) TestStop() {
 func (s *ServerTestSuite) TestStopWithHook() {
 	s.addHook()
 	s.hook.On("OnServerStart", s.server)
-	s.hook.On("OnStart")
+	s.hook.On("OnStart", s.server)
 	s.hook.On("OnServerStarted", s.server)
 	s.hook.On("OnServerStop", s.server)
-	s.hook.On("OnStop")
+	s.hook.On("OnStop", s.server)
 	s.hook.On("OnServerStopped", s.server)
 	s.startServer()
 
@@ -309,7 +309,7 @@ func (s *ServerTestSuite) TestCloseWhenRunning() {
 	s.addHook()
 	s.startServer()
 	s.hook.On("OnServerStop", s.server)
-	s.hook.On("OnStop")
+	s.hook.On("OnStop", s.server)
 	s.hook.On("OnServerStopped", s.server)
 
 	s.server.Close()
@@ -338,7 +338,7 @@ func (s *ServerTestSuite) TestHandleConnectionWithHook() {
 	connClosed := make(chan struct{})
 	s.addHook()
 	s.hook.On("OnServerStart", s.server)
-	s.hook.On("OnStart")
+	s.hook.On("OnStart", s.server)
 	s.hook.On("OnServerStarted", s.server)
 	s.hook.On("OnConnectionOpen", s.server, s.listener)
 	s.hook.On("OnConnectionOpened", s.server, s.listener).Run(func(_ mock.Arguments) {
@@ -349,7 +349,7 @@ func (s *ServerTestSuite) TestHandleConnectionWithHook() {
 		close(connClosed)
 	})
 	s.hook.On("OnServerStop", s.server)
-	s.hook.On("OnStop")
+	s.hook.On("OnStop", s.server)
 	s.hook.On("OnServerStopped", s.server)
 	s.startServer()
 	c1, c2 := net.Pipe()
@@ -364,13 +364,13 @@ func (s *ServerTestSuite) TestHandleConnectionWithHook() {
 func (s *ServerTestSuite) TestOnConnectionOpenedError() {
 	s.addHook()
 	s.hook.On("OnServerStart", s.server)
-	s.hook.On("OnStart")
+	s.hook.On("OnStart", s.server)
 	s.hook.On("OnServerStarted", s.server)
 	s.hook.On("OnConnectionOpen", s.server, s.listener).Return(errors.New("failed"))
 	s.hook.On("OnConnectionClose", s.server, s.listener)
 	s.hook.On("OnConnectionClosed", s.server, s.listener)
 	s.hook.On("OnServerStop", s.server)
-	s.hook.On("OnStop")
+	s.hook.On("OnStop", s.server)
 	s.hook.On("OnServerStopped", s.server)
 	s.startServer()
 	c1, c2 := net.Pipe()

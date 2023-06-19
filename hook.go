@@ -53,13 +53,13 @@ type Hook interface {
 type OnStartHook interface {
 	// OnStart is called by the server to start the hook. If this method returns any error, the server considers that
 	// the hook failed to start.
-	OnStart() error
+	OnStart(s *Server) error
 }
 
 // OnStopHook is a hook which receives the event to stop it.
 type OnStopHook interface {
 	// OnStop is called by the server to stop the hook.
-	OnStop()
+	OnStop(s *Server)
 }
 
 // OnServerStartHook is a hook which receives the event indicating the server is starting.
@@ -185,14 +185,14 @@ func (h *hooks) add(hook Hook) error {
 	return nil
 }
 
-func (h *hooks) onStart() error {
+func (h *hooks) onStart(s *Server) error {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
 	for _, hook := range h.hooks[onStartHook] {
 		hk := hook.(OnStartHook)
 
-		err := hk.OnStart()
+		err := hk.OnStart(s)
 		if err != nil {
 			return err
 		}
@@ -201,13 +201,13 @@ func (h *hooks) onStart() error {
 	return nil
 }
 
-func (h *hooks) onStop() {
+func (h *hooks) onStop(s *Server) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
 	for _, hook := range h.hooks[onStopHook] {
 		hk := hook.(OnStopHook)
-		hk.OnStop()
+		hk.OnStop(s)
 	}
 }
 

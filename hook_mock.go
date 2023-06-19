@@ -31,16 +31,16 @@ func (h *mockHook) Name() string {
 	return "mock"
 }
 
-func (h *mockHook) OnStart() error {
-	args := h.Called()
+func (h *mockHook) OnStart(s *Server) error {
+	args := h.Called(s)
 	if len(args) > 0 {
 		return args.Error(0)
 	}
 	return nil
 }
 
-func (h *mockHook) OnStop() {
-	h.Called()
+func (h *mockHook) OnStop(s *Server) {
+	h.Called(s)
 }
 
 func (h *mockHook) OnServerStart(s *Server) error {

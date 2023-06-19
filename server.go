@@ -110,7 +110,7 @@ func (s *Server) AddListener(l Listener) error {
 func (s *Server) AddHook(h Hook) error {
 	if s.State() == ServerRunning {
 		if hook, ok := h.(OnStartHook); ok {
-			err := hook.OnStart()
+			err := hook.OnStart(s)
 			if err != nil {
 				return err
 			}
@@ -219,13 +219,13 @@ func (s *Server) setState(state ServerState) error {
 	if state == ServerStarting {
 		err = s.hooks.onServerStart(s)
 		if err == nil {
-			err = s.hooks.onStart()
+			err = s.hooks.onStart(s)
 		}
 	}
 
 	if state == ServerStopping {
 		s.hooks.onServerStop(s)
-		s.hooks.onStop()
+		s.hooks.onStop(s)
 	}
 
 	if state == ServerStopped {

@@ -67,26 +67,26 @@ func (s *HooksTestSuite) TestAddError() {
 }
 
 func (s *HooksTestSuite) TestOnStartSuccess() {
-	s.hook.On("OnStart")
+	s.hook.On("OnStart", s.server)
 	s.addHook(s.hook)
 
-	err := s.hooks.onStart()
+	err := s.hooks.onStart(s.server)
 	s.Require().NoError(err)
 }
 
 func (s *HooksTestSuite) TestOnStartError() {
-	s.hook.On("OnStart").Return(errors.New("failed"))
+	s.hook.On("OnStart", s.server).Return(errors.New("failed"))
 	s.addHook(s.hook)
 
-	err := s.hooks.onStart()
+	err := s.hooks.onStart(s.server)
 	s.Require().Error(err)
 }
 
 func (s *HooksTestSuite) TestOnStop() {
-	s.hook.On("OnStop")
+	s.hook.On("OnStop", s.server)
 	s.addHook(s.hook)
 
-	s.hooks.onStop()
+	s.hooks.onStop(s.server)
 }
 
 func (s *HooksTestSuite) TestOnServerStartSuccess() {
