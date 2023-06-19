@@ -57,6 +57,7 @@ type Server struct {
 	Options   Options
 	listeners *listeners
 	hooks     *hooks
+	clients   *clients
 	cancelCtx context.CancelFunc
 	state     atomic.Uint32
 	wg        sync.WaitGroup
@@ -78,6 +79,7 @@ func NewServer(opts *Options) *Server {
 		Options:   *opts,
 		listeners: newListeners(),
 		hooks:     newHooks(),
+		clients:   newClients(),
 	}
 	return &s
 }
@@ -208,6 +210,7 @@ func (s *Server) stop() {
 		_ = s.setState(ServerStopping)
 		s.listeners.stopAll()
 		s.cancelCtx()
+		s.clients.closeAll()
 	})
 }
 
@@ -270,6 +273,8 @@ func (s *Server) handleConnection(l Listener, nc net.Conn) {
 }
 
 func (s *Server) handleClient(c *Client) {
+	s.clients.add(c)
+
 	// The server runs 2 goroutines for each client.
 	s.wg.Add(2)
 

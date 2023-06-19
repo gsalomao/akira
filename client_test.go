@@ -21,39 +21,49 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type ClientTestSuite struct {
+type ClientsTestSuite struct {
 	suite.Suite
-	server *Server
+	server  *Server
+	clients *clients
+	client  *Client
+	conn1   net.Conn
+	conn2   net.Conn
 }
 
-func (s *ClientTestSuite) SetupTest() {
+func (s *ClientsTestSuite) SetupTest() {
+	s.clients = newClients()
 	s.server = NewServer(NewDefaultOptions())
+	s.conn1, s.conn2 = net.Pipe()
+
+	s.client = newClient(s.conn2, s.server, nil)
+	s.Require().Equal(ClientPending, s.client.State())
 }
 
-func (s *ClientTestSuite) TearDownTest() {
+func (s *ClientsTestSuite) TearDownTest() {
 	s.server.Close()
+	_ = s.conn1.Close()
+	_ = s.conn2.Close()
 }
 
-func (s *ClientTestSuite) TestNewClient() {
-	c1, c2 := net.Pipe()
-	defer func() { _ = c1.Close() }()
-	defer func() { _ = c2.Close() }()
-
-	c := newClient(c2, s.server, nil)
+func (s *ClientsTestSuite) TestNewClients() {
+	c := newClients()
 	s.Require().NotNil(c)
-	s.Assert().False(c.Closed())
 }
 
-func (s *ClientTestSuite) TestClose() {
-	c1, c2 := net.Pipe()
-	defer func() { _ = c1.Close() }()
-	c := newClient(c2, s.server, nil)
-
-	c.Close()
-	<-c.Done()
-	s.Assert().True(c.Closed())
+func (s *ClientsTestSuite) TestAddSuccess() {
+	s.clients.add(s.client)
+	s.Require().Equal(1, s.clients.pending.Len())
+	s.Assert().Equal(s.client, s.clients.pending.Front().Value.(*Client))
 }
 
-func TestClientTestSuite(t *testing.T) {
-	suite.Run(t, new(ClientTestSuite))
+func (s *ClientsTestSuite) TestCloseAll() {
+	s.clients.add(s.client)
+
+	s.clients.closeAll()
+	s.Require().Equal(1, s.clients.pending.Len())
+	s.Assert().Equal(ClientClosed, s.client.State())
+}
+
+func TestClientsTestSuite(t *testing.T) {
+	suite.Run(t, new(ClientsTestSuite))
 }

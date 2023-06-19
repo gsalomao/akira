@@ -15,10 +15,22 @@
 package melitte
 
 import (
+	"container/list"
 	"net"
 	"sync"
 	"sync/atomic"
 )
+
+const (
+	// ClientPending indicates that the network connection is open but the MQTT connection flow is pending.
+	ClientPending ClientState = iota
+
+	// ClientClosed indicates that the client is closed and not able to receive or send any packet.
+	ClientClosed
+)
+
+// ClientState represents the client state.
+type ClientState byte
 
 // Client represents a MQTT client.
 type Client struct {
@@ -26,7 +38,7 @@ type Client struct {
 	server     *Server       // 8 bytes
 	done       chan struct{} // 8 bytes
 	closeOnce  sync.Once     // 12 bytes
-	closed     atomic.Bool   // 4 bytes
+	state      atomic.Uint32 // 4 bytes
 }
 
 type connection struct {
@@ -51,20 +63,19 @@ func newClient(nc net.Conn, s *Server, l Listener) *Client {
 // Close closes the Client.
 func (c *Client) Close() {
 	c.closeOnce.Do(func() {
-		c.closed.Store(true)
 		c.server.hooks.onConnectionClose(c.server, c.connection.listener)
 
+		c.state.Store(uint32(ClientClosed))
 		_ = c.connection.netConn.Close()
-		c.connection.netConn = nil
-
 		close(c.done)
+
 		c.server.hooks.onConnectionClosed(c.server, c.connection.listener)
 	})
 }
 
-// Closed returns whether the Client is closed or not.
-func (c *Client) Closed() bool {
-	return c.closed.Load()
+// State returns the current client state.
+func (c *Client) State() ClientState {
+	return ClientState(c.state.Load())
 }
 
 // Done returns a channel which is closed when the Client is closed.
@@ -74,4 +85,37 @@ func (c *Client) Done() <-chan struct{} {
 
 func (c *Client) packetToSend() <-chan []byte {
 	return c.connection.outboundStream
+}
+
+type clients struct {
+	mu      sync.RWMutex
+	pending list.List
+}
+
+func newClients() *clients {
+	c := clients{}
+	return &c
+}
+
+func (c *clients) add(client *Client) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.pending.PushBack(client)
+}
+
+func (c *clients) closeAll() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	elem := c.pending.Front()
+
+	for {
+		if elem == nil {
+			break
+		}
+
+		elem.Value.(*Client).Close()
+		elem = elem.Next()
+	}
 }

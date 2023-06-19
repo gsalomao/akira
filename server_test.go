@@ -262,6 +262,29 @@ func (s *ServerTestSuite) TestStopWithHook() {
 	s.Assert().False(s.listener.Listening())
 }
 
+func (s *ServerTestSuite) TestStopClosesClients() {
+	s.addHook()
+	s.hook.On("OnServerStart", s.server)
+	s.hook.On("OnStart", s.server)
+	s.hook.On("OnServerStarted", s.server)
+	s.hook.On("OnServerStop", s.server)
+	s.hook.On("OnStop", s.server)
+	s.hook.On("OnServerStopped", s.server)
+	s.hook.On("OnConnectionOpen", s.server, s.listener)
+	s.hook.On("OnConnectionOpened", s.server, s.listener)
+	s.hook.On("OnConnectionClose", s.server, s.listener)
+	s.hook.On("OnConnectionClosed", s.server, s.listener)
+	s.startServer()
+	c1, c2 := net.Pipe()
+	defer func() { _ = c1.Close() }()
+	s.listener.onConnection(c2)
+
+	err := s.server.Stop(context.Background())
+	s.Require().NoError(err)
+	s.Assert().Equal(ServerStopped, s.server.State())
+	s.Assert().False(s.listener.Listening())
+}
+
 func (s *ServerTestSuite) TestStopCancelled() {
 	s.startServer()
 	ctx, cancel := context.WithCancel(context.Background())
