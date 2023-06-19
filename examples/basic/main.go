@@ -26,19 +26,18 @@ import (
 )
 
 func main() {
-	s := melitte.NewServer(melitte.NewDefaultOptions())
-	defer s.Close()
+	server := melitte.NewServer(melitte.NewDefaultOptions())
+	defer server.Close()
 
-	l := melitte.NewTCPListener("tcp", ":1883", nil)
-	defer func() { _ = l.Close() }()
+	tcp := melitte.NewTCPListener("tcp", ":1883", nil)
+	defer func() { _ = tcp.Close() }()
 
-	err := s.AddListener(l)
+	err := server.AddListener(tcp)
 	if err != nil {
 		log.Fatal("Failed to add TCP listener into the server")
 	}
 
-	h := loggingHook{}
-	err = s.AddHook(&h)
+	err = server.AddHook(&loggingHook{})
 	if err != nil {
 		log.Fatal("Failed to add logging hook into the server")
 	}
@@ -48,18 +47,19 @@ func main() {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
+
 	go func() {
 		defer wg.Done()
 		<-signals
 	}()
 
-	err = s.Start(context.Background())
+	err = server.Start(context.Background())
 	if err != nil {
 		log.Fatal("Failed to start server")
 	}
 
 	wg.Wait()
-	_ = s.Stop(context.Background())
+	_ = server.Stop(context.Background())
 }
 
 type loggingHook struct {

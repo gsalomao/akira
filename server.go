@@ -63,7 +63,7 @@ type Server struct {
 	stopOnce  sync.Once
 }
 
-// NewServer is the factory method responsible for creating an instance of the Server.
+// NewServer creates a new Server.
 // If the Options parameter is not provided, it uses the default options. If the provided Options does not contain the
 // Config, it uses the default configuration.
 func NewServer(opts *Options) *Server {

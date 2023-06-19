@@ -35,6 +35,7 @@ func (s *HooksTestSuite) SetupTest() {
 }
 
 func (s *HooksTestSuite) TearDownTest() {
+	s.server.Close()
 	s.hook.AssertExpectations(s.T())
 }
 

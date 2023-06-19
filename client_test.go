@@ -23,26 +23,31 @@ import (
 
 type ClientTestSuite struct {
 	suite.Suite
+	server *Server
+}
+
+func (s *ClientTestSuite) SetupTest() {
+	s.server = NewServer(NewDefaultOptions())
+}
+
+func (s *ClientTestSuite) TearDownTest() {
+	s.server.Close()
 }
 
 func (s *ClientTestSuite) TestNewClient() {
-	srv := NewServer(NewDefaultOptions())
-	defer srv.Close()
 	c1, c2 := net.Pipe()
 	defer func() { _ = c1.Close() }()
 	defer func() { _ = c2.Close() }()
 
-	c := newClient(c2, srv, nil)
+	c := newClient(c2, s.server, nil)
 	s.Require().NotNil(c)
 	s.Assert().False(c.Closed())
 }
 
 func (s *ClientTestSuite) TestClose() {
-	srv := NewServer(NewDefaultOptions())
-	defer srv.Close()
 	c1, c2 := net.Pipe()
 	defer func() { _ = c1.Close() }()
-	c := newClient(c2, srv, nil)
+	c := newClient(c2, s.server, nil)
 
 	c.Close()
 	<-c.Done()

@@ -39,6 +39,7 @@ func (s *ServerTestSuite) SetupTest() {
 }
 
 func (s *ServerTestSuite) TearDownTest() {
+	s.server.Close()
 	if s.hook != nil {
 		s.hook.AssertExpectations(s.T())
 	}
@@ -180,6 +181,9 @@ func (s *ServerTestSuite) TestStartWithHook() {
 	s.hook.On("OnServerStart", s.server)
 	s.hook.On("OnStart")
 	s.hook.On("OnServerStarted", s.server)
+	s.hook.On("OnServerStop", s.server)
+	s.hook.On("OnStop")
+	s.hook.On("OnServerStopped", s.server)
 
 	err := s.server.Start(context.Background())
 	s.Require().NoError(err)
@@ -365,6 +369,9 @@ func (s *ServerTestSuite) TestOnConnectionOpenedError() {
 	s.hook.On("OnConnectionOpen", s.server, s.listener).Return(errors.New("failed"))
 	s.hook.On("OnConnectionClose", s.server, s.listener)
 	s.hook.On("OnConnectionClosed", s.server, s.listener)
+	s.hook.On("OnServerStop", s.server)
+	s.hook.On("OnStop")
+	s.hook.On("OnServerStopped", s.server)
 	s.startServer()
 	c1, c2 := net.Pipe()
 	defer func() { _ = c1.Close() }()
