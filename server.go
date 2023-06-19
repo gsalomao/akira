@@ -148,7 +148,7 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	s.stopOnce = sync.Once{}
-	s.startEventLoop(newCtx)
+	s.startDaemon(newCtx)
 
 	_ = s.setState(ServerRunning)
 	return nil
@@ -209,7 +209,7 @@ func (s *Server) stop() {
 	s.stopOnce.Do(func() {
 		_ = s.setState(ServerStopping)
 		s.listeners.stopAll()
-		s.cancelCtx()
+		s.stopDaemon()
 		s.clients.closeAll()
 	})
 }
@@ -247,7 +247,7 @@ func (s *Server) setState(state ServerState) error {
 	return err
 }
 
-func (s *Server) startEventLoop(ctx context.Context) {
+func (s *Server) startDaemon(ctx context.Context) {
 	ready := make(chan struct{})
 
 	s.wg.Add(1)
@@ -258,6 +258,10 @@ func (s *Server) startEventLoop(ctx context.Context) {
 	}()
 
 	<-ready
+}
+
+func (s *Server) stopDaemon() {
+	s.cancelCtx()
 }
 
 func (s *Server) handleConnection(l Listener, nc net.Conn) {
