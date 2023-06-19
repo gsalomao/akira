@@ -20,8 +20,6 @@ import (
 	"sync/atomic"
 )
 
-type hookType int
-
 const (
 	onStartHook hookType = iota
 	onStopHook
@@ -40,81 +38,84 @@ const (
 // ErrHookAlreadyExists indicates that the Hook already exists based on its name.
 var ErrHookAlreadyExists = errors.New("hook already exists")
 
+type hookType int
+
 // Hook is the minimal interface which any hook must implement. All others hook interfaces are optional.
 // During the lifecycle of the Server, several events are generated which can be handled by the hook
-// based on each handler it implements.
+// based on each method it implements.
 type Hook interface {
 	// Name returns the name of the hook. The Server supports only one hook for each name. If a hook is added into the
 	// server with the same name of another hook, the ErrHookAlreadyExists is returned.
 	Name() string
 }
 
-// OnStartHook is a hook which receives the event to start it.
+// OnStartHook is the hook interface that wraps the OnStart method. The OnStart method is called by the server to
+// start the hook. If this method returns any error, the server considers that the hook failed to start.
 type OnStartHook interface {
-	// OnStart is called by the server to start the hook. If this method returns any error, the server considers that
-	// the hook failed to start.
 	OnStart(s *Server) error
 }
 
-// OnStopHook is a hook which receives the event to stop it.
+// OnStopHook is the hook interface that wraps the OnStop method. The OnStop method is called by the server to stop
+// the hook.
 type OnStopHook interface {
-	// OnStop is called by the server to stop the hook.
 	OnStop(s *Server)
 }
 
-// OnServerStartHook is a hook which receives the event indicating the server is starting.
+// OnServerStartHook is the hook interface that wraps the OnServerStart method. The OnServerStart method is called by
+// the server when it is starting. When this method is called, the server is in ServerStarting state. If this method
+// returns any error, the start process fails.
 type OnServerStartHook interface {
-	// OnServerStart is called by the server when it is starting. When this method is called, the server
-	// is in ServerStarting state. If this method returns any error, the start process fails.
 	OnServerStart(s *Server) error
 }
 
-// OnServerStartFailedHook is a hook which receives the event indicating the server has failed to start.
+// OnServerStartFailedHook is the hook interface that wraps the OnServerStartFailed method. The OnServerStartFailed
+// method is called by the server when it has failed to start.
 type OnServerStartFailedHook interface {
-	// OnServerStartFailed is called by the server when it has failed to start.
 	OnServerStartFailed(s *Server, err error)
 }
 
-// OnServerStartedHook is a hook which receives the event indicating the server has started.
+// OnServerStartedHook is the hook interface that wraps the OnServerStarted method. The OnServerStarted method is
+// called by the server when it has started with success.
 type OnServerStartedHook interface {
-	// OnServerStarted is called by the server when it has started with success.
 	OnServerStarted(s *Server)
 }
 
-// OnServerStopHook is a hook which receives the event indicating the server is stopping.
+// OnServerStopHook is the hook interface that wraps the OnServerStop method. The OnServerStop method is called by the
+// server when it is stopping.
 type OnServerStopHook interface {
-	// OnServerStop is called by the server when it is stopping.
 	OnServerStop(s *Server)
 }
 
-// OnServerStoppedHook is a hook which receives the event indicating the server has stopped.
+// OnServerStoppedHook is the hook interface that wraps the OnServerStopped method. The OnServerStopped method is
+// called by the server when it has stopped.
 type OnServerStoppedHook interface {
-	// OnServerStopped is called by the server when it has stopped.
 	OnServerStopped(s *Server)
 }
 
-// OnConnectionOpenHook is a hook which receives the event indicating that a new connection is being opened.
+// OnConnectionOpenHook is the hook interface that wraps the OnConnectionOpen method. The OnConnectionOpen method is
+// called by the server when a new connection is being opened. If this method returns any error, the connection is
+// closed.
 type OnConnectionOpenHook interface {
-	// OnConnectionOpen is called by the server when a new connection is being opened. If this method returns any
-	// error, the connection is closed.
 	OnConnectionOpen(s *Server, l Listener) error
 }
 
-// OnConnectionOpenedHook is a hook which receives the event indicating that a new connection was opened.
+// OnConnectionOpenedHook is the hook interface that wraps the OnConnectionOpened method. The OnConnectionOpened
+// method is called by the server when a new connection has opened. This method is called after the OnConnectionOpen
+// method.
 type OnConnectionOpenedHook interface {
-	// OnConnectionOpened is called by the server when a new connection was opened.
 	OnConnectionOpened(s *Server, l Listener)
 }
 
-// OnClientCloseHook is a hook which receives the event indicating that the connection is being closed.
+// OnClientCloseHook is the hook interface that wraps the OnConnectionClose method. The OnConnectionClose method is
+// called by the server when the connection is being closed.
 type OnClientCloseHook interface {
-	// OnConnectionClose is called by the server when the connection is being closed.
 	OnConnectionClose(s *Server, l Listener)
 }
 
-// OnConnectionClosedHook is a hook which receives the event indicating that the connection was closed.
+// OnConnectionClosedHook is the hook interface that wraps the OnConnectionClosed method. The OnConnectionClosed
+// method is called by the server when the connection has closed. This method is called after the OnConnectionClose
+// method.
 type OnConnectionClosedHook interface {
-	// OnConnectionClosed is called by the server when the connection was closed.
 	OnConnectionClosed(s *Server, l Listener)
 }
 
