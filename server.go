@@ -54,7 +54,7 @@ type ServerState uint32
 // Server is a MQTT broker responsible for implementing the MQTT 3.1, 3.1.1, and 5.0 specifications.
 // To create a Server instance, use the NewServer factory method.
 type Server struct {
-	Options   Options
+	config    Config
 	listeners *listeners
 	hooks     *hooks
 	clients   *clients
@@ -67,21 +67,30 @@ type Server struct {
 // NewServer creates a new Server.
 // If the Options parameter is not provided, it uses the default options. If the provided Options does not contain the
 // Config, it uses the default configuration.
-func NewServer(opts *Options) *Server {
+func NewServer(opts *Options) (s *Server, err error) {
 	if opts == nil {
 		opts = NewDefaultOptions()
 	}
+
 	if opts.Config == nil {
 		opts.Config = NewDefaultConfig()
 	}
 
-	s := Server{
-		Options:   *opts,
+	s = &Server{
+		config:    *opts.Config,
 		listeners: newListeners(),
 		hooks:     newHooks(),
 		clients:   newClients(),
 	}
-	return &s
+
+	for _, l := range opts.Listeners {
+		err = s.AddListener(l)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return s, nil
 }
 
 // AddListener adds the provided Listener into the list of listeners managed by the Server.

@@ -51,7 +51,7 @@ func newClient(nc net.Conn, s *Server, l Listener) *Client {
 	c := Client{
 		connection: connection{
 			netConn:        nc,
-			outboundStream: make(chan []byte, s.Options.Config.OutboundStreamSize),
+			outboundStream: make(chan []byte, s.config.OutboundStreamSize),
 			listener:       l,
 		},
 		server: s,

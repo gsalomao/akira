@@ -26,13 +26,16 @@ import (
 )
 
 func main() {
-	server := melitte.NewServer(melitte.NewDefaultOptions())
+	server, err := melitte.NewServer(melitte.NewDefaultOptions())
+	if err != nil {
+		log.Fatal("Failed to create server")
+	}
 	defer server.Close()
 
 	tcp := melitte.NewTCPListener("tcp", ":1883", nil)
 	defer func() { _ = tcp.Close() }()
 
-	err := server.AddListener(tcp)
+	err = server.AddListener(tcp)
 	if err != nil {
 		log.Fatal("Failed to add TCP listener into the server")
 	}

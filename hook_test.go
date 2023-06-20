@@ -29,7 +29,11 @@ type HooksTestSuite struct {
 }
 
 func (s *HooksTestSuite) SetupTest() {
-	s.server = NewServer(NewDefaultOptions())
+	var err error
+
+	s.server, err = NewServer(NewDefaultOptions())
+	s.Require().NoError(err)
+
 	s.hooks = newHooks()
 	s.hook = newMockHook()
 }

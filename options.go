@@ -16,8 +16,11 @@ package melitte
 
 // Options contains the Server options to be used.
 type Options struct {
-	// Config contains the Server configuration.
+	// Config contains the server configuration.
 	Config *Config
+
+	// Listeners is the list of Listener.
+	Listeners []Listener
 }
 
 // NewDefaultOptions creates a default Options.

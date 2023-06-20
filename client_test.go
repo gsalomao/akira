@@ -31,8 +31,12 @@ type ClientsTestSuite struct {
 }
 
 func (s *ClientsTestSuite) SetupTest() {
+	var err error
+
+	s.server, err = NewServer(NewDefaultOptions())
+	s.Require().NoError(err)
+
 	s.clients = newClients()
-	s.server = NewServer(NewDefaultOptions())
 	s.conn1, s.conn2 = net.Pipe()
 
 	s.client = newClient(s.conn2, s.server, nil)

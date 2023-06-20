@@ -32,7 +32,11 @@ type ServerTestSuite struct {
 }
 
 func (s *ServerTestSuite) SetupTest() {
-	s.server = NewServer(NewDefaultOptions())
+	var err error
+
+	s.server, err = NewServer(NewDefaultOptions())
+	s.Require().NoError(err)
+
 	s.listener = newMockListener("mock", ":1883")
 	s.hook = nil
 	_ = s.server.AddListener(s.listener)
@@ -74,18 +78,40 @@ func (s *ServerTestSuite) stopServer() {
 	s.Require().NoError(err)
 }
 
-func (s *ServerTestSuite) TestNewServerDefaultOptions() {
-	srv := NewServer(nil)
+func (s *ServerTestSuite) TestNewServer() {
+	srv, err := NewServer(nil)
 
-	s.Assert().Equal(NewDefaultOptions(), &srv.Options)
+	s.Require().NoError(err)
 	s.Assert().Equal(ServerNotStarted, srv.State())
 }
 
 func (s *ServerTestSuite) TestNewServerDefaultConfig() {
-	srv := NewServer(&Options{})
+	srv, err := NewServer(&Options{})
 
-	s.Assert().Equal(NewDefaultConfig(), srv.Options.Config)
-	s.Assert().Equal(ServerNotStarted, srv.State())
+	s.Require().NoError(err)
+	s.Assert().Equal(NewDefaultConfig(), &srv.config)
+}
+
+func (s *ServerTestSuite) TestNewServerWithListeners() {
+	l := []Listener{newMockListener("mock", ":1883")}
+	srv, err := NewServer(&Options{
+		Listeners: l,
+	})
+
+	s.Require().NoError(err)
+	_, ok := srv.listeners.get(l[0].Name())
+	s.Require().True(ok)
+}
+
+func (s *ServerTestSuite) TestNewError() {
+	_, err := NewServer(&Options{
+		Listeners: []Listener{
+			newMockListener("mock", ":1883"),
+			newMockListener("mock", ":1884"),
+		},
+	})
+
+	s.Require().Error(err)
 }
 
 func (s *ServerTestSuite) TestAddListenerSuccess() {
@@ -124,7 +150,7 @@ func (s *ServerTestSuite) TestAddListenerServerRunningError() {
 }
 
 func (s *ServerTestSuite) TestAddHookSuccess() {
-	srv := NewServer(NewDefaultOptions())
+	srv, _ := NewServer(NewDefaultOptions())
 	hook := newMockHook()
 
 	err := srv.AddHook(hook)
@@ -133,7 +159,7 @@ func (s *ServerTestSuite) TestAddHookSuccess() {
 }
 
 func (s *ServerTestSuite) TestAddHookCallsOnStartWhenServerRunning() {
-	srv := NewServer(NewDefaultOptions())
+	srv, _ := NewServer(NewDefaultOptions())
 	_ = srv.Start(context.Background())
 	hook := newMockHook()
 	hook.On("OnStart", srv)
@@ -169,7 +195,7 @@ func (s *ServerTestSuite) TestStartSuccess() {
 }
 
 func (s *ServerTestSuite) TestStartWithoutListeners() {
-	srv := NewServer(NewDefaultOptions())
+	srv, _ := NewServer(NewDefaultOptions())
 
 	err := srv.Start(context.Background())
 	s.Require().NoError(err)
