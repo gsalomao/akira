@@ -19,8 +19,11 @@ type Options struct {
 	// Config contains the server configuration.
 	Config *Config
 
-	// Listeners is the list of Listener.
+	// Listeners is the list of Listener to be added into the server.
 	Listeners []Listener
+
+	// Hooks is the list of Hook to be added into the server.
+	Hooks []Hook
 }
 
 // NewDefaultOptions creates a default Options.

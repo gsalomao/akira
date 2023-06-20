@@ -90,6 +90,13 @@ func NewServer(opts *Options) (s *Server, err error) {
 		}
 	}
 
+	for _, h := range opts.Hooks {
+		err = s.AddHook(h)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return s, nil
 }
 

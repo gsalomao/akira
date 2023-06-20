@@ -94,20 +94,38 @@ func (s *ServerTestSuite) TestNewServerDefaultConfig() {
 
 func (s *ServerTestSuite) TestNewServerWithListeners() {
 	l := []Listener{newMockListener("mock", ":1883")}
-	srv, err := NewServer(&Options{
-		Listeners: l,
-	})
+	srv, err := NewServer(&Options{Listeners: l})
 
 	s.Require().NoError(err)
 	_, ok := srv.listeners.get(l[0].Name())
 	s.Require().True(ok)
 }
 
-func (s *ServerTestSuite) TestNewError() {
+func (s *ServerTestSuite) TestNewServerWithListenersError() {
 	_, err := NewServer(&Options{
 		Listeners: []Listener{
 			newMockListener("mock", ":1883"),
 			newMockListener("mock", ":1884"),
+		},
+	})
+
+	s.Require().Error(err)
+}
+
+func (s *ServerTestSuite) TestNewServerWithHooks() {
+	h := []Hook{newMockHook()}
+	srv, err := NewServer(&Options{Hooks: h})
+
+	s.Require().NoError(err)
+	_, ok := srv.hooks.hookNames[onStartHook][h[0].Name()]
+	s.Require().True(ok)
+}
+
+func (s *ServerTestSuite) TestNewServerWithHooksError() {
+	_, err := NewServer(&Options{
+		Hooks: []Hook{
+			newMockHook(),
+			newMockHook(),
 		},
 	})
 
