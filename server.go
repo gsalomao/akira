@@ -15,6 +15,7 @@
 package melitte
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"net"
@@ -54,14 +55,15 @@ type ServerState uint32
 // Server is a MQTT broker responsible for implementing the MQTT 3.1, 3.1.1, and 5.0 specifications.
 // To create a Server instance, use the NewServer factory method.
 type Server struct {
-	config    Config
-	listeners *listeners
-	hooks     *hooks
-	clients   *clients
-	cancelCtx context.CancelFunc
-	state     atomic.Uint32
-	wg        sync.WaitGroup
-	stopOnce  sync.Once
+	config      Config
+	listeners   *listeners
+	hooks       *hooks
+	clients     *clients
+	readBufPool sync.Pool
+	cancelCtx   context.CancelFunc
+	state       atomic.Uint32
+	wg          sync.WaitGroup
+	stopOnce    sync.Once
 }
 
 // NewServer creates a new Server.
@@ -81,6 +83,9 @@ func NewServer(opts *Options) (s *Server, err error) {
 		listeners: newListeners(),
 		hooks:     newHooks(),
 		clients:   newClients(),
+		readBufPool: sync.Pool{
+			New: func() interface{} { return bufio.NewReaderSize(nil, int(s.config.ReadBufferSize)) },
+		},
 	}
 
 	for _, l := range opts.Listeners {
@@ -303,11 +308,8 @@ func (s *Server) handleClient(c *Client) {
 		defer s.wg.Done()
 		defer c.Close()
 
-		buf := make([]byte, 1)
-
 		for {
-			c.refreshDeadline()
-			_, err := c.connection.netConn.Read(buf)
+			_, err := s.receivePacket(c)
 			if err != nil {
 				return
 			}
@@ -326,4 +328,19 @@ func (s *Server) handleClient(c *Client) {
 			}
 		}
 	}()
+}
+
+func (s *Server) receivePacket(c *Client) (Packet, error) {
+	buf := s.readBufPool.Get().(*bufio.Reader)
+	defer s.readBufPool.Put(buf)
+
+	buf.Reset(c.connection.netConn)
+	c.refreshDeadline()
+
+	_, err := buf.ReadByte()
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, nil
 }

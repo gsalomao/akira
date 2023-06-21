@@ -38,6 +38,9 @@ type Config struct {
 	// OutboundStreamSize is the number of bytes of each Client's outbound stream.
 	OutboundStreamSize uint32 `json:"outbound_stream_size"`
 
+	// ReadBufferSize is the number of bytes for the read buffer.
+	ReadBufferSize uint32 `json:"read_buffer_size"`
+
 	// ConnectTimeout is the number of seconds to wait for the CONNECT Packet after the Client has established the
 	// network connection.
 	ConnectTimeout uint16 `json:"connect_timeout"`
@@ -47,6 +50,7 @@ type Config struct {
 func NewDefaultConfig() *Config {
 	c := Config{
 		OutboundStreamSize: 8 * 1024,
+		ReadBufferSize:     1024,
 		ConnectTimeout:     10,
 	}
 	return &c
