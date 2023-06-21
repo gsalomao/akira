@@ -292,9 +292,6 @@ func (s *ServerTestSuite) TestStop() {
 
 func (s *ServerTestSuite) TestStopWithHook() {
 	s.addHook()
-	s.hook.On("OnServerStart", s.server)
-	s.hook.On("OnStart", s.server)
-	s.hook.On("OnServerStarted", s.server)
 	s.hook.On("OnServerStop", s.server)
 	s.hook.On("OnStop", s.server)
 	s.hook.On("OnServerStopped", s.server)
@@ -308,9 +305,6 @@ func (s *ServerTestSuite) TestStopWithHook() {
 
 func (s *ServerTestSuite) TestStopClosesClients() {
 	s.addHook()
-	s.hook.On("OnServerStart", s.server)
-	s.hook.On("OnStart", s.server)
-	s.hook.On("OnServerStarted", s.server)
 	s.hook.On("OnServerStop", s.server)
 	s.hook.On("OnStop", s.server)
 	s.hook.On("OnServerStopped", s.server)
@@ -319,6 +313,7 @@ func (s *ServerTestSuite) TestStopClosesClients() {
 	s.hook.On("OnConnectionClose", s.server, s.listener)
 	s.hook.On("OnConnectionClosed", s.server, s.listener)
 	s.startServer()
+
 	c1, c2 := net.Pipe()
 	defer func() { _ = c1.Close() }()
 	s.listener.onConnection(c2)
@@ -404,9 +399,6 @@ func (s *ServerTestSuite) TestHandleConnectionWithHook() {
 	connOpened := make(chan struct{})
 	connClosed := make(chan struct{})
 	s.addHook()
-	s.hook.On("OnServerStart", s.server)
-	s.hook.On("OnStart", s.server)
-	s.hook.On("OnServerStarted", s.server)
 	s.hook.On("OnConnectionOpen", s.server, s.listener)
 	s.hook.On("OnConnectionOpened", s.server, s.listener).Run(func(_ mock.Arguments) {
 		close(connOpened)
@@ -415,31 +407,50 @@ func (s *ServerTestSuite) TestHandleConnectionWithHook() {
 	s.hook.On("OnConnectionClosed", s.server, s.listener).Run(func(_ mock.Arguments) {
 		close(connClosed)
 	})
-	s.hook.On("OnServerStop", s.server)
-	s.hook.On("OnStop", s.server)
-	s.hook.On("OnServerStopped", s.server)
 	s.startServer()
+	defer s.stopServer()
+
 	c1, c2 := net.Pipe()
 
 	s.listener.onConnection(c2)
 	<-connOpened
+
 	_ = c1.Close()
 	<-connClosed
-	s.stopServer()
+}
+
+func (s *ServerTestSuite) TestHandleConnectionReadTimeout() {
+	connClosed := make(chan struct{})
+	connOpened := make(chan struct{})
+	s.addHook()
+	s.hook.On("OnConnectionOpen", s.server, s.listener)
+	s.hook.On("OnConnectionOpened", s.server, s.listener).Run(func(_ mock.Arguments) {
+		close(connOpened)
+	})
+	s.hook.On("OnConnectionClose", s.server, s.listener)
+	s.hook.On("OnConnectionClosed", s.server, s.listener).Run(func(_ mock.Arguments) {
+		close(connClosed)
+	})
+	s.server.config.ConnectTimeout = 1
+	s.startServer()
+	defer s.stopServer()
+
+	c1, c2 := net.Pipe()
+	defer func() { _ = c1.Close() }()
+
+	s.listener.onConnection(c2)
+	<-connOpened
+	<-connClosed
 }
 
 func (s *ServerTestSuite) TestOnConnectionOpenedError() {
 	s.addHook()
-	s.hook.On("OnServerStart", s.server)
-	s.hook.On("OnStart", s.server)
-	s.hook.On("OnServerStarted", s.server)
 	s.hook.On("OnConnectionOpen", s.server, s.listener).Return(errors.New("failed"))
 	s.hook.On("OnConnectionClose", s.server, s.listener)
 	s.hook.On("OnConnectionClosed", s.server, s.listener)
-	s.hook.On("OnServerStop", s.server)
-	s.hook.On("OnStop", s.server)
-	s.hook.On("OnServerStopped", s.server)
 	s.startServer()
+	defer s.stopServer()
+
 	c1, c2 := net.Pipe()
 	defer func() { _ = c1.Close() }()
 

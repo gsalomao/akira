@@ -306,6 +306,7 @@ func (s *Server) handleClient(c *Client) {
 		buf := make([]byte, 1)
 
 		for {
+			c.refreshDeadline()
 			_, err := c.connection.netConn.Read(buf)
 			if err != nil {
 				return

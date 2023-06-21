@@ -16,9 +16,11 @@ package melitte
 
 import (
 	"container/list"
+	"math"
 	"net"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 const (
@@ -34,7 +36,7 @@ type ClientState byte
 
 // Client represents a MQTT client.
 type Client struct {
-	connection connection    // 40 bytes
+	connection connection    // 48 bytes
 	server     *Server       // 8 bytes
 	done       chan struct{} // 8 bytes
 	closeOnce  sync.Once     // 12 bytes
@@ -45,6 +47,7 @@ type connection struct {
 	netConn        net.Conn    // 16 bytes
 	listener       Listener    // 16 bytes
 	outboundStream chan []byte // 8 bytes
+	keepAlive      uint16      // 2 bytes
 }
 
 func newClient(nc net.Conn, s *Server, l Listener) *Client {
@@ -53,6 +56,7 @@ func newClient(nc net.Conn, s *Server, l Listener) *Client {
 			netConn:        nc,
 			outboundStream: make(chan []byte, s.config.OutboundStreamSize),
 			listener:       l,
+			keepAlive:      s.config.ConnectTimeout,
 		},
 		server: s,
 		done:   make(chan struct{}),
@@ -85,6 +89,17 @@ func (c *Client) Done() <-chan struct{} {
 
 func (c *Client) packetToSend() <-chan []byte {
 	return c.connection.outboundStream
+}
+
+func (c *Client) refreshDeadline() {
+	var deadline time.Time
+
+	if c.connection.keepAlive > 0 { // [MQTT-3.1.2-22]
+		timeout := math.Ceil(float64(c.connection.keepAlive) * 1.5)
+		deadline = time.Now().Add(time.Duration(timeout) * time.Second)
+	}
+
+	_ = c.connection.netConn.SetDeadline(deadline)
 }
 
 type clients struct {
