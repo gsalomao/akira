@@ -17,7 +17,9 @@ package melitte
 import (
 	"context"
 	"errors"
+	"io"
 	"net"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
@@ -311,8 +313,8 @@ func (s *ServerTestSuite) TestStopClosesClients() {
 	s.hook.On("OnConnectionOpen", s.server, s.listener)
 	s.hook.On("OnConnectionOpened", s.server, s.listener)
 	s.hook.On("OnPacketReceive", s.server, mock.Anything)
-	s.hook.On("OnConnectionClose", s.server, s.listener)
-	s.hook.On("OnConnectionClosed", s.server, s.listener)
+	s.hook.On("OnConnectionClose", s.server, s.listener, nil)
+	s.hook.On("OnConnectionClosed", s.server, s.listener, nil)
 	s.startServer()
 
 	c1, c2 := net.Pipe()
@@ -405,8 +407,8 @@ func (s *ServerTestSuite) TestHandleConnectionWithHook() {
 		close(connOpened)
 	})
 	s.hook.On("OnPacketReceive", s.server, mock.Anything)
-	s.hook.On("OnConnectionClose", s.server, s.listener)
-	s.hook.On("OnConnectionClosed", s.server, s.listener).Run(func(_ mock.Arguments) {
+	s.hook.On("OnConnectionClose", s.server, s.listener, io.EOF)
+	s.hook.On("OnConnectionClosed", s.server, s.listener, io.EOF).Run(func(_ mock.Arguments) {
 		close(connClosed)
 	})
 	s.startServer()
@@ -422,16 +424,20 @@ func (s *ServerTestSuite) TestHandleConnectionWithHook() {
 }
 
 func (s *ServerTestSuite) TestHandleConnectionReadTimeout() {
-	connClosed := make(chan struct{})
 	connOpened := make(chan struct{})
+	connClosed := make(chan struct{})
 	s.addHook()
 	s.hook.On("OnConnectionOpen", s.server, s.listener)
 	s.hook.On("OnConnectionOpened", s.server, s.listener).Run(func(_ mock.Arguments) {
 		close(connOpened)
 	})
 	s.hook.On("OnPacketReceive", s.server, mock.Anything)
-	s.hook.On("OnConnectionClose", s.server, s.listener)
-	s.hook.On("OnConnectionClosed", s.server, s.listener).Run(func(_ mock.Arguments) {
+	s.hook.On("OnConnectionClose", s.server, s.listener, mock.MatchedBy(func(err error) bool {
+		return errors.Is(err, os.ErrDeadlineExceeded)
+	}))
+	s.hook.On("OnConnectionClosed", s.server, s.listener, mock.MatchedBy(func(err error) bool {
+		return errors.Is(err, os.ErrDeadlineExceeded)
+	})).Run(func(_ mock.Arguments) {
 		close(connClosed)
 	})
 	s.server.config.ConnectTimeout = 1
@@ -447,10 +453,14 @@ func (s *ServerTestSuite) TestHandleConnectionReadTimeout() {
 }
 
 func (s *ServerTestSuite) TestOnConnectionOpenedError() {
+	connClosed := make(chan struct{})
 	s.addHook()
-	s.hook.On("OnConnectionOpen", s.server, s.listener).Return(errors.New("failed"))
-	s.hook.On("OnConnectionClose", s.server, s.listener)
-	s.hook.On("OnConnectionClosed", s.server, s.listener)
+	err := errors.New("failed")
+	s.hook.On("OnConnectionOpen", s.server, s.listener).Return(err)
+	s.hook.On("OnConnectionClose", s.server, s.listener, err)
+	s.hook.On("OnConnectionClosed", s.server, s.listener, err).Run(func(_ mock.Arguments) {
+		close(connClosed)
+	})
 	s.startServer()
 	defer s.stopServer()
 
@@ -458,15 +468,20 @@ func (s *ServerTestSuite) TestOnConnectionOpenedError() {
 	defer func() { _ = c1.Close() }()
 
 	s.listener.onConnection(c2)
+	<-connClosed
 }
 
 func (s *ServerTestSuite) TestOnPacketReceiveError() {
+	connClosed := make(chan struct{})
 	s.addHook()
+	err := errors.New("failed")
 	s.hook.On("OnConnectionOpen", s.server, s.listener)
 	s.hook.On("OnConnectionOpened", s.server, s.listener)
-	s.hook.On("OnPacketReceive", s.server, mock.Anything).Return(errors.New("failed"))
-	s.hook.On("OnConnectionClose", s.server, s.listener)
-	s.hook.On("OnConnectionClosed", s.server, s.listener)
+	s.hook.On("OnPacketReceive", s.server, mock.Anything).Return(err)
+	s.hook.On("OnConnectionClose", s.server, s.listener, err)
+	s.hook.On("OnConnectionClosed", s.server, s.listener, err).Run(func(_ mock.Arguments) {
+		close(connClosed)
+	})
 	s.startServer()
 	defer s.stopServer()
 
@@ -474,6 +489,7 @@ func (s *ServerTestSuite) TestOnPacketReceiveError() {
 	defer func() { _ = c1.Close() }()
 
 	s.listener.onConnection(c2)
+	<-connClosed
 }
 
 func TestServerTestSuite(t *testing.T) {

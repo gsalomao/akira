@@ -65,15 +65,15 @@ func newClient(nc net.Conn, s *Server, l Listener) *Client {
 }
 
 // Close closes the Client.
-func (c *Client) Close() {
+func (c *Client) Close(err error) {
 	c.closeOnce.Do(func() {
-		c.server.hooks.onConnectionClose(c.server, c.connection.listener)
+		c.server.hooks.onConnectionClose(c.server, c.connection.listener, err)
 
 		c.state.Store(uint32(ClientClosed))
 		_ = c.connection.netConn.Close()
 		close(c.done)
 
-		c.server.hooks.onConnectionClosed(c.server, c.connection.listener)
+		c.server.hooks.onConnectionClosed(c.server, c.connection.listener, err)
 	})
 }
 
@@ -130,7 +130,7 @@ func (c *clients) closeAll() {
 			break
 		}
 
-		elem.Value.(*Client).Close()
+		elem.Value.(*Client).Close(nil)
 		elem = elem.Next()
 	}
 }

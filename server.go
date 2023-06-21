@@ -289,7 +289,7 @@ func (s *Server) handleConnection(l Listener, nc net.Conn) {
 	c := newClient(nc, s, l)
 
 	if err := s.hooks.onConnectionOpen(s, l); err != nil {
-		c.Close()
+		c.Close(err)
 		return
 	}
 
@@ -306,11 +306,12 @@ func (s *Server) handleClient(c *Client) {
 	// Start the inbound goroutine.
 	go func() {
 		defer s.wg.Done()
-		defer c.Close()
+		defer c.Close(nil)
 
 		for {
 			_, err := s.receivePacket(c)
 			if err != nil {
+				c.Close(err)
 				return
 			}
 		}

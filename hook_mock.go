@@ -79,12 +79,12 @@ func (h *mockHook) OnConnectionOpened(s *Server, l Listener) {
 	h.Called(s, l)
 }
 
-func (h *mockHook) OnConnectionClose(s *Server, l Listener) {
-	h.Called(s, l)
+func (h *mockHook) OnConnectionClose(s *Server, l Listener, err error) {
+	h.Called(s, l, err)
 }
 
-func (h *mockHook) OnConnectionClosed(s *Server, l Listener) {
-	h.Called(s, l)
+func (h *mockHook) OnConnectionClosed(s *Server, l Listener, err error) {
+	h.Called(s, l, err)
 }
 
 func (h *mockHook) OnPacketReceive(s *Server, c *Client) error {

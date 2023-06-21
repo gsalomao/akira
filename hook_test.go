@@ -173,18 +173,36 @@ func (s *HooksTestSuite) TestOnConnectionOpened() {
 
 func (s *HooksTestSuite) TestOnConnectionClose() {
 	l := newMockListener("mock", ":1883")
-	s.hook.On("OnConnectionClose", s.server, l)
+	s.hook.On("OnConnectionClose", s.server, l, nil)
 	s.addHook(s.hook)
 
-	s.hooks.onConnectionClose(s.server, l)
+	s.hooks.onConnectionClose(s.server, l, nil)
+}
+
+func (s *HooksTestSuite) TestOnConnectionCloseWithError() {
+	err := errors.New("failed")
+	l := newMockListener("mock", ":1883")
+	s.hook.On("OnConnectionClose", s.server, l, err)
+	s.addHook(s.hook)
+
+	s.hooks.onConnectionClose(s.server, l, err)
 }
 
 func (s *HooksTestSuite) TestOnConnectionClosed() {
 	l := newMockListener("mock", ":1883")
-	s.hook.On("OnConnectionClosed", s.server, l)
+	s.hook.On("OnConnectionClosed", s.server, l, nil)
 	s.addHook(s.hook)
 
-	s.hooks.onConnectionClosed(s.server, l)
+	s.hooks.onConnectionClosed(s.server, l, nil)
+}
+
+func (s *HooksTestSuite) TestOnConnectionClosedWithError() {
+	err := errors.New("failed")
+	l := newMockListener("mock", ":1883")
+	s.hook.On("OnConnectionClosed", s.server, l, err)
+	s.addHook(s.hook)
+
+	s.hooks.onConnectionClosed(s.server, l, err)
 }
 
 func (s *HooksTestSuite) TestOnPacketReceiveSuccess() {

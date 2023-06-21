@@ -108,16 +108,17 @@ type OnConnectionOpenedHook interface {
 }
 
 // OnClientCloseHook is the hook interface that wraps the OnConnectionClose method. The OnConnectionClose method is
-// called by the server when the connection is being closed.
+// called by the server when the connection is being closed. If the connection is being closed due to any error, the
+// error is passed as parameter.
 type OnClientCloseHook interface {
-	OnConnectionClose(s *Server, l Listener)
+	OnConnectionClose(s *Server, l Listener, err error)
 }
 
 // OnConnectionClosedHook is the hook interface that wraps the OnConnectionClosed method. The OnConnectionClosed
 // method is called by the server when the connection has closed. This method is called after the OnConnectionClose
-// method.
+// method. If the connection was closed due to any error, the error is passed as parameter.
 type OnConnectionClosedHook interface {
-	OnConnectionClosed(s *Server, l Listener)
+	OnConnectionClosed(s *Server, l Listener, err error)
 }
 
 // OnPacketReceiveHook is the hook interface that wraps the OnPacketReceive method. The OnPacketReceive method is
@@ -311,7 +312,7 @@ func (h *hooks) onConnectionOpened(s *Server, l Listener) {
 	}
 }
 
-func (h *hooks) onConnectionClose(s *Server, l Listener) {
+func (h *hooks) onConnectionClose(s *Server, l Listener, err error) {
 	if !h.hasHook(onConnectionCloseHook) {
 		return
 	}
@@ -321,11 +322,11 @@ func (h *hooks) onConnectionClose(s *Server, l Listener) {
 
 	for _, hook := range h.hooks[onConnectionCloseHook] {
 		hk := hook.(OnClientCloseHook)
-		hk.OnConnectionClose(s, l)
+		hk.OnConnectionClose(s, l, err)
 	}
 }
 
-func (h *hooks) onConnectionClosed(s *Server, l Listener) {
+func (h *hooks) onConnectionClosed(s *Server, l Listener, err error) {
 	if !h.hasHook(onConnectionClosedHook) {
 		return
 	}
@@ -335,7 +336,7 @@ func (h *hooks) onConnectionClosed(s *Server, l Listener) {
 
 	for _, hook := range h.hooks[onConnectionClosedHook] {
 		hk := hook.(OnConnectionClosedHook)
-		hk.OnConnectionClosed(s, l)
+		hk.OnConnectionClosed(s, l, err)
 	}
 }
 
