@@ -331,6 +331,10 @@ func (s *Server) handleClient(c *Client) {
 }
 
 func (s *Server) receivePacket(c *Client) (Packet, error) {
+	if err := s.hooks.onPacketReceive(s, c); err != nil {
+		return nil, err
+	}
+
 	buf := s.readBufPool.Get().(*bufio.Reader)
 	defer s.readBufPool.Put(buf)
 

@@ -187,6 +187,26 @@ func (s *HooksTestSuite) TestOnConnectionClosed() {
 	s.hooks.onConnectionClosed(s.server, l)
 }
 
+func (s *HooksTestSuite) TestOnPacketReceiveSuccess() {
+	l := newMockListener("mock", ":1883")
+	c := newClient(nil, s.server, l)
+	s.hook.On("OnPacketReceive", s.server, c)
+	s.addHook(s.hook)
+
+	err := s.hooks.onPacketReceive(s.server, c)
+	s.Require().NoError(err)
+}
+
+func (s *HooksTestSuite) TestOnPacketReceiveSuccessError() {
+	l := newMockListener("mock", ":1883")
+	c := newClient(nil, s.server, l)
+	s.hook.On("OnPacketReceive", s.server, c).Return(errors.New("failed"))
+	s.addHook(s.hook)
+
+	err := s.hooks.onPacketReceive(s.server, c)
+	s.Require().Error(err)
+}
+
 func TestHooksTestSuite(t *testing.T) {
 	suite.Run(t, new(HooksTestSuite))
 }

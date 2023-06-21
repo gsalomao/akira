@@ -86,3 +86,11 @@ func (h *mockHook) OnConnectionClose(s *Server, l Listener) {
 func (h *mockHook) OnConnectionClosed(s *Server, l Listener) {
 	h.Called(s, l)
 }
+
+func (h *mockHook) OnPacketReceive(s *Server, c *Client) error {
+	args := h.Called(s, c)
+	if len(args) > 0 {
+		return args.Error(0)
+	}
+	return nil
+}

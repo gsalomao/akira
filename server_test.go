@@ -310,6 +310,7 @@ func (s *ServerTestSuite) TestStopClosesClients() {
 	s.hook.On("OnServerStopped", s.server)
 	s.hook.On("OnConnectionOpen", s.server, s.listener)
 	s.hook.On("OnConnectionOpened", s.server, s.listener)
+	s.hook.On("OnPacketReceive", s.server, mock.Anything)
 	s.hook.On("OnConnectionClose", s.server, s.listener)
 	s.hook.On("OnConnectionClosed", s.server, s.listener)
 	s.startServer()
@@ -403,6 +404,7 @@ func (s *ServerTestSuite) TestHandleConnectionWithHook() {
 	s.hook.On("OnConnectionOpened", s.server, s.listener).Run(func(_ mock.Arguments) {
 		close(connOpened)
 	})
+	s.hook.On("OnPacketReceive", s.server, mock.Anything)
 	s.hook.On("OnConnectionClose", s.server, s.listener)
 	s.hook.On("OnConnectionClosed", s.server, s.listener).Run(func(_ mock.Arguments) {
 		close(connClosed)
@@ -427,6 +429,7 @@ func (s *ServerTestSuite) TestHandleConnectionReadTimeout() {
 	s.hook.On("OnConnectionOpened", s.server, s.listener).Run(func(_ mock.Arguments) {
 		close(connOpened)
 	})
+	s.hook.On("OnPacketReceive", s.server, mock.Anything)
 	s.hook.On("OnConnectionClose", s.server, s.listener)
 	s.hook.On("OnConnectionClosed", s.server, s.listener).Run(func(_ mock.Arguments) {
 		close(connClosed)
@@ -446,6 +449,22 @@ func (s *ServerTestSuite) TestHandleConnectionReadTimeout() {
 func (s *ServerTestSuite) TestOnConnectionOpenedError() {
 	s.addHook()
 	s.hook.On("OnConnectionOpen", s.server, s.listener).Return(errors.New("failed"))
+	s.hook.On("OnConnectionClose", s.server, s.listener)
+	s.hook.On("OnConnectionClosed", s.server, s.listener)
+	s.startServer()
+	defer s.stopServer()
+
+	c1, c2 := net.Pipe()
+	defer func() { _ = c1.Close() }()
+
+	s.listener.onConnection(c2)
+}
+
+func (s *ServerTestSuite) TestOnPacketReceiveError() {
+	s.addHook()
+	s.hook.On("OnConnectionOpen", s.server, s.listener)
+	s.hook.On("OnConnectionOpened", s.server, s.listener)
+	s.hook.On("OnPacketReceive", s.server, mock.Anything).Return(errors.New("failed"))
 	s.hook.On("OnConnectionClose", s.server, s.listener)
 	s.hook.On("OnConnectionClosed", s.server, s.listener)
 	s.startServer()
