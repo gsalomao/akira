@@ -18,6 +18,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"io"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -25,6 +26,20 @@ import (
 
 // ErrInvalidServerState indicates that the Server is not in a valid state for the operation.
 var ErrInvalidServerState = errors.New("invalid server state")
+
+const (
+	// MQTT31 represents the MQTT version 3.1.
+	MQTT31 MQTTVersion = iota + 3
+
+	// MQTT311 represents the MQTT version 3.1.1.
+	MQTT311
+
+	// MQTT50 represents the MQTT version 5.0.
+	MQTT50
+)
+
+// MQTTVersion represents the MQTT version.
+type MQTTVersion byte
 
 const (
 	// ServerNotStarted indicates that the Server has not started yet.
@@ -293,7 +308,6 @@ func (s *Server) handleConnection(l Listener, nc net.Conn) {
 		return
 	}
 
-	s.hooks.onConnectionOpened(s, l)
 	s.handleClient(c)
 }
 
@@ -307,6 +321,8 @@ func (s *Server) handleClient(c *Client) {
 	go func() {
 		defer s.wg.Done()
 		defer c.Close(nil)
+
+		s.hooks.onConnectionOpened(s, c.connection.listener)
 
 		for {
 			_, err := s.receivePacket(c)
@@ -331,8 +347,8 @@ func (s *Server) handleClient(c *Client) {
 	}()
 }
 
-func (s *Server) receivePacket(c *Client) (Packet, error) {
-	if err := s.hooks.onPacketReceive(s, c); err != nil {
+func (s *Server) receivePacket(c *Client) (p Packet, err error) {
+	if err = s.hooks.onPacketReceive(s, c); err != nil {
 		return nil, err
 	}
 
@@ -342,10 +358,24 @@ func (s *Server) receivePacket(c *Client) (Packet, error) {
 	buf.Reset(c.connection.netConn)
 	c.refreshDeadline()
 
-	_, err := buf.ReadByte()
+	p, _, err = readPacket(buf)
 	if err != nil {
+		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || c.State() == ClientClosed {
+			return nil, io.EOF
+		}
+
+		var netErr net.Error
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			return nil, err
+		}
+
+		err = s.hooks.onPacketReceiveError(s, c, err)
 		return nil, err
 	}
 
-	return nil, nil
+	if err = s.hooks.onPacketReceived(s, c, p); err != nil {
+		return nil, err
+	}
+
+	return p, nil
 }

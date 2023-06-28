@@ -16,120 +16,62 @@ package melitte
 
 import (
 	"bufio"
+	"fmt"
 	"io"
-	"time"
 )
-
-const (
-	// PacketTypeReserved is the reserved packet type.
-	PacketTypeReserved PacketType = iota
-
-	// PacketTypeConnect is the CONNECT packet type.
-	PacketTypeConnect
-
-	// PacketTypeConnAck is the CONNACK packet type.
-	PacketTypeConnAck
-
-	// PacketTypePublish is the PUBLISH packet type.
-	PacketTypePublish
-
-	// PacketTypePubAck is the PUBACK packet type.
-	PacketTypePubAck
-
-	// PacketTypePubRec is the PUBREC packet type.
-	PacketTypePubRec
-
-	// PacketTypePubRel is the PUBREL packet type.
-	PacketTypePubRel
-
-	// PacketTypePubComp is the PUBCOMP packet type.
-	PacketTypePubComp
-
-	// PacketTypeSubscribe is the SUBSCRIBE packet type.
-	PacketTypeSubscribe
-
-	// PacketTypeSubAck is the SUBACK packet type.
-	PacketTypeSubAck
-
-	// PacketTypeUnsubscribe is the UNSUBSCRIBE packet type.
-	PacketTypeUnsubscribe
-
-	// PacketTypeUnsubAck is the UNSUBSCRIBE packet type.
-	PacketTypeUnsubAck
-
-	// PacketTypePingReq is the PINGREQ packet type.
-	PacketTypePingReq
-
-	// PacketTypePingResp is the PINGRESP packet type.
-	PacketTypePingResp
-
-	// PacketTypeDisconnect is the DISCONNECT packet type.
-	PacketTypeDisconnect
-
-	// PacketTypeAuth is the AUTH packet type.
-	PacketTypeAuth
-
-	// PacketTypeInvalid indicates that the packet type is invalid.
-	PacketTypeInvalid
-)
-
-var packetTypeToString = map[PacketType]string{
-	PacketTypeReserved:    "Reserved",
-	PacketTypeConnect:     "CONNECT",
-	PacketTypeConnAck:     "CONNACK",
-	PacketTypePublish:     "PUBLISH",
-	PacketTypePubAck:      "PUBACK",
-	PacketTypePubRec:      "PUBREC",
-	PacketTypePubRel:      "PUBREL",
-	PacketTypePubComp:     "PUBCOMP",
-	PacketTypeSubscribe:   "SUBSCRIBE",
-	PacketTypeSubAck:      "SUBACK",
-	PacketTypeUnsubscribe: "UNSUBSCRIBE",
-	PacketTypeUnsubAck:    "UNSUBACK",
-	PacketTypePingReq:     "PINGREQ",
-	PacketTypePingResp:    "PINGRESP",
-	PacketTypeDisconnect:  "DISCONNECT",
-	PacketTypeAuth:        "AUTH",
-}
-
-// PacketType represents the packet type (e.g. CONNECT, CONNACK, etc.).
-type PacketType byte
-
-// String returns the packet type name.
-func (t PacketType) String() string {
-	name, ok := packetTypeToString[t]
-	if !ok {
-		return "Invalid"
-	}
-
-	return name
-}
-
-// Byte returns the packet type in byte type.
-func (t PacketType) Byte() byte {
-	return byte(t)
-}
 
 // Packet is the interface representing all MQTT packets.
 type Packet interface {
 	// Type returns the packet type.
 	Type() PacketType
 
-	// Size returns the packet size in bytes.
+	// Size returns the size of the packet.
 	Size() int
-
-	// CreatedAt returns the timestamp of the moment which the packet was created.
-	CreatedAt() time.Time
 }
 
-// PacketReader is the interface that wraps the ReadPacket method. The ReadPacket method reads the Packet, by
-// deserializing it, from a bufio.Reader.
-type PacketReader interface {
-	ReadPacket(r *io.Reader) error
+// PacketDecoder is the interface for all MQTT packets which implement the Decode method.
+type PacketDecoder interface {
+	Packet
+
+	// Decode decodes the Packet from buf and header. This method returns the number of bytes read
+	// from buf and the error, if it fails to decode the packet correctly.
+	Decode(buf []byte, header FixedHeader) (n int, err error)
 }
 
-// PacketWriter is the interface that wraps the WritePacket method. The WritePacket method writes the Packet, by
-// serializing it, into a bufio.Writer.
-type PacketWriter interface {
-	WritePacket(w *bufio.Writer)
+func readPacket(r *bufio.Reader) (Packet, int, error) {
+	var err error
+	var hSize int
+	var header FixedHeader
+
+	if hSize, err = header.read(r); err != nil {
+		return nil, hSize, fmt.Errorf("failed to read packet: %w", err)
+	}
+
+	var p PacketDecoder
+	var pSize int
+
+	switch header.PacketType {
+	case PacketTypeConnect:
+		p = &PacketConnect{}
+	default:
+		return nil, hSize, fmt.Errorf("failed to read packet: %w: %v", ErrMalformedPacketType, header.PacketType)
+	}
+
+	// Allocate the slice which will be the backing data for the packet.
+	data := make([]byte, header.RemainingLength)
+
+	if _, err = io.ReadFull(r, data); err != nil {
+		return nil, hSize, fmt.Errorf("failed to read remaining bytes: %w", err)
+	}
+
+	pSize, err = p.Decode(data, header)
+	n := hSize + pSize
+	if err != nil {
+		return nil, n, fmt.Errorf("failed to read %s packet: %w", p.Type(), err)
+	}
+	if pSize != header.RemainingLength {
+		return nil, n, fmt.Errorf("failed to read %s packet: %w", p.Type(), ErrMalformedPacketLength)
+	}
+
+	return p, n, nil
 }

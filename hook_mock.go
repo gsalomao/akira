@@ -94,3 +94,19 @@ func (h *mockHook) OnPacketReceive(s *Server, c *Client) error {
 	}
 	return nil
 }
+
+func (h *mockHook) OnPacketReceiveError(s *Server, c *Client, err error) error {
+	args := h.Called(s, c, err)
+	if len(args) > 0 {
+		return args.Error(0)
+	}
+	return nil
+}
+
+func (h *mockHook) OnPacketReceived(s *Server, c *Client, p Packet) error {
+	args := h.Called(s, c, p)
+	if len(args) > 0 {
+		return args.Error(0)
+	}
+	return nil
+}

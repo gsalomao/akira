@@ -33,6 +33,8 @@ const (
 	onConnectionCloseHook
 	onConnectionClosedHook
 	onPacketReceiveHook
+	onPacketReceiveErrorHook
+	onPacketReceivedHook
 	numHookTypes
 )
 
@@ -128,19 +130,35 @@ type OnPacketReceiveHook interface {
 	OnPacketReceive(s *Server, c *Client) error
 }
 
+// OnPacketReceiveErrorHook is the hook interface that wraps the OnPacketReceiveError method. The OnPacketReceiveError
+// method is called by the server, with the error as parameter, when it fails to receive a new packet. If this method
+// returns an error, the server closes the client. Otherwise, it tries to receive a new packet again.
+type OnPacketReceiveErrorHook interface {
+	OnPacketReceiveError(s *Server, c *Client, err error) error
+}
+
+// OnPacketReceivedHook is the hook interface that wraps the OnPacketReceived method. The OnPacketReceived method is
+// called by the server when a new packet is received. If this method returns an error, the server discards the
+// received packet.
+type OnPacketReceivedHook interface {
+	OnPacketReceived(s *Server, c *Client, p Packet) error
+}
+
 var hooksRegistries = map[hookType]func(*hooks, Hook, hookType){
-	onStartHook:             registerHook[OnStartHook],
-	onStopHook:              registerHook[OnStopHook],
-	onServerStartHook:       registerHook[OnServerStartHook],
-	onServerStartFailedHook: registerHook[OnServerStartFailedHook],
-	onServerStartedHook:     registerHook[OnServerStartedHook],
-	onServerStopHook:        registerHook[OnServerStopHook],
-	onServerStoppedHook:     registerHook[OnServerStoppedHook],
-	onConnectionOpenHook:    registerHook[OnConnectionOpenHook],
-	onConnectionOpenedHook:  registerHook[OnConnectionOpenedHook],
-	onConnectionCloseHook:   registerHook[OnClientCloseHook],
-	onConnectionClosedHook:  registerHook[OnConnectionClosedHook],
-	onPacketReceiveHook:     registerHook[OnPacketReceiveHook],
+	onStartHook:              registerHook[OnStartHook],
+	onStopHook:               registerHook[OnStopHook],
+	onServerStartHook:        registerHook[OnServerStartHook],
+	onServerStartFailedHook:  registerHook[OnServerStartFailedHook],
+	onServerStartedHook:      registerHook[OnServerStartedHook],
+	onServerStopHook:         registerHook[OnServerStopHook],
+	onServerStoppedHook:      registerHook[OnServerStoppedHook],
+	onConnectionOpenHook:     registerHook[OnConnectionOpenHook],
+	onConnectionOpenedHook:   registerHook[OnConnectionOpenedHook],
+	onConnectionCloseHook:    registerHook[OnClientCloseHook],
+	onConnectionClosedHook:   registerHook[OnConnectionClosedHook],
+	onPacketReceiveHook:      registerHook[OnPacketReceiveHook],
+	onPacketReceiveErrorHook: registerHook[OnPacketReceiveErrorHook],
+	onPacketReceivedHook:     registerHook[OnPacketReceivedHook],
 }
 
 func registerHook[T any](h *hooks, hook Hook, t hookType) {
@@ -167,11 +185,10 @@ func newHooks() *hooks {
 		hks[t] = make([]Hook, 0)
 	}
 
-	h := hooks{
+	return &hooks{
 		hookNames: names,
 		hooks:     hks,
 	}
-	return &h
 }
 
 func (h *hooks) hasHook(t hookType) bool {
@@ -349,6 +366,40 @@ func (h *hooks) onPacketReceive(s *Server, c *Client) error {
 		hk := hook.(OnPacketReceiveHook)
 
 		err := hk.OnPacketReceive(s, c)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (h *hooks) onPacketReceiveError(s *Server, c *Client, err error) error {
+	if !h.hasHook(onPacketReceiveErrorHook) {
+		return nil
+	}
+
+	for _, hook := range h.hooks[onPacketReceiveErrorHook] {
+		hk := hook.(OnPacketReceiveErrorHook)
+
+		newErr := hk.OnPacketReceiveError(s, c, err)
+		if newErr != nil {
+			return newErr
+		}
+	}
+
+	return nil
+}
+
+func (h *hooks) onPacketReceived(s *Server, c *Client, p Packet) error {
+	if !h.hasHook(onPacketReceivedHook) {
+		return nil
+	}
+
+	for _, hook := range h.hooks[onPacketReceivedHook] {
+		hk := hook.(OnPacketReceivedHook)
+
+		err := hk.OnPacketReceived(s, c, p)
 		if err != nil {
 			return err
 		}

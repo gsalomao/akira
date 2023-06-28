@@ -94,7 +94,7 @@ func (c *Client) packetToSend() <-chan []byte {
 func (c *Client) refreshDeadline() {
 	var deadline time.Time
 
-	if c.connection.keepAlive > 0 { // [MQTT-3.1.2-22]
+	if c.connection.keepAlive > 0 {
 		timeout := math.Ceil(float64(c.connection.keepAlive) * 1.5)
 		deadline = time.Now().Add(time.Duration(timeout) * time.Second)
 	}
