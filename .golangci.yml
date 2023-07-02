@@ -20,10 +20,14 @@ linters:
   enable-all: true
   disable-all: false
   disable:
+    - cyclop
     - deadcode
+    - errname
+    - exhaustive
     - exhaustivestruct
     - exhaustruct
     - forcetypeassert
+    - funlen
     - gochecknoglobals
     - goerr113
     - golint
