@@ -362,6 +362,9 @@ func (h *hooks) onPacketReceive(s *Server, c *Client) error {
 		return nil
 	}
 
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
 	for _, hook := range h.hooks[onPacketReceiveHook] {
 		hk := hook.(OnPacketReceiveHook)
 
@@ -379,6 +382,9 @@ func (h *hooks) onPacketReceiveError(s *Server, c *Client, err error) error {
 		return nil
 	}
 
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
 	for _, hook := range h.hooks[onPacketReceiveErrorHook] {
 		hk := hook.(OnPacketReceiveErrorHook)
 
@@ -395,6 +401,9 @@ func (h *hooks) onPacketReceived(s *Server, c *Client, p Packet) error {
 	if !h.hasHook(onPacketReceivedHook) {
 		return nil
 	}
+
+	h.mu.RLock()
+	defer h.mu.RUnlock()
 
 	for _, hook := range h.hooks[onPacketReceivedHook] {
 		hk := hook.(OnPacketReceivedHook)
