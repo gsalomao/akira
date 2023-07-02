@@ -32,7 +32,7 @@ type ServerTestSuite struct {
 	suite.Suite
 	server   *Server
 	listener *mockListener
-	hook     *mockHook
+	hook     *hookMock
 }
 
 func (s *ServerTestSuite) SetupTest() {
@@ -54,7 +54,7 @@ func (s *ServerTestSuite) TearDownTest() {
 }
 
 func (s *ServerTestSuite) addHook() {
-	s.hook = newMockHook()
+	s.hook = newHookMock()
 
 	err := s.server.AddHook(s.hook)
 	s.Require().NoError(err)
@@ -117,7 +117,7 @@ func (s *ServerTestSuite) TestNewServerWithListenersError() {
 }
 
 func (s *ServerTestSuite) TestNewServerWithHooks() {
-	h := []Hook{newMockHook()}
+	h := []Hook{newHookMock()}
 	srv, err := NewServer(&Options{Hooks: h})
 
 	s.Require().NoError(err)
@@ -128,8 +128,8 @@ func (s *ServerTestSuite) TestNewServerWithHooks() {
 func (s *ServerTestSuite) TestNewServerWithHooksError() {
 	_, err := NewServer(&Options{
 		Hooks: []Hook{
-			newMockHook(),
-			newMockHook(),
+			newHookMock(),
+			newHookMock(),
 		},
 	})
 
@@ -173,7 +173,7 @@ func (s *ServerTestSuite) TestAddListenerServerRunningError() {
 
 func (s *ServerTestSuite) TestAddHookSuccess() {
 	srv, _ := NewServer(NewDefaultOptions())
-	hook := newMockHook()
+	hook := newHookMock()
 
 	err := srv.AddHook(hook)
 	s.Require().NoError(err)
@@ -183,7 +183,7 @@ func (s *ServerTestSuite) TestAddHookSuccess() {
 func (s *ServerTestSuite) TestAddHookCallsOnStartWhenServerRunning() {
 	srv, _ := NewServer(NewDefaultOptions())
 	_ = srv.Start(context.Background())
-	hook := newMockHook()
+	hook := newHookMock()
 	hook.On("OnStart", srv)
 
 	err := srv.AddHook(hook)
@@ -193,7 +193,7 @@ func (s *ServerTestSuite) TestAddHookCallsOnStartWhenServerRunning() {
 
 func (s *ServerTestSuite) TestAddHookError() {
 	s.addHook()
-	hook := newMockHook()
+	hook := newHookMock()
 
 	err := s.server.AddHook(hook)
 	s.Assert().Error(err)
@@ -201,7 +201,7 @@ func (s *ServerTestSuite) TestAddHookError() {
 
 func (s *ServerTestSuite) TestAddHookOnStartError() {
 	s.startServer()
-	hook := newMockHook()
+	hook := newHookMock()
 	hook.On("OnStart", s.server).Return(assert.AnError)
 
 	err := s.server.AddHook(hook)
@@ -655,4 +655,135 @@ func (s *ServerTestSuite) TestReceivePacketOnPacketReceivedWithError() {
 
 func TestServerTestSuite(t *testing.T) {
 	suite.Run(t, new(ServerTestSuite))
+}
+
+func BenchmarkReceivePacket(b *testing.B) {
+	testCases := []struct {
+		name string
+		data []byte
+	}{
+		{
+			name: "CONNECT-V3",
+			data: []byte{
+				byte(PacketTypeConnect) << 4, 14, // Fixed header
+				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
+				4,      // Protocol version
+				2,      // Packet flags (Clean Session)
+				0, 255, // Keep alive
+				0, 2, 'a', 'b', // Client ID
+			},
+		},
+		{
+			name: "CONNECT-V5",
+			data: []byte{
+				byte(PacketTypeConnect) << 4, 15, // Fixed header
+				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
+				5,      // Protocol version
+				2,      // Packet flags (Clean Session)
+				0, 255, // Keep alive
+				0,              // Property length
+				0, 2, 'a', 'b', // Client ID
+			},
+		},
+	}
+
+	bench := func(b *testing.B, server *Server, data []byte) {
+		listener := newMockListener("mock", ":1883")
+		err := server.AddListener(listener)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		var sConn net.Conn
+		var sErr error
+
+		ctx, cancel := context.WithCancel(context.Background())
+		lsn, _ := net.Listen("tcp", ":1883")
+		defer func() { _ = lsn.Close() }()
+
+		var wg sync.WaitGroup
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+			cancel()
+			sConn, sErr = lsn.Accept()
+		}()
+
+		<-ctx.Done()
+		cConn, cErr := net.Dial("tcp", ":1883")
+		if cErr != nil {
+			b.Fatal(cErr)
+		}
+
+		wg.Wait()
+		if sErr != nil {
+			b.Fatal(sErr)
+		}
+		defer func() { _ = sConn.Close() }()
+
+		c := newClient(sConn, server, listener)
+
+		ctx, cancel = context.WithCancel(context.Background())
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			cancel()
+
+			for {
+				_, sErr = server.receivePacket(c)
+				if sErr != nil {
+					break
+				}
+			}
+		}()
+
+		<-ctx.Done()
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			_, cErr = cConn.Write(data)
+			if cErr != nil {
+				b.Fatal(cErr)
+			}
+		}
+
+		_ = cConn.Close()
+		wg.Wait()
+
+		if sErr != nil && !errors.Is(sErr, io.EOF) {
+			b.Fatal(sErr)
+		}
+	}
+
+	for _, test := range testCases {
+		b.Run(test.name, func(b *testing.B) {
+			b.Run("No Hooks", func(b *testing.B) {
+				server, err := NewServer(NewDefaultOptions())
+				if err != nil {
+					b.Fatal(err)
+				}
+				defer server.Close()
+
+				bench(b, server, test.data)
+			})
+
+			b.Run("With Hooks", func(b *testing.B) {
+				server, err := NewServer(NewDefaultOptions())
+				if err != nil {
+					b.Fatal(err)
+				}
+				defer server.Close()
+
+				hook := newHookSpy()
+				err = server.AddHook(hook)
+				if err != nil {
+					b.Fatal(err)
+				}
+
+				bench(b, server, test.data)
+			})
+		})
+	}
 }

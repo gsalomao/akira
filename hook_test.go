@@ -26,7 +26,7 @@ type HooksTestSuite struct {
 	suite.Suite
 	server *Server
 	hooks  *hooks
-	hook   *mockHook
+	hook   *hookMock
 }
 
 func (s *HooksTestSuite) SetupTest() {
@@ -36,7 +36,7 @@ func (s *HooksTestSuite) SetupTest() {
 	s.Require().NoError(err)
 
 	s.hooks = newHooks()
-	s.hook = newMockHook()
+	s.hook = newHookMock()
 }
 
 func (s *HooksTestSuite) TearDownTest() {
@@ -271,4 +271,120 @@ func (s *HooksTestSuite) TestOnPacketReceivedError() {
 
 func TestHooksTestSuite(t *testing.T) {
 	suite.Run(t, new(HooksTestSuite))
+}
+
+func BenchmarkHooks(b *testing.B) {
+	b.Run("onConnectionOpen", func(b *testing.B) {
+		b.Run("No Hook", func(b *testing.B) {
+			h := newHooks()
+
+			for i := 0; i < b.N; i++ {
+				_ = h.onConnectionOpen(nil, nil)
+			}
+		})
+
+		b.Run("With Hook", func(b *testing.B) {
+			h := newHooks()
+			_ = h.add(newHookSpy())
+
+			for i := 0; i < b.N; i++ {
+				_ = h.onConnectionOpen(nil, nil)
+			}
+		})
+	})
+
+	b.Run("onConnectionOpened", func(b *testing.B) {
+		b.Run("No Hook", func(b *testing.B) {
+			h := newHooks()
+
+			for i := 0; i < b.N; i++ {
+				h.onConnectionOpened(nil, nil)
+			}
+		})
+
+		b.Run("With Hook", func(b *testing.B) {
+			h := newHooks()
+			_ = h.add(newHookSpy())
+
+			for i := 0; i < b.N; i++ {
+				h.onConnectionOpened(nil, nil)
+			}
+		})
+	})
+
+	b.Run("onConnectionClose", func(b *testing.B) {
+		b.Run("No Hook", func(b *testing.B) {
+			h := newHooks()
+
+			for i := 0; i < b.N; i++ {
+				h.onConnectionClose(nil, nil, nil)
+			}
+		})
+
+		b.Run("With Hook", func(b *testing.B) {
+			h := newHooks()
+			_ = h.add(newHookSpy())
+
+			for i := 0; i < b.N; i++ {
+				h.onConnectionClose(nil, nil, nil)
+			}
+		})
+	})
+
+	b.Run("onConnectionClosed", func(b *testing.B) {
+		b.Run("No Hook", func(b *testing.B) {
+			h := newHooks()
+
+			for i := 0; i < b.N; i++ {
+				h.onConnectionClosed(nil, nil, nil)
+			}
+		})
+
+		b.Run("With Hook", func(b *testing.B) {
+			h := newHooks()
+			_ = h.add(newHookSpy())
+
+			for i := 0; i < b.N; i++ {
+				h.onConnectionClosed(nil, nil, nil)
+			}
+		})
+	})
+
+	b.Run("onPacketReceive", func(b *testing.B) {
+		b.Run("No Hook", func(b *testing.B) {
+			h := newHooks()
+
+			for i := 0; i < b.N; i++ {
+				_ = h.onPacketReceive(nil, nil)
+			}
+		})
+
+		b.Run("With Hook", func(b *testing.B) {
+			h := newHooks()
+			_ = h.add(newHookSpy())
+
+			for i := 0; i < b.N; i++ {
+				_ = h.onPacketReceive(nil, nil)
+			}
+		})
+	})
+
+	b.Run("onPacketReceived", func(b *testing.B) {
+		b.Run("No Hook", func(b *testing.B) {
+			h := newHooks()
+
+			for i := 0; i < b.N; i++ {
+				_ = h.onPacketReceived(nil, nil, nil)
+			}
+		})
+
+		b.Run("With Hook", func(b *testing.B) {
+			h := newHooks()
+			_ = h.add(newHookSpy())
+
+			for i := 0; i < b.N; i++ {
+				_ = h.onPacketReceived(nil, nil, nil)
+			}
+		})
+	})
 }
