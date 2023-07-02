@@ -408,9 +408,20 @@ func (s *PacketConnectTestSuite) TestDecodeError() {
 			err:  ErrMalformedClientID,
 		},
 		{
-			name: "Rejected Client ID (V3)",
+			name: "Zero-byte Client ID with Clean Session flag (V3.1)",
+			data: []byte{0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 2, 0, 10, 0, 0},
+			err:  ErrV3ClientIDRejected,
+		},
+		{
+			name: "Zero-byte Client ID without Clean Session flag (V3.1.1)",
 			data: []byte{0, 4, 'M', 'Q', 'T', 'T', 4, 0, 0, 10, 0, 0},
 			err:  ErrV3ClientIDRejected,
+		},
+		{
+			name: "Client ID more than 23 bytes (V3.1)",
+			data: []byte{0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 0, 0, 10, 0, 24, 65, 65, 65, 65, 65, 65, 65, 65, 65,
+				65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65},
+			err: ErrV3ClientIDRejected,
 		},
 		{
 			name: "Missing Will property length",
