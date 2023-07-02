@@ -79,24 +79,18 @@ func (s *PropertiesTestSuite) TestPropertiesConnectHas() {
 func (s *PropertiesTestSuite) TestPropertiesConnectSize() {
 	var flags propertyFlags
 
-	flags = flags.set(PropertySessionExpiryInterval)
-	flags = flags.set(PropertyReceiveMaximum)
-	flags = flags.set(PropertyMaximumPacketSize)
-	flags = flags.set(PropertyTopicAliasMaximum)
-	flags = flags.set(PropertyRequestResponseInfo)
-	flags = flags.set(PropertyRequestProblemInfo)
 	flags = flags.set(PropertyUserProperty)
 	flags = flags.set(PropertyAuthenticationMethod)
 	flags = flags.set(PropertyAuthenticationData)
+	flags = flags.set(PropertySessionExpiryInterval)
+	flags = flags.set(PropertyMaximumPacketSize)
+	flags = flags.set(PropertyReceiveMaximum)
+	flags = flags.set(PropertyTopicAliasMaximum)
+	flags = flags.set(PropertyRequestResponseInfo)
+	flags = flags.set(PropertyRequestProblemInfo)
 
 	props := PropertiesConnect{
-		Flags:                 flags,
-		SessionExpiryInterval: 10,
-		ReceiveMaximum:        20,
-		MaximumPacketSize:     100,
-		TopicAliasMaximum:     30,
-		RequestProblemInfo:    1,
-		RequestResponseInfo:   1,
+		Flags: flags,
 		UserProperties: []UserProperty{
 			{[]byte("a"), []byte("b")},
 			{[]byte("c"), []byte("d")},
@@ -148,8 +142,8 @@ func (s *PropertiesTestSuite) TestDecodePropertiesConnectSuccess() {
 	s.Assert().Equal(50, int(props.ReceiveMaximum))
 	s.Assert().Equal(200, int(props.MaximumPacketSize))
 	s.Assert().Equal(50, int(props.TopicAliasMaximum))
-	s.Assert().Equal(1, int(props.RequestResponseInfo))
-	s.Assert().Equal(0, int(props.RequestProblemInfo))
+	s.Assert().True(props.RequestResponseInfo)
+	s.Assert().False(props.RequestProblemInfo)
 	s.Assert().Equal([]byte("a"), props.UserProperties[0].Key)
 	s.Assert().Equal([]byte("b"), props.UserProperties[0].Value)
 	s.Assert().Equal([]byte("c"), props.UserProperties[1].Key)
@@ -305,6 +299,7 @@ func (s *PropertiesTestSuite) TestPropertiesWillHas() {
 		prop   Property
 		result bool
 	}{
+		{&PropertiesWill{}, PropertyUserProperty, true},
 		{&PropertiesWill{}, PropertyCorrelationData, true},
 		{&PropertiesWill{}, PropertyContentType, true},
 		{&PropertiesWill{}, PropertyResponseTopic, true},
@@ -320,6 +315,38 @@ func (s *PropertiesTestSuite) TestPropertiesWillHas() {
 			s.Require().Equal(test.result, test.props.Has(test.prop))
 		})
 	}
+}
+
+func (s *PropertiesTestSuite) TestPropertiesWillSize() {
+	var flags propertyFlags
+	flags = flags.set(PropertyUserProperty)
+	flags = flags.set(PropertyCorrelationData)
+	flags = flags.set(PropertyContentType)
+	flags = flags.set(PropertyResponseTopic)
+	flags = flags.set(PropertyWillDelayInterval)
+	flags = flags.set(PropertyMessageExpiryInterval)
+	flags = flags.set(PropertyPayloadFormatIndicator)
+
+	props := PropertiesWill{
+		Flags:                  flags,
+		UserProperties:         []UserProperty{{[]byte("a"), []byte("b")}},
+		CorrelationData:        []byte{20, 1},
+		ContentType:            []byte("json"),
+		ResponseTopic:          []byte("b"),
+		WillDelayInterval:      10,
+		MessageExpiryInterval:  100,
+		PayloadFormatIndicator: true,
+	}
+
+	size := props.size()
+	s.Assert().Equal(36, size)
+}
+
+func (s *PropertiesTestSuite) TestPropertiesWillSizeOnNil() {
+	var props *PropertiesWill
+
+	size := props.size()
+	s.Assert().Equal(1, size)
 }
 
 func (s *PropertiesTestSuite) TestDecodePropertiesWillSuccess() {
@@ -346,7 +373,7 @@ func (s *PropertiesTestSuite) TestDecodePropertiesWillSuccess() {
 	s.Assert().True(props.Has(PropertyCorrelationData))
 	s.Assert().True(props.Has(PropertyUserProperty))
 	s.Assert().Equal(15, int(props.WillDelayInterval))
-	s.Assert().Equal(1, int(props.PayloadFormatIndicator))
+	s.Assert().True(props.PayloadFormatIndicator)
 	s.Assert().Equal(10, int(props.MessageExpiryInterval))
 	s.Assert().Equal([]byte("json"), props.ContentType)
 	s.Assert().Equal([]byte("b"), props.ResponseTopic)
@@ -464,38 +491,6 @@ func (s *PropertiesTestSuite) TestDecodePropertiesWillError() {
 			s.Require().ErrorIs(err, test.err)
 		})
 	}
-}
-
-func (s *PropertiesTestSuite) TestPropertiesWillSize() {
-	var flags propertyFlags
-	flags = flags.set(PropertyWillDelayInterval)
-	flags = flags.set(PropertyPayloadFormatIndicator)
-	flags = flags.set(PropertyMessageExpiryInterval)
-	flags = flags.set(PropertyContentType)
-	flags = flags.set(PropertyResponseTopic)
-	flags = flags.set(PropertyCorrelationData)
-	flags = flags.set(PropertyUserProperty)
-
-	props := PropertiesWill{
-		Flags:                  flags,
-		WillDelayInterval:      10,
-		PayloadFormatIndicator: 1,
-		MessageExpiryInterval:  100,
-		ContentType:            []byte("json"),
-		ResponseTopic:          []byte("b"),
-		CorrelationData:        []byte{20, 1},
-		UserProperties:         []UserProperty{{[]byte("a"), []byte("b")}},
-	}
-
-	size := props.size()
-	s.Assert().Equal(36, size)
-}
-
-func (s *PropertiesTestSuite) TestPropertiesWillSizeOnNil() {
-	var props *PropertiesWill
-
-	size := props.size()
-	s.Assert().Equal(1, size)
 }
 
 func TestPropertiesTestSuite(t *testing.T) {
