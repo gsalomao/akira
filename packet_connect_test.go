@@ -31,13 +31,13 @@ func (s *PacketConnectTestSuite) TestType() {
 
 func (s *PacketConnectTestSuite) TestSize() {
 	testCases := []struct {
-		name    string
-		connect PacketConnect
-		size    int
+		name   string
+		packet PacketConnect
+		size   int
 	}{
 		{
 			name: "V3.1, no will, no username, no password",
-			connect: PacketConnect{
+			packet: PacketConnect{
 				Version:   MQTT31,
 				KeepAlive: 0,
 				ClientID:  []byte("a"),
@@ -46,7 +46,7 @@ func (s *PacketConnectTestSuite) TestSize() {
 		},
 		{
 			name: "V3.1.1, no will, no username, no password",
-			connect: PacketConnect{
+			packet: PacketConnect{
 				Version:   MQTT311,
 				KeepAlive: 30,
 				ClientID:  []byte("ab"),
@@ -55,7 +55,7 @@ func (s *PacketConnectTestSuite) TestSize() {
 		},
 		{
 			name: "V5.0, no will, no username, no password, no properties",
-			connect: PacketConnect{
+			packet: PacketConnect{
 				Version:   MQTT50,
 				KeepAlive: 500,
 				ClientID:  []byte("abc"),
@@ -64,7 +64,7 @@ func (s *PacketConnectTestSuite) TestSize() {
 		},
 		{
 			name: "V5.0, no will, no username, no password, empty properties",
-			connect: PacketConnect{
+			packet: PacketConnect{
 				Version:        MQTT50,
 				KeepAlive:      500,
 				ClientID:       []byte("abc"),
@@ -75,7 +75,7 @@ func (s *PacketConnectTestSuite) TestSize() {
 		},
 		{
 			name: "V5.0, with will, no username, no password, and empty properties",
-			connect: PacketConnect{
+			packet: PacketConnect{
 				Version:        MQTT50,
 				ClientID:       []byte("abc"),
 				Flags:          connectFlagWillFlag,
@@ -88,7 +88,7 @@ func (s *PacketConnectTestSuite) TestSize() {
 		},
 		{
 			name: "V5.0, with will, username, password, and properties",
-			connect: PacketConnect{
+			packet: PacketConnect{
 				Version:  MQTT50,
 				ClientID: []byte("abc"),
 				Flags:    ConnectFlags(connectFlagWillFlag | connectFlagUsernameFlag | connectFlagPasswordFlag),
@@ -111,7 +111,7 @@ func (s *PacketConnectTestSuite) TestSize() {
 
 	for _, test := range testCases {
 		s.Run(test.name, func() {
-			size := test.connect.Size()
+			size := test.packet.Size()
 			s.Require().Equal(test.size, size)
 		})
 	}
@@ -320,12 +320,12 @@ func (s *PacketConnectTestSuite) TestDecodeSuccess() {
 
 	for _, test := range testCases {
 		s.Run(test.name, func() {
-			var connect PacketConnect
+			var packet PacketConnect
 			header := FixedHeader{PacketType: PacketTypeConnect, RemainingLength: len(test.data)}
 
-			n, err := connect.Decode(test.data, header)
+			n, err := packet.Decode(test.data, header)
 			s.Require().NoError(err)
-			s.Assert().Equal(test.packet, connect)
+			s.Assert().Equal(test.packet, packet)
 			s.Assert().Equal(len(test.data), n)
 		})
 	}
@@ -456,10 +456,10 @@ func (s *PacketConnectTestSuite) TestDecodeError() {
 
 	for _, test := range testCases {
 		s.Run(test.name, func() {
-			var connect PacketConnect
+			var packet PacketConnect
 			header := FixedHeader{PacketType: PacketTypeConnect, RemainingLength: len(test.data)}
 
-			_, err := connect.Decode(test.data, header)
+			_, err := packet.Decode(test.data, header)
 			s.Require().ErrorIs(err, test.err)
 			s.Assert().NotEmpty(err.Error())
 		})
@@ -478,9 +478,9 @@ func (s *PacketConnectTestSuite) TestDecodeErrorInvalidHeader() {
 
 	for _, test := range testCases {
 		s.Run(test.name, func() {
-			var connect PacketConnect
+			var packet PacketConnect
 
-			_, err := connect.Decode(nil, test.header)
+			_, err := packet.Decode(nil, test.header)
 			s.Require().ErrorIs(err, test.err)
 		})
 	}
@@ -492,12 +492,12 @@ func TestPacketConnectTestSuite(t *testing.T) {
 
 func BenchmarkPacketConnectSize(b *testing.B) {
 	testCases := []struct {
-		name    string
-		connect PacketConnect
+		name   string
+		packet PacketConnect
 	}{
 		{
 			name: "V3",
-			connect: PacketConnect{
+			packet: PacketConnect{
 				Version:   MQTT311,
 				KeepAlive: 30,
 				ClientID:  []byte("ab"),
@@ -505,7 +505,7 @@ func BenchmarkPacketConnectSize(b *testing.B) {
 		},
 		{
 			name: "V5",
-			connect: PacketConnect{
+			packet: PacketConnect{
 				Version:   MQTT50,
 				KeepAlive: 500,
 				ClientID:  []byte("abc"),
@@ -516,7 +516,7 @@ func BenchmarkPacketConnectSize(b *testing.B) {
 	for _, test := range testCases {
 		b.Run(test.name, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				_ = test.connect.Size()
+				_ = test.packet.Size()
 			}
 		})
 	}
@@ -556,9 +556,9 @@ func BenchmarkPacketConnectDecode(b *testing.B) {
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				connect := PacketConnect{}
+				packet := PacketConnect{}
 
-				_, err := connect.Decode(test.data, header)
+				_, err := packet.Decode(test.data, header)
 				if err != nil {
 					b.Fatal("Failed to read CONNECT packet")
 				}

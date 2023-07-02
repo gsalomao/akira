@@ -504,13 +504,13 @@ func (s *ServerTestSuite) TestReceivePacket() {
 	s.Require().NoError(err)
 	s.Require().NotNil(p)
 
-	connect := &PacketConnect{
+	packet := &PacketConnect{
 		Version:   MQTT311,
 		KeepAlive: 255,
 		Flags:     connectFlagCleanSession,
 		ClientID:  []byte("ab"),
 	}
-	s.Assert().Equal(connect, p)
+	s.Assert().Equal(packet, p)
 }
 
 func (s *ServerTestSuite) TestReceivePacketWithHooks() {
@@ -526,7 +526,7 @@ func (s *ServerTestSuite) TestReceivePacketWithHooks() {
 	defer func() { _ = c1.Close() }()
 
 	c := newClient(c2, s.server, s.listener)
-	connect := &PacketConnect{
+	packet := &PacketConnect{
 		Version:   MQTT311,
 		KeepAlive: 255,
 		Flags:     connectFlagCleanSession,
@@ -534,7 +534,7 @@ func (s *ServerTestSuite) TestReceivePacketWithHooks() {
 	}
 	s.addHook()
 	s.hook.On("OnPacketReceive", s.server, c)
-	s.hook.On("OnPacketReceived", s.server, c, connect)
+	s.hook.On("OnPacketReceived", s.server, c, packet)
 
 	var wg sync.WaitGroup
 	defer wg.Wait()
@@ -548,7 +548,7 @@ func (s *ServerTestSuite) TestReceivePacketWithHooks() {
 	p, err := s.server.receivePacket(c)
 	s.Require().NoError(err)
 	s.Require().NotNil(p)
-	s.Assert().Equal(connect, p)
+	s.Assert().Equal(packet, p)
 }
 
 func (s *ServerTestSuite) TestReceivePacketOnPacketReceiveWithError() {
@@ -629,7 +629,7 @@ func (s *ServerTestSuite) TestReceivePacketOnPacketReceivedWithError() {
 	defer func() { _ = c1.Close() }()
 
 	c := newClient(c2, s.server, s.listener)
-	connect := &PacketConnect{
+	packet := &PacketConnect{
 		Version:   MQTT311,
 		KeepAlive: 255,
 		Flags:     connectFlagCleanSession,
@@ -637,7 +637,7 @@ func (s *ServerTestSuite) TestReceivePacketOnPacketReceivedWithError() {
 	}
 	s.addHook()
 	s.hook.On("OnPacketReceive", s.server, c)
-	s.hook.On("OnPacketReceived", s.server, c, connect).Return(assert.AnError)
+	s.hook.On("OnPacketReceived", s.server, c, packet).Return(assert.AnError)
 
 	var wg sync.WaitGroup
 	defer wg.Wait()
