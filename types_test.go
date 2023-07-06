@@ -124,7 +124,7 @@ func TestReadVarIntegerInvalidValue(t *testing.T) {
 	require.ErrorIs(t, err, ErrMalformedVarInteger)
 }
 
-func TestGetVarIntegerSuccess(t *testing.T) {
+func TestDecodeVarIntegerSuccess(t *testing.T) {
 	testCases := []struct {
 		data []byte
 		val  int
@@ -143,7 +143,7 @@ func TestGetVarIntegerSuccess(t *testing.T) {
 		t.Run(fmt.Sprint(test.val), func(t *testing.T) {
 			var val int
 
-			n, err := getVarInteger(test.data, &val)
+			n, err := decodeVarInteger(test.data, &val)
 			require.NoError(t, err)
 			assert.Equal(t, len(test.data), n)
 			assert.Equal(t, test.val, val)
@@ -151,22 +151,22 @@ func TestGetVarIntegerSuccess(t *testing.T) {
 	}
 }
 
-func TestGetVarIntegerReadError(t *testing.T) {
+func TestDecodeVarIntegerReadError(t *testing.T) {
 	var val int
 
-	_, err := getVarInteger(nil, &val)
+	_, err := decodeVarInteger(nil, &val)
 	require.Error(t, err)
 }
 
-func TestGetVarIntegerInvalidValue(t *testing.T) {
+func TestDecodeVarIntegerInvalidValue(t *testing.T) {
 	var val int
 	data := []byte{0xff, 0xff, 0xff, 0x80}
 
-	_, err := getVarInteger(data, &val)
+	_, err := decodeVarInteger(data, &val)
 	require.ErrorIs(t, err, ErrMalformedVarInteger)
 }
 
-func TestGetStringSuccess(t *testing.T) {
+func TestDecodeStringSuccess(t *testing.T) {
 	testCases := []struct {
 		data []byte
 		str  []byte
@@ -178,7 +178,7 @@ func TestGetStringSuccess(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(string(test.str), func(t *testing.T) {
-			str, n, err := getString(test.data)
+			str, n, err := decodeString(test.data)
 			require.NoError(t, err)
 			assert.Equal(t, test.str, str)
 			assert.Equal(t, len(test.data), n)
@@ -186,7 +186,7 @@ func TestGetStringSuccess(t *testing.T) {
 	}
 }
 
-func TestGetStringInvalid(t *testing.T) {
+func TestDecodeStringInvalid(t *testing.T) {
 	testCases := []rune{0x00, 0x1f, 0x7f, 0x9f, 0xd800, 0xdfff}
 
 	for _, test := range testCases {
@@ -202,18 +202,44 @@ func TestGetStringInvalid(t *testing.T) {
 		data = append(data, code...)
 
 		t.Run(fmt.Sprint(test), func(t *testing.T) {
-			_, _, err := getString(data)
+			_, _, err := decodeString(data)
 			require.ErrorIs(t, err, ErrMalformedString)
 		})
 	}
 }
 
-func TestGetStringError(t *testing.T) {
-	_, _, err := getString([]byte{})
+func TestDecodeStringError(t *testing.T) {
+	_, _, err := decodeString([]byte{})
 	require.ErrorIs(t, err, ErrMalformedString)
 }
 
-func TestGetBinarySuccess(t *testing.T) {
+func TestEncodeStringSuccess(t *testing.T) {
+	testCases := []struct {
+		val string
+		str []byte
+	}{
+		{"", []byte{0, 0}},
+		{"abc", []byte{0, 3, 'a', 'b', 'c'}},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.val, func(t *testing.T) {
+			data := make([]byte, len(test.str))
+
+			n, err := encodeString(data, []byte(test.val))
+			require.NoError(t, err)
+			assert.Equal(t, len(test.str), n)
+			assert.Equal(t, test.str, data)
+		})
+	}
+}
+
+func TestEncodeStringError(t *testing.T) {
+	_, err := encodeString(make([]byte, 10), []byte{0})
+	require.Error(t, err)
+}
+
+func TestDecodeBinarySuccess(t *testing.T) {
 	testCases := []struct {
 		data []byte
 		bin  []byte
@@ -225,7 +251,7 @@ func TestGetBinarySuccess(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(string(test.bin), func(t *testing.T) {
-			bin, n, err := getBinary(test.data)
+			bin, n, err := decodeBinary(test.data)
 			require.NoError(t, err)
 			assert.Equal(t, test.bin, bin)
 			assert.Equal(t, len(test.data), n)
@@ -233,22 +259,43 @@ func TestGetBinarySuccess(t *testing.T) {
 	}
 }
 
-func TestGetBinaryError(t *testing.T) {
-	_, _, err := getBinary([]byte{})
+func TestDecodeBinaryError(t *testing.T) {
+	_, _, err := decodeBinary([]byte{})
 	require.ErrorIs(t, err, ErrMalformedBinary)
 }
 
-func TestGetUintErrorNoData(t *testing.T) {
-	err := getUint[uint8]([]byte{}, nil)
+func TestEncodeBinarySuccess(t *testing.T) {
+	testCases := []struct {
+		name string
+		val  []byte
+		bin  []byte
+	}{
+		{"Empty", []byte{}, []byte{0, 0}},
+		{"Non-Empty", []byte{0, 1, 2}, []byte{0, 3, 0, 1, 2}},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			data := make([]byte, len(test.bin))
+
+			n := encodeBinary(data, test.val)
+			assert.Equal(t, len(test.bin), n)
+			assert.Equal(t, test.bin, data)
+		})
+	}
+}
+
+func TestDecodeUintErrorNoData(t *testing.T) {
+	err := decodeUint[uint8]([]byte{}, nil)
 	require.ErrorIs(t, err, ErrMalformedInteger)
 }
 
-func TestGetUintErrorSize(t *testing.T) {
-	err := getUint[uint64]([]byte{0, 0, 0, 0, 0, 0, 0, 0}, nil)
+func TestDecodeUintErrorSize(t *testing.T) {
+	err := decodeUint[uint64]([]byte{0, 0, 0, 0, 0, 0, 0, 0}, nil)
 	require.Error(t, err)
 }
 
-func TestGetUint8(t *testing.T) {
+func TestDecodeUint8(t *testing.T) {
 	testCases := []struct {
 		data []byte
 		val  uint8
@@ -261,20 +308,19 @@ func TestGetUint8(t *testing.T) {
 		t.Run(fmt.Sprint(test.val), func(t *testing.T) {
 			var val uint8
 
-			err := getUint[uint8](test.data, &val)
+			err := decodeUint[uint8](test.data, &val)
 			require.NoError(t, err)
 			assert.Equal(t, test.val, val)
 		})
 	}
 }
 
-func TestGetUint16(t *testing.T) {
+func TestDecodeUint16(t *testing.T) {
 	testCases := []struct {
 		data []byte
 		val  uint16
 	}{
 		{[]byte{0, 0}, 0},
-		{[]byte{0, 1}, 1},
 		{[]byte{0, 255}, 255},
 		{[]byte{1, 0}, 256},
 		{[]byte{255, 255}, 65535},
@@ -284,14 +330,14 @@ func TestGetUint16(t *testing.T) {
 		t.Run(fmt.Sprint(test.val), func(t *testing.T) {
 			var val uint16
 
-			err := getUint[uint16](test.data, &val)
+			err := decodeUint[uint16](test.data, &val)
 			require.NoError(t, err)
 			assert.Equal(t, test.val, val)
 		})
 	}
 }
 
-func TestGetUint32(t *testing.T) {
+func TestDecodeUint32(t *testing.T) {
 	testCases := []struct {
 		data []byte
 		val  uint32
@@ -304,9 +350,76 @@ func TestGetUint32(t *testing.T) {
 		t.Run(fmt.Sprint(test.val), func(t *testing.T) {
 			var val uint32
 
-			err := getUint[uint32](test.data, &val)
+			err := decodeUint[uint32](test.data, &val)
 			require.NoError(t, err)
 			assert.Equal(t, test.val, val)
 		})
 	}
+}
+
+func TestEncodeUint8(t *testing.T) {
+	testCases := []struct {
+		val  uint8
+		data []byte
+	}{
+		{0, []byte{0}},
+		{255, []byte{255}},
+	}
+
+	for _, test := range testCases {
+		t.Run(fmt.Sprint(test.val), func(t *testing.T) {
+			data := make([]byte, len(test.data))
+
+			n := encodeUint(data, test.val)
+			assert.Equal(t, 1, n)
+			assert.Equal(t, test.data, data)
+		})
+	}
+}
+
+func TestEncodeUint16(t *testing.T) {
+	testCases := []struct {
+		val  uint16
+		data []byte
+	}{
+		{0, []byte{0, 0}},
+		{255, []byte{0, 255}},
+		{256, []byte{1, 0}},
+		{65535, []byte{255, 255}},
+	}
+
+	for _, test := range testCases {
+		t.Run(fmt.Sprint(test.val), func(t *testing.T) {
+			data := make([]byte, len(test.data))
+
+			n := encodeUint(data, test.val)
+			assert.Equal(t, 2, n)
+			assert.Equal(t, test.data, data)
+		})
+	}
+}
+
+func TestEncodeUint32(t *testing.T) {
+	testCases := []struct {
+		val  uint32
+		data []byte
+	}{
+		{65536, []byte{0, 1, 0, 0}},
+		{4294967295, []byte{255, 255, 255, 255}},
+	}
+
+	for _, test := range testCases {
+		t.Run(fmt.Sprint(test.val), func(t *testing.T) {
+			data := make([]byte, len(test.data))
+
+			n := encodeUint(data, test.val)
+			assert.Equal(t, 4, n)
+			assert.Equal(t, test.data, data)
+		})
+	}
+}
+
+func TestEncodeUintInvalidSize(t *testing.T) {
+	n := encodeUint(make([]byte, 10), uint64(10))
+	assert.Zero(t, n)
 }

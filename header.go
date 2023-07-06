@@ -63,3 +63,15 @@ func (h *FixedHeader) read(r *bufio.Reader) (n int, err error) {
 
 	return n, nil
 }
+
+func (h *FixedHeader) encode(buf []byte) int {
+	var n int
+
+	// Store the packet type in the 4 most significant bits (MSB) and the flags in the 4 least significant bits (LSB).
+	buf[n] = byte(h.PacketType<<packetTypeBitsShift) | (h.Flags & packetFlagsBitsMask)
+	n++
+
+	size := encodeVarInteger(buf[n:], h.RemainingLength)
+	n += size
+	return n
+}

@@ -15,6 +15,12 @@
 package melitte
 
 const (
+	// ReasonCodeSuccess indicates that the operation was completed with success.
+	ReasonCodeSuccess ReasonCode = 0x00
+
+	// ReasonCodeConnectionAccepted indicates that the connection was accepted.
+	ReasonCodeConnectionAccepted ReasonCode = 0x00
+
 	// ReasonCodeIdentifierRejected indicates that the client identifier is correct UTF-8 but not allowed.
 	ReasonCodeIdentifierRejected ReasonCode = 0x02
 

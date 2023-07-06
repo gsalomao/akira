@@ -38,6 +38,15 @@ type PacketDecoder interface {
 	Decode(buf []byte, header FixedHeader) (n int, err error)
 }
 
+// PacketEncoder is the interface for all MQTT packets which implement the Encode method.
+type PacketEncoder interface {
+	Packet
+
+	// Encode encodes the Packet into buf and returns the number of bytes encoded. The buffer must have the length
+	// greater than or equals to the packet size, otherwise this method returns an error.
+	Encode(buf []byte) (n int, err error)
+}
+
 func readPacket(r *bufio.Reader) (Packet, int, error) {
 	var err error
 	var hSize int

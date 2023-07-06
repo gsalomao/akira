@@ -171,7 +171,7 @@ func readVarInteger(r *bufio.Reader, val *int) (int, error) {
 	return n, nil
 }
 
-func getVarInteger(buf []byte, val *int) (int, error) {
+func decodeVarInteger(buf []byte, val *int) (int, error) {
 	var n int
 	multiplier := 1
 	*val = 0
@@ -198,33 +198,51 @@ func getVarInteger(buf []byte, val *int) (int, error) {
 	return n, nil
 }
 
+func encodeVarInteger(buf []byte, val int) int {
+	var n int
+	var data byte
+
+	for {
+		data = byte(val % 128)
+
+		val /= 128
+		if val > 0 {
+			data |= 128
+		}
+
+		buf[n] = data
+		n++
+		if val == 0 {
+			return n
+		}
+	}
+}
+
 func sizeString(s string) int {
 	// The size of the string, +2 bytes for the string length.
 	return len(s) + 2
 }
 
-func getString(data []byte) ([]byte, int, error) {
-	str, n, err := getBinary(data)
+func decodeString(data []byte) ([]byte, int, error) {
+	str, n, err := decodeBinary(data)
 	if err != nil {
 		return nil, n, ErrMalformedString
 	}
 
-	s := str
-	for len(s) > 0 {
-		rn, size := utf8.DecodeRune(s)
-
-		if rn == utf8.RuneError || !utf8.ValidRune(rn) {
-			return nil, n, ErrMalformedString
-		}
-
-		if '\u0000' <= rn && rn <= '\u001F' || '\u007F' <= rn && rn <= '\u009F' {
-			return nil, n, ErrMalformedString
-		}
-
-		s = s[size:]
+	if !isValidString(str) {
+		return nil, n, ErrMalformedString
 	}
 
 	return str, n, nil
+}
+
+func encodeString(buf []byte, str []byte) (int, error) {
+	if !isValidString(str) {
+		return 0, ErrMalformedString
+	}
+
+	n := encodeBinary(buf, str)
+	return n, nil
 }
 
 func sizeBinary(data []byte) int {
@@ -232,11 +250,11 @@ func sizeBinary(data []byte) int {
 	return len(data) + 2
 }
 
-func getBinary(data []byte) ([]byte, int, error) {
+func decodeBinary(data []byte) ([]byte, int, error) {
 	var n int
 	var length uint16
 
-	err := getUint[uint16](data, &length)
+	err := decodeUint[uint16](data, &length)
 	if err != nil {
 		return nil, 0, ErrMalformedBinary
 	}
@@ -252,11 +270,20 @@ func getBinary(data []byte) ([]byte, int, error) {
 	return bin, n, nil
 }
 
+func encodeBinary(buf []byte, bin []byte) int {
+	n := encodeUint(buf, uint16(len(bin)))
+
+	copy(buf[n:], bin)
+	n += len(bin)
+
+	return n
+}
+
 func sizeUint[T constraints.Unsigned](val T) int {
 	return int(unsafe.Sizeof(val))
 }
 
-func getUint[T constraints.Unsigned](data []byte, val *T) (err error) {
+func decodeUint[T constraints.Unsigned](data []byte, val *T) (err error) {
 	size := int(unsafe.Sizeof(*val))
 
 	if size > len(data) {
@@ -275,6 +302,64 @@ func getUint[T constraints.Unsigned](data []byte, val *T) (err error) {
 	}
 
 	return nil
+}
+
+func decodeBool(data []byte, val *bool) error {
+	var b byte
+	err := decodeUint(data, &b)
+
+	if b == 1 {
+		*val = true
+	} else if b == 0 {
+		*val = false
+	} else {
+		err = ErrMalformedInteger
+	}
+
+	return err
+}
+
+func encodeUint[T constraints.Unsigned](buf []byte, val T) int {
+	size := int(unsafe.Sizeof(val))
+
+	switch size {
+	case 1:
+		buf[0] = byte(val)
+	case 2:
+		binary.BigEndian.PutUint16(buf, uint16(val))
+	case 4:
+		binary.BigEndian.PutUint32(buf, uint32(val))
+	default:
+		return 0
+	}
+
+	return size
+}
+
+func encodeBool(buf []byte, val bool) int {
+	var b byte
+	if val {
+		b = 1
+	}
+	return encodeUint(buf, b)
+}
+
+func isValidString(str []byte) bool {
+	s := str
+	for len(s) > 0 {
+		rn, size := utf8.DecodeRune(s)
+
+		if rn == utf8.RuneError || !utf8.ValidRune(rn) {
+			return false
+		}
+
+		if '\u0000' <= rn && rn <= '\u001F' || '\u007F' <= rn && rn <= '\u009F' {
+			return false
+		}
+
+		s = s[size:]
+	}
+	return true
 }
 
 func isValidTopicName(topic string) bool {
