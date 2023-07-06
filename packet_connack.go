@@ -90,3 +90,185 @@ func (p *PacketConnAck) remainingLength() int {
 
 	return remainingLength
 }
+
+// PropertiesConnAck contains the properties of the CONNACK packet.
+type PropertiesConnAck struct {
+	// Flags indicates which properties are present.
+	Flags propertyFlags `json:"flags"`
+
+	// UserProperties is a list of user properties.
+	UserProperties []UserProperty `json:"user_properties"`
+
+	// AssignedClientID represents the client ID assigned by the server in case of the client connected with the
+	// server without specifying a client ID.
+	AssignedClientID []byte `json:"assigned_client_id"`
+
+	// ReasonString represents the reason associated with the response.
+	ReasonString []byte `json:"reason_string"`
+
+	// ResponseInfo contains a string that can be used to as the basis for creating a Response Topic.
+	ResponseInfo []byte `json:"response_info"`
+
+	// ServerReference contains a string indicating another server the client can use.
+	ServerReference []byte `json:"server_reference"`
+
+	// AuthenticationMethod contains the name of the authentication method.
+	AuthenticationMethod []byte `json:"authentication_method"`
+
+	// AuthenticationData contains the authentication data.
+	AuthenticationData []byte `json:"authentication_data"`
+
+	// SessionExpiryInterval represents the time, in seconds, which the server must store the Session State after the
+	// network connection is closed.
+	SessionExpiryInterval uint32 `json:"session_expiry_interval"`
+
+	// MaximumPacketSize represents the maximum packet size, in bytes, the client is willing to accept.
+	MaximumPacketSize uint32 `json:"maximum_packet_size"`
+
+	// ReceiveMaximum represents the maximum number of inflight messages with QoS > 0.
+	ReceiveMaximum uint16 `json:"receive_maximum"`
+
+	// TopicAliasMaximum represents the highest number of Topic Alias that the client accepts.
+	TopicAliasMaximum uint16 `json:"topic_alias_maximum"`
+
+	// ServerKeepAlive represents the Keep Alive, in seconds, assigned by the server, and to be used by the client.
+	ServerKeepAlive uint16 `json:"server_keep_alive"`
+
+	// MaximumQoS represents the maximum QoS supported by the server.
+	MaximumQoS byte `json:"maximum_qos"`
+
+	// RetainAvailable indicates whether the server supports retained messages or not.
+	RetainAvailable bool `json:"retain_available"`
+
+	// WildcardSubscriptionAvailable indicates whether the server supports Wildcard Subscriptions or not.
+	WildcardSubscriptionAvailable bool `json:"wildcard_subscription_available"`
+
+	// SubscriptionIDAvailable indicates whether the server supports Subscription Identifiers or not.
+	SubscriptionIDAvailable bool `json:"subscription_id_available"`
+
+	// SharedSubscriptionAvailable indicates whether the server supports Shared Subscriptions or not.
+	SharedSubscriptionAvailable bool `json:"shared_subscription_available"`
+}
+
+// Has returns whether the property is present or not.
+func (p *PropertiesConnAck) Has(prop Property) bool {
+	if p == nil {
+		return false
+	}
+	return p.Flags.has(prop)
+}
+
+// Set sets the property indicating that it's present.
+func (p *PropertiesConnAck) Set(prop Property) {
+	if p == nil {
+		return
+	}
+	p.Flags = p.Flags.set(prop)
+}
+
+func (p *PropertiesConnAck) size() int {
+	if p == nil {
+		return 0
+	}
+
+	var size int
+
+	size += sizePropSessionExpiryInterval(p.Flags)
+	size += sizePropReceiveMaximum(p.Flags)
+	size += sizePropMaxQoS(p.Flags)
+	size += sizePropRetainAvailable(p.Flags)
+	size += sizePropMaxPacketSize(p.Flags)
+	size += sizePropAssignedClientID(p.Flags, p.AssignedClientID)
+	size += sizePropTopicAliasMaximum(p.Flags)
+	size += sizePropReasonString(p.Flags, p.ReasonString)
+	size += sizePropUserProperties(p.Flags, p.UserProperties)
+	size += sizePropWildcardSubscriptionAvailable(p.Flags)
+	size += sizePropSubscriptionIDAvailable(p.Flags)
+	size += sizePropSharedSubscriptionAvailable(p.Flags)
+	size += sizePropServerKeepAlive(p.Flags)
+	size += sizePropResponseInfo(p.Flags, p.ResponseInfo)
+	size += sizePropServerReference(p.Flags, p.ServerReference)
+	size += sizePropAuthenticationMethod(p.Flags, p.AuthenticationMethod)
+	size += sizePropAuthenticationData(p.Flags, p.AuthenticationData)
+
+	return size
+}
+
+func (p *PropertiesConnAck) encode(buf []byte) (n int, err error) {
+	n = encodeVarInteger(buf, p.size())
+
+	if p != nil {
+		var size int
+
+		size = encodePropUint(buf[n:], p.Flags, PropertySessionExpiryInterval, p.SessionExpiryInterval)
+		n += size
+
+		size = encodePropUint(buf[n:], p.Flags, PropertyReceiveMaximum, p.ReceiveMaximum)
+		n += size
+
+		size = encodePropUint(buf[n:], p.Flags, PropertyMaximumQoS, p.MaximumQoS)
+		n += size
+
+		size = encodePropBool(buf[n:], p.Flags, PropertyRetainAvailable, p.RetainAvailable)
+		n += size
+
+		size = encodePropUint(buf[n:], p.Flags, PropertyMaximumPacketSize, p.MaximumPacketSize)
+		n += size
+
+		size, err = encodePropString(buf[n:], p.Flags, PropertyAssignedClientID, p.AssignedClientID)
+		n += size
+		if err != nil {
+			return n, err
+		}
+
+		size = encodePropUint(buf[n:], p.Flags, PropertyTopicAliasMaximum, p.TopicAliasMaximum)
+		n += size
+
+		size, err = encodePropString(buf[n:], p.Flags, PropertyReasonString, p.ReasonString)
+		n += size
+		if err != nil {
+			return n, err
+		}
+
+		size, err = encodePropUserProperties(buf[n:], p.Flags, p.UserProperties, err)
+		n += size
+		if err != nil {
+			return n, err
+		}
+
+		size = encodePropBool(buf[n:], p.Flags, PropertyWildcardSubscriptionAvailable, p.WildcardSubscriptionAvailable)
+		n += size
+
+		size = encodePropBool(buf[n:], p.Flags, PropertySubscriptionIDAvailable, p.SubscriptionIDAvailable)
+		n += size
+
+		size = encodePropBool(buf[n:], p.Flags, PropertySharedSubscriptionAvailable, p.SharedSubscriptionAvailable)
+		n += size
+
+		size = encodePropUint(buf[n:], p.Flags, PropertyServerKeepAlive, p.ServerKeepAlive)
+		n += size
+
+		size, err = encodePropString(buf[n:], p.Flags, PropertyResponseInfo, p.ResponseInfo)
+		n += size
+		if err != nil {
+			return n, err
+		}
+
+		size, err = encodePropString(buf[n:], p.Flags, PropertyServerReference, p.ServerReference)
+		n += size
+		if err != nil {
+			return n, err
+		}
+
+		size, err = encodePropString(buf[n:], p.Flags, PropertyAuthenticationMethod, p.AuthenticationMethod)
+		n += size
+		if err != nil {
+			return n, err
+		}
+
+		size, err = encodePropString(buf[n:], p.Flags, PropertyAuthenticationData, p.AuthenticationData)
+		n += size
+	}
+
+	return n, err
+}
