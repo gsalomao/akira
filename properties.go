@@ -157,8 +157,7 @@ func (p *PropertiesConnect) Set(prop Property) {
 
 func (p *PropertiesConnect) size() int {
 	if p == nil {
-		// Even if it is nil, 1 byte is required for the property length.
-		return 1
+		return 0
 	}
 
 	var size int
@@ -173,7 +172,6 @@ func (p *PropertiesConnect) size() int {
 	size += sizePropAuthenticationMethod(p.Flags, p.AuthenticationMethod)
 	size += sizePropAuthenticationData(p.Flags, p.AuthenticationData)
 
-	size += sizeVarInteger(size)
 	return size
 }
 
@@ -279,8 +277,7 @@ func (p *PropertiesWill) Set(prop Property) {
 
 func (p *PropertiesWill) size() int {
 	if p == nil {
-		// Even if it is nil, 1 byte is required for the property length.
-		return 1
+		return 0
 	}
 
 	var size int
@@ -293,7 +290,6 @@ func (p *PropertiesWill) size() int {
 	size += sizePropCorrelationData(p.Flags, p.CorrelationData)
 	size += sizePropUserProperties(p.Flags, p.UserProperties)
 
-	size += sizeVarInteger(size)
 	return size
 }
 

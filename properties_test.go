@@ -107,7 +107,7 @@ func (s *PropertiesTestSuite) TestPropertiesConnectSizeOnNil() {
 	var props *PropertiesConnect
 
 	size := props.size()
-	s.Assert().Equal(1, size)
+	s.Assert().Equal(0, size)
 }
 
 func (s *PropertiesTestSuite) TestDecodePropertiesConnectSuccess() {
@@ -339,14 +339,14 @@ func (s *PropertiesTestSuite) TestPropertiesWillSize() {
 	}
 
 	size := props.size()
-	s.Assert().Equal(36, size)
+	s.Assert().Equal(35, size)
 }
 
 func (s *PropertiesTestSuite) TestPropertiesWillSizeOnNil() {
 	var props *PropertiesWill
 
 	size := props.size()
-	s.Assert().Equal(1, size)
+	s.Assert().Equal(0, size)
 }
 
 func (s *PropertiesTestSuite) TestDecodePropertiesWillSuccess() {

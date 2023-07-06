@@ -571,7 +571,7 @@ func BenchmarkPacketConnectDecode(b *testing.B) {
 
 				_, err := packet.Decode(test.data, header)
 				if err != nil {
-					b.Fatal("Failed to read CONNECT packet")
+					b.Fatal(err)
 				}
 			}
 		})

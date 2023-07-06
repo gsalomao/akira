@@ -122,14 +122,18 @@ func (p *PacketConnect) Size() int {
 	size := sizeString(protocolNames[p.Version-MQTT31]) + 1 + 1 + 2
 
 	if p.Version == MQTT50 {
-		size += p.Properties.size()
+		n := p.Properties.size()
+		n += sizeVarInteger(n)
+		size += n
 	}
 
 	size += sizeBinary(p.ClientID)
 
 	if p.Flags.WillFlag() {
 		if p.Version == MQTT50 {
-			size += p.WillProperties.size()
+			n := p.WillProperties.size()
+			n += sizeVarInteger(n)
+			size += n
 		}
 
 		size += sizeBinary(p.WillTopic)
@@ -178,7 +182,7 @@ func (p *PacketConnect) Decode(buf []byte, h FixedHeader) (n int, err error) {
 		return n, err
 	}
 
-	err = getUint[uint16](buf[n:], &p.KeepAlive)
+	err = decodeUint[uint16](buf[n:], &p.KeepAlive)
 	n += 2
 	if err != nil {
 		return n, ErrMalformedKeepAlive
@@ -224,7 +228,7 @@ func (p *PacketConnect) Decode(buf []byte, h FixedHeader) (n int, err error) {
 }
 
 func (p *PacketConnect) decodeVersion(buf []byte) (int, error) {
-	name, n, err := getString(buf)
+	name, n, err := decodeString(buf)
 	if err != nil {
 		return n, ErrMalformedProtocolName
 	}
@@ -293,7 +297,7 @@ func (p *PacketConnect) decodeProperties(buf []byte) (int, error) {
 }
 
 func (p *PacketConnect) decodeClientID(buf []byte) (int, error) {
-	id, n, err := getString(buf)
+	id, n, err := decodeString(buf)
 	if err != nil {
 		return n, ErrMalformedClientID
 	}
@@ -332,7 +336,7 @@ func (p *PacketConnect) decodeWill(buf []byte) (int, error) {
 		return 0, nil
 	}
 
-	topic, n, err := getString(buf)
+	topic, n, err := decodeString(buf)
 	if err != nil {
 		return n, ErrMalformedWillTopic
 	}
@@ -343,7 +347,7 @@ func (p *PacketConnect) decodeWill(buf []byte) (int, error) {
 	var payload []byte
 	var size int
 
-	payload, size, err = getString(buf[n:])
+	payload, size, err = decodeString(buf[n:])
 	n += size
 	if err != nil {
 		return n, ErrMalformedWillPayload
@@ -359,7 +363,7 @@ func (p *PacketConnect) decodeUsername(buf []byte) (int, error) {
 		return 0, nil
 	}
 
-	username, n, err := getString(buf)
+	username, n, err := decodeString(buf)
 	if err != nil {
 		return n, ErrMalformedUsername
 	}
@@ -373,7 +377,7 @@ func (p *PacketConnect) decodePassword(buf []byte) (int, error) {
 		return 0, nil
 	}
 
-	password, n, err := getBinary(buf)
+	password, n, err := decodeBinary(buf)
 	if err != nil {
 		return n, ErrMalformedPassword
 	}
