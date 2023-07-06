@@ -322,8 +322,6 @@ func (s *Server) handleClient(c *Client) {
 		defer s.wg.Done()
 		defer c.Close(nil)
 
-		s.hooks.onConnectionOpened(s, c.connection.listener)
-
 		for {
 			_, err := s.receivePacket(c)
 			if err != nil {
@@ -345,6 +343,8 @@ func (s *Server) handleClient(c *Client) {
 			}
 		}
 	}()
+
+	s.hooks.onConnectionOpened(s, c.connection.listener)
 }
 
 func (s *Server) receivePacket(c *Client) (p Packet, err error) {

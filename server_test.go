@@ -58,6 +58,9 @@ func (s *ServerTestSuite) addHook() {
 
 	err := s.server.AddHook(s.hook)
 	s.Require().NoError(err)
+
+	err = s.server.AddHook(&hookSpy{})
+	s.Require().NoError(err)
 }
 
 func (s *ServerTestSuite) startServer() {

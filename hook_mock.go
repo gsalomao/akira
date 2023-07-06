@@ -114,36 +114,8 @@ func (h *hookMock) OnPacketReceived(s *Server, c *Client, p Packet) error {
 type hookSpy struct {
 }
 
-func newHookSpy() *hookSpy {
-	h := hookSpy{}
-	return &h
-}
-
 func (h *hookSpy) Name() string {
 	return "hook-spy"
-}
-
-func (h *hookSpy) OnStart(_ *Server) error {
-	return nil
-}
-
-func (h *hookSpy) OnStop(_ *Server) {
-}
-
-func (h *hookSpy) OnServerStart(_ *Server) error {
-	return nil
-}
-
-func (h *hookSpy) OnServerStartFailed(_ *Server, _ error) {
-}
-
-func (h *hookSpy) OnServerStarted(_ *Server) {
-}
-
-func (h *hookSpy) OnServerStop(_ *Server) {
-}
-
-func (h *hookSpy) OnServerStopped(_ *Server) {
 }
 
 func (h *hookSpy) OnConnectionOpen(_ *Server, _ Listener) error {
@@ -160,10 +132,6 @@ func (h *hookSpy) OnConnectionClosed(_ *Server, _ Listener, _ error) {
 }
 
 func (h *hookSpy) OnPacketReceive(_ *Server, _ *Client) error {
-	return nil
-}
-
-func (h *hookSpy) OnPacketReceiveError(_ *Server, _ *Client, _ error) error {
 	return nil
 }
 

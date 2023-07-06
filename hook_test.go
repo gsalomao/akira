@@ -72,10 +72,13 @@ func (s *HooksTestSuite) TestAddError() {
 }
 
 func (s *HooksTestSuite) TestOnStartSuccess() {
+	err := s.hooks.onStart(s.server)
+	s.Require().NoError(err)
+
 	s.hook.On("OnStart", s.server)
 	s.addHook(s.hook)
 
-	err := s.hooks.onStart(s.server)
+	err = s.hooks.onStart(s.server)
 	s.Require().NoError(err)
 }
 
@@ -95,10 +98,13 @@ func (s *HooksTestSuite) TestOnStop() {
 }
 
 func (s *HooksTestSuite) TestOnServerStartSuccess() {
+	err := s.hooks.onServerStart(s.server)
+	s.Require().NoError(err)
+
 	s.hook.On("OnServerStart", s.server)
 	s.addHook(s.hook)
 
-	err := s.hooks.onServerStart(s.server)
+	err = s.hooks.onServerStart(s.server)
 	s.Require().NoError(err)
 }
 
@@ -141,17 +147,14 @@ func (s *HooksTestSuite) TestOnServerStopped() {
 
 func (s *HooksTestSuite) TestOnConnectionOpenSuccess() {
 	l := newMockListener("mock", ":1883")
-	s.hook.On("OnConnectionOpen", s.server, l)
-	s.addHook(s.hook)
 
 	err := s.hooks.onConnectionOpen(s.server, l)
 	s.Require().NoError(err)
-}
 
-func (s *HooksTestSuite) TestOnConnectionOpenNoHookSuccess() {
-	l := newMockListener("mock", ":1883")
+	s.hook.On("OnConnectionOpen", s.server, l)
+	s.addHook(s.hook)
 
-	err := s.hooks.onConnectionOpen(s.server, l)
+	err = s.hooks.onConnectionOpen(s.server, l)
 	s.Require().NoError(err)
 }
 
@@ -209,16 +212,21 @@ func (s *HooksTestSuite) TestOnConnectionClosedWithError() {
 func (s *HooksTestSuite) TestOnPacketReceiveSuccess() {
 	l := newMockListener("mock", ":1883")
 	c := newClient(nil, s.server, l)
+
+	err := s.hooks.onPacketReceive(s.server, c)
+	s.Require().NoError(err)
+
 	s.hook.On("OnPacketReceive", s.server, c)
 	s.addHook(s.hook)
 
-	err := s.hooks.onPacketReceive(s.server, c)
+	err = s.hooks.onPacketReceive(s.server, c)
 	s.Require().NoError(err)
 }
 
 func (s *HooksTestSuite) TestOnPacketReceiveWithError() {
 	l := newMockListener("mock", ":1883")
 	c := newClient(nil, s.server, l)
+
 	s.hook.On("OnPacketReceive", s.server, c).Return(assert.AnError)
 	s.addHook(s.hook)
 
@@ -229,10 +237,14 @@ func (s *HooksTestSuite) TestOnPacketReceiveWithError() {
 func (s *HooksTestSuite) TestOnPacketReceiveError() {
 	l := newMockListener("mock", ":1883")
 	c := newClient(nil, s.server, l)
+
+	err := s.hooks.onPacketReceiveError(s.server, c, assert.AnError)
+	s.Require().NoError(err)
+
 	s.hook.On("OnPacketReceiveError", s.server, c, assert.AnError)
 	s.addHook(s.hook)
 
-	err := s.hooks.onPacketReceiveError(s.server, c, assert.AnError)
+	err = s.hooks.onPacketReceiveError(s.server, c, assert.AnError)
 	s.Require().NoError(err)
 }
 
@@ -251,10 +263,14 @@ func (s *HooksTestSuite) TestOnPacketReceivedSuccess() {
 	l := newMockListener("mock", ":1883")
 	c := newClient(nil, s.server, l)
 	p := &PacketConnect{}
+
+	err := s.hooks.onPacketReceived(s.server, c, p)
+	s.Require().NoError(err)
+
 	s.hook.On("OnPacketReceived", s.server, c, p)
 	s.addHook(s.hook)
 
-	err := s.hooks.onPacketReceived(s.server, c, p)
+	err = s.hooks.onPacketReceived(s.server, c, p)
 	s.Require().NoError(err)
 }
 
