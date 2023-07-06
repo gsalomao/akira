@@ -687,76 +687,6 @@ func BenchmarkReceivePacket(b *testing.B) {
 		},
 	}
 
-	bench := func(b *testing.B, server *Server, data []byte) {
-		listener := newMockListener("mock", ":1883")
-		err := server.AddListener(listener)
-		if err != nil {
-			b.Fatal(err)
-		}
-
-		var sConn net.Conn
-		var sErr error
-
-		ctx, cancel := context.WithCancel(context.Background())
-		lsn, _ := net.Listen("tcp", ":1883")
-		defer func() { _ = lsn.Close() }()
-
-		var wg sync.WaitGroup
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-			cancel()
-			sConn, sErr = lsn.Accept()
-		}()
-
-		<-ctx.Done()
-		cConn, cErr := net.Dial("tcp", ":1883")
-		if cErr != nil {
-			b.Fatal(cErr)
-		}
-
-		wg.Wait()
-		if sErr != nil {
-			b.Fatal(sErr)
-		}
-		defer func() { _ = sConn.Close() }()
-
-		c := newClient(sConn, server, listener)
-
-		ctx, cancel = context.WithCancel(context.Background())
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			cancel()
-
-			for {
-				_, sErr = server.receivePacket(c)
-				if sErr != nil {
-					break
-				}
-			}
-		}()
-
-		<-ctx.Done()
-		b.ResetTimer()
-
-		for i := 0; i < b.N; i++ {
-			_, cErr = cConn.Write(data)
-			if cErr != nil {
-				b.Fatal(cErr)
-			}
-		}
-
-		_ = cConn.Close()
-		wg.Wait()
-
-		if sErr != nil && !errors.Is(sErr, io.EOF) {
-			b.Fatal(sErr)
-		}
-	}
-
 	for _, test := range testCases {
 		b.Run(test.name, func(b *testing.B) {
 			b.Run("No Hooks", func(b *testing.B) {
@@ -766,7 +696,7 @@ func BenchmarkReceivePacket(b *testing.B) {
 				}
 				defer server.Close()
 
-				bench(b, server, test.data)
+				benchmarkServerReceivePacket(b, server, test.data)
 			})
 
 			b.Run("With Hooks", func(b *testing.B) {
@@ -776,14 +706,83 @@ func BenchmarkReceivePacket(b *testing.B) {
 				}
 				defer server.Close()
 
-				hook := newHookSpy()
-				err = server.AddHook(hook)
+				err = server.AddHook(&hookSpy{})
 				if err != nil {
 					b.Fatal(err)
 				}
 
-				bench(b, server, test.data)
+				benchmarkServerReceivePacket(b, server, test.data)
 			})
 		})
+	}
+}
+
+func benchmarkServerReceivePacket(b *testing.B, server *Server, data []byte) {
+	listener := newMockListener("mock", ":1883")
+	err := server.AddListener(listener)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	var sConn net.Conn
+	var sErr error
+
+	ctx, cancel := context.WithCancel(context.Background())
+	lsn, _ := net.Listen("tcp", ":1883")
+	defer func() { _ = lsn.Close() }()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		cancel()
+		sConn, sErr = lsn.Accept()
+	}()
+
+	<-ctx.Done()
+	cConn, cErr := net.Dial("tcp", ":1883")
+	if cErr != nil {
+		b.Fatal(cErr)
+	}
+
+	wg.Wait()
+	if sErr != nil {
+		b.Fatal(sErr)
+	}
+	defer func() { _ = sConn.Close() }()
+
+	c := newClient(sConn, server, listener)
+
+	ctx, cancel = context.WithCancel(context.Background())
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		cancel()
+
+		for {
+			_, sErr = server.receivePacket(c)
+			if sErr != nil {
+				break
+			}
+		}
+	}()
+
+	<-ctx.Done()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_, cErr = cConn.Write(data)
+		if cErr != nil {
+			b.Fatal(cErr)
+		}
+	}
+
+	_ = cConn.Close()
+	wg.Wait()
+
+	if sErr != nil && !errors.Is(sErr, io.EOF) {
+		b.Fatal(sErr)
 	}
 }
