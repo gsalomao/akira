@@ -289,118 +289,116 @@ func TestHooksTestSuite(t *testing.T) {
 	suite.Run(t, new(HooksTestSuite))
 }
 
-func BenchmarkHooks(b *testing.B) {
-	b.Run("onConnectionOpen", func(b *testing.B) {
-		b.Run("No Hook", func(b *testing.B) {
-			h := newHooks()
+func BenchmarkHooksOnConnectionOpen(b *testing.B) {
+	b.Run("No Hook", func(b *testing.B) {
+		h := newHooks()
 
-			for i := 0; i < b.N; i++ {
-				_ = h.onConnectionOpen(nil, nil)
-			}
-		})
-
-		b.Run("With Hook", func(b *testing.B) {
-			h := newHooks()
-			_ = h.add(newHookSpy())
-
-			for i := 0; i < b.N; i++ {
-				_ = h.onConnectionOpen(nil, nil)
-			}
-		})
+		for i := 0; i < b.N; i++ {
+			_ = h.onConnectionOpen(nil, nil)
+		}
 	})
 
-	b.Run("onConnectionOpened", func(b *testing.B) {
-		b.Run("No Hook", func(b *testing.B) {
-			h := newHooks()
+	b.Run("With Hook", func(b *testing.B) {
+		h := newHooks()
+		_ = h.add(&hookSpy{})
 
-			for i := 0; i < b.N; i++ {
-				h.onConnectionOpened(nil, nil)
-			}
-		})
+		for i := 0; i < b.N; i++ {
+			_ = h.onConnectionOpen(nil, nil)
+		}
+	})
+}
 
-		b.Run("With Hook", func(b *testing.B) {
-			h := newHooks()
-			_ = h.add(newHookSpy())
+func BenchmarkHooksOnConnectionOpened(b *testing.B) {
+	b.Run("No Hook", func(b *testing.B) {
+		h := newHooks()
 
-			for i := 0; i < b.N; i++ {
-				h.onConnectionOpened(nil, nil)
-			}
-		})
+		for i := 0; i < b.N; i++ {
+			h.onConnectionOpened(nil, nil)
+		}
 	})
 
-	b.Run("onConnectionClose", func(b *testing.B) {
-		b.Run("No Hook", func(b *testing.B) {
-			h := newHooks()
+	b.Run("With Hook", func(b *testing.B) {
+		h := newHooks()
+		_ = h.add(&hookSpy{})
 
-			for i := 0; i < b.N; i++ {
-				h.onConnectionClose(nil, nil, nil)
-			}
-		})
+		for i := 0; i < b.N; i++ {
+			h.onConnectionOpened(nil, nil)
+		}
+	})
+}
 
-		b.Run("With Hook", func(b *testing.B) {
-			h := newHooks()
-			_ = h.add(newHookSpy())
+func BenchmarkHooksOnConnectionClose(b *testing.B) {
+	b.Run("No Hook", func(b *testing.B) {
+		h := newHooks()
 
-			for i := 0; i < b.N; i++ {
-				h.onConnectionClose(nil, nil, nil)
-			}
-		})
+		for i := 0; i < b.N; i++ {
+			h.onConnectionClose(nil, nil, nil)
+		}
 	})
 
-	b.Run("onConnectionClosed", func(b *testing.B) {
-		b.Run("No Hook", func(b *testing.B) {
-			h := newHooks()
+	b.Run("With Hook", func(b *testing.B) {
+		h := newHooks()
+		_ = h.add(&hookSpy{})
 
-			for i := 0; i < b.N; i++ {
-				h.onConnectionClosed(nil, nil, nil)
-			}
-		})
+		for i := 0; i < b.N; i++ {
+			h.onConnectionClose(nil, nil, nil)
+		}
+	})
+}
 
-		b.Run("With Hook", func(b *testing.B) {
-			h := newHooks()
-			_ = h.add(newHookSpy())
+func BenchmarkHooksOnConnectionClosed(b *testing.B) {
+	b.Run("No Hook", func(b *testing.B) {
+		h := newHooks()
 
-			for i := 0; i < b.N; i++ {
-				h.onConnectionClosed(nil, nil, nil)
-			}
-		})
+		for i := 0; i < b.N; i++ {
+			h.onConnectionClosed(nil, nil, nil)
+		}
 	})
 
-	b.Run("onPacketReceive", func(b *testing.B) {
-		b.Run("No Hook", func(b *testing.B) {
-			h := newHooks()
+	b.Run("With Hook", func(b *testing.B) {
+		h := newHooks()
+		_ = h.add(&hookSpy{})
 
-			for i := 0; i < b.N; i++ {
-				_ = h.onPacketReceive(nil, nil)
-			}
-		})
+		for i := 0; i < b.N; i++ {
+			h.onConnectionClosed(nil, nil, nil)
+		}
+	})
+}
 
-		b.Run("With Hook", func(b *testing.B) {
-			h := newHooks()
-			_ = h.add(newHookSpy())
+func BenchmarkHooksOnPacketReceive(b *testing.B) {
+	b.Run("No Hook", func(b *testing.B) {
+		h := newHooks()
 
-			for i := 0; i < b.N; i++ {
-				_ = h.onPacketReceive(nil, nil)
-			}
-		})
+		for i := 0; i < b.N; i++ {
+			_ = h.onPacketReceive(nil, nil)
+		}
 	})
 
-	b.Run("onPacketReceived", func(b *testing.B) {
-		b.Run("No Hook", func(b *testing.B) {
-			h := newHooks()
+	b.Run("With Hook", func(b *testing.B) {
+		h := newHooks()
+		_ = h.add(&hookSpy{})
 
-			for i := 0; i < b.N; i++ {
-				_ = h.onPacketReceived(nil, nil, nil)
-			}
-		})
+		for i := 0; i < b.N; i++ {
+			_ = h.onPacketReceive(nil, nil)
+		}
+	})
+}
 
-		b.Run("With Hook", func(b *testing.B) {
-			h := newHooks()
-			_ = h.add(newHookSpy())
+func BenchmarkHooksOnPacketReceived(b *testing.B) {
+	b.Run("No Hook", func(b *testing.B) {
+		h := newHooks()
 
-			for i := 0; i < b.N; i++ {
-				_ = h.onPacketReceived(nil, nil, nil)
-			}
-		})
+		for i := 0; i < b.N; i++ {
+			_ = h.onPacketReceived(nil, nil, nil)
+		}
+	})
+
+	b.Run("With Hook", func(b *testing.B) {
+		h := newHooks()
+		_ = h.add(&hookSpy{})
+
+		for i := 0; i < b.N; i++ {
+			_ = h.onPacketReceived(nil, nil, nil)
+		}
 	})
 }
