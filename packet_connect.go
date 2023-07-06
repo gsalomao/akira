@@ -34,46 +34,6 @@ const (
 	connectFlagShiftUsernameFlag
 )
 
-// ConnectFlags represents the Connect Flags from the MQTT specification. The Connect Flags contains a number of
-// parameters specifying the behavior of the MQTT connection. It also indicates the presence or absence of fields
-// in the payload.
-type ConnectFlags byte
-
-// Username returns whether the username flag is set or not.
-func (f ConnectFlags) Username() bool {
-	return (f & connectFlagUsernameFlag >> connectFlagShiftUsernameFlag) > 0
-}
-
-// Password returns whether the password flag is set or not.
-func (f ConnectFlags) Password() bool {
-	return (f & connectFlagPasswordFlag >> connectFlagShiftPasswordFlag) > 0
-}
-
-// WillRetain returns whether the Will Retain flag is set or not.
-func (f ConnectFlags) WillRetain() bool {
-	return (f & connectFlagWillRetain >> connectFlagShiftWillRetain) > 0
-}
-
-// WillQoS returns the Will QoS value in the flags.
-func (f ConnectFlags) WillQoS() QoS {
-	return QoS(f & connectFlagWillQoS >> connectFlagShiftWillQoS)
-}
-
-// WillFlag returns whether the Will Flag is set or not.
-func (f ConnectFlags) WillFlag() bool {
-	return (f & connectFlagWillFlag >> connectFlagShiftWillFlag) > 0
-}
-
-// CleanSession returns whether the Clean Session flag is set or not.
-func (f ConnectFlags) CleanSession() bool {
-	return (f & connectFlagCleanSession >> connectFlagShiftCleanSession) > 0
-}
-
-// Reserved returns whether the reserved flag is set or not.
-func (f ConnectFlags) Reserved() bool {
-	return (f & connectFlagReserved >> connectFlagShiftReserved) > 0
-}
-
 var protocolNames = []string{"MQIsdp", "MQTT", "MQTT"}
 
 // PacketConnect represents the CONNECT Packet from MQTT specifications.
@@ -99,8 +59,8 @@ type PacketConnect struct {
 	// WillProperties contains the Will properties.
 	WillProperties *PropertiesWill `json:"will_properties"`
 
-	// KeepAlive is a time interval, measured in seconds, that is permitted to elapse between the point at which the
-	// client finishes transmitting one control packet and the point it starts sending the next.
+	// KeepAlive is a time interval, measured in seconds, that is permitted to elapse between the point at which
+	// the client finishes transmitting one control packet and the point it starts sending the next.
 	KeepAlive uint16 `json:"keep_alive"`
 
 	// Version represents the MQTT version.
@@ -171,58 +131,58 @@ func (p *PacketConnect) Decode(buf []byte, h FixedHeader) (n int, err error) {
 	var cnt int
 
 	cnt, err = p.decodeVersion(buf)
-	n += cnt
 	if err != nil {
-		return n, err
+		return 0, err
 	}
+	n += cnt
 
 	cnt, err = p.decodeFlags(buf[n:])
-	n += cnt
 	if err != nil {
-		return n, err
+		return 0, err
 	}
+	n += cnt
 
 	err = decodeUint[uint16](buf[n:], &p.KeepAlive)
-	n += 2
 	if err != nil {
-		return n, ErrMalformedKeepAlive
+		return 0, ErrMalformedKeepAlive
 	}
+	n += 2
 
 	cnt, err = p.decodeProperties(buf[n:])
-	n += cnt
 	if err != nil {
-		return n, err
+		return 0, err
 	}
+	n += cnt
 
 	cnt, err = p.decodeClientID(buf[n:])
-	n += cnt
 	if err != nil {
-		return n, err
+		return 0, err
 	}
+	n += cnt
 
 	cnt, err = p.decodeWillProperties(buf[n:])
-	n += cnt
 	if err != nil {
-		return n, err
+		return 0, err
 	}
+	n += cnt
 
 	cnt, err = p.decodeWill(buf[n:])
-	n += cnt
 	if err != nil {
-		return n, err
+		return 0, err
 	}
+	n += cnt
 
 	cnt, err = p.decodeUsername(buf[n:])
-	n += cnt
 	if err != nil {
-		return n, err
+		return 0, err
 	}
+	n += cnt
 
 	cnt, err = p.decodePassword(buf[n:])
-	n += cnt
 	if err != nil {
-		return n, err
+		return 0, err
 	}
+	n += cnt
 
 	return n, nil
 }
@@ -384,4 +344,286 @@ func (p *PacketConnect) decodePassword(buf []byte) (int, error) {
 
 	p.Password = password
 	return n, nil
+}
+
+// ConnectFlags represents the Connect Flags from the MQTT specification. The Connect Flags contains a number of
+// parameters specifying the behavior of the MQTT connection. It also indicates the presence or absence of fields
+// in the payload.
+type ConnectFlags byte
+
+// Username returns whether the username flag is set or not.
+func (f ConnectFlags) Username() bool {
+	return (f & connectFlagUsernameFlag >> connectFlagShiftUsernameFlag) > 0
+}
+
+// Password returns whether the password flag is set or not.
+func (f ConnectFlags) Password() bool {
+	return (f & connectFlagPasswordFlag >> connectFlagShiftPasswordFlag) > 0
+}
+
+// WillRetain returns whether the Will Retain flag is set or not.
+func (f ConnectFlags) WillRetain() bool {
+	return (f & connectFlagWillRetain >> connectFlagShiftWillRetain) > 0
+}
+
+// WillQoS returns the Will QoS value in the flags.
+func (f ConnectFlags) WillQoS() QoS {
+	return QoS(f & connectFlagWillQoS >> connectFlagShiftWillQoS)
+}
+
+// WillFlag returns whether the Will Flag is set or not.
+func (f ConnectFlags) WillFlag() bool {
+	return (f & connectFlagWillFlag >> connectFlagShiftWillFlag) > 0
+}
+
+// CleanSession returns whether the Clean Session flag is set or not.
+func (f ConnectFlags) CleanSession() bool {
+	return (f & connectFlagCleanSession >> connectFlagShiftCleanSession) > 0
+}
+
+// Reserved returns whether the reserved flag is set or not.
+func (f ConnectFlags) Reserved() bool {
+	return (f & connectFlagReserved >> connectFlagShiftReserved) > 0
+}
+
+// PropertiesConnect contains the properties of the CONNECT packet.
+type PropertiesConnect struct {
+	// Flags indicates which properties are present.
+	Flags propertyFlags `json:"flags"`
+
+	// UserProperties is a list of user properties.
+	UserProperties []UserProperty `json:"user_properties"`
+
+	// AuthenticationMethod contains the name of the authentication method.
+	AuthenticationMethod []byte `json:"authentication_method"`
+
+	// AuthenticationData contains the authentication data.
+	AuthenticationData []byte `json:"authentication_data"`
+
+	// SessionExpiryInterval represents the time, in seconds, which the server must store the Session State after
+	// the network connection is closed.
+	SessionExpiryInterval uint32 `json:"session_expiry_interval"`
+
+	// MaximumPacketSize represents the maximum packet size, in bytes, the client is willing to accept.
+	MaximumPacketSize uint32 `json:"maximum_packet_size"`
+
+	// ReceiveMaximum represents the maximum number of inflight messages with QoS > 0.
+	ReceiveMaximum uint16 `json:"receive_maximum"`
+
+	// TopicAliasMaximum represents the highest number of Topic Alias that the client accepts.
+	TopicAliasMaximum uint16 `json:"topic_alias_maximum"`
+
+	// RequestResponseInfo indicates if the server can send Response Information with the CONNACK Packet.
+	RequestResponseInfo bool `json:"request_response_info"`
+
+	// RequestProblemInfo indicates whether the Reason String or User Properties can be sent to the client in case
+	// of failures on any packet.
+	RequestProblemInfo bool `json:"request_problem_info"`
+}
+
+// Has returns whether the property is present or not.
+func (p *PropertiesConnect) Has(prop Property) bool {
+	if p == nil {
+		return false
+	}
+	return p.Flags.has(prop)
+}
+
+// Set sets the property indicating that it's present.
+func (p *PropertiesConnect) Set(prop Property) {
+	if p == nil {
+		return
+	}
+	p.Flags = p.Flags.set(prop)
+}
+
+func (p *PropertiesConnect) size() int {
+	if p == nil {
+		return 0
+	}
+
+	var size int
+
+	size += sizePropSessionExpiryInterval(p.Flags)
+	size += sizePropReceiveMaximum(p.Flags)
+	size += sizePropMaxPacketSize(p.Flags)
+	size += sizePropTopicAliasMaximum(p.Flags)
+	size += sizePropRequestProblemInfo(p.Flags)
+	size += sizePropRequestResponseInfo(p.Flags)
+	size += sizePropUserProperties(p.Flags, p.UserProperties)
+	size += sizePropAuthenticationMethod(p.Flags, p.AuthenticationMethod)
+	size += sizePropAuthenticationData(p.Flags, p.AuthenticationData)
+
+	return size
+}
+
+func (p *PropertiesConnect) decode(buf []byte, remaining int) (n int, err error) {
+	for remaining > 0 {
+		var b byte
+		var size int
+
+		if n >= len(buf) {
+			return n, ErrMalformedPropertyConnect
+		}
+
+		b = buf[n]
+		n++
+		remaining--
+
+		size, err = p.decodeProperty(Property(b), buf[n:])
+		n += size
+		remaining -= size
+
+		if err != nil {
+			return n, err
+		}
+	}
+
+	return n, nil
+}
+
+func (p *PropertiesConnect) decodeProperty(prop Property, buf []byte) (n int, err error) {
+	switch prop {
+	case PropertySessionExpiryInterval:
+		p.SessionExpiryInterval, n, err = decodePropSessionExpiryInterval(buf, p)
+	case PropertyReceiveMaximum:
+		p.ReceiveMaximum, n, err = decodePropReceiveMaximum(buf, p)
+	case PropertyMaximumPacketSize:
+		p.MaximumPacketSize, n, err = decodePropMaxPacketSize(buf, p)
+	case PropertyTopicAliasMaximum:
+		p.TopicAliasMaximum, n, err = decodePropTopicAliasMaximum(buf, p)
+	case PropertyRequestResponseInfo:
+		p.RequestResponseInfo, n, err = decodePropRequestResponseInfo(buf, p)
+	case PropertyRequestProblemInfo:
+		p.RequestProblemInfo, n, err = decodePropRequestProblemInfo(buf, p)
+	case PropertyUserProperty:
+		var user UserProperty
+		user, n, err = decodePropUserProperty(buf, p)
+		if err == nil {
+			p.UserProperties = append(p.UserProperties, user)
+		}
+	case PropertyAuthenticationMethod:
+		p.AuthenticationMethod, n, err = decodePropAuthenticationMethod(buf, p)
+	case PropertyAuthenticationData:
+		p.AuthenticationData, n, err = decodePropAuthenticationData(buf, p)
+	default:
+		err = ErrMalformedPropertyInvalid
+	}
+
+	return n, err
+}
+
+// PropertiesWill defines the properties to be sent with the Will message when it is published, and properties
+// which define when to publish the Will message.
+type PropertiesWill struct {
+	// Flags indicates which properties are present.
+	Flags propertyFlags `json:"flags"`
+
+	// UserProperties is a list of user properties.
+	UserProperties []UserProperty `json:"user_properties"`
+
+	// CorrelationData is used to correlate a response message with a request message.
+	CorrelationData []byte `json:"correlation_data"`
+
+	// ContentType describes the content type of the Will Payload.
+	ContentType []byte `json:"content_type"`
+
+	// ResponseTopic indicates the topic name for response message.
+	ResponseTopic []byte `json:"response_topic"`
+
+	// WillDelayInterval represents the number of seconds which the server must delay before publish the Will
+	// message.
+	WillDelayInterval uint32 `json:"will_delay_interval"`
+
+	// MessageExpiryInterval represents the lifetime, in seconds, of the Will message.
+	MessageExpiryInterval uint32 `json:"message_expiry_interval"`
+
+	// PayloadFormatIndicator indicates whether the Will message is a UTF-8 string or not.
+	PayloadFormatIndicator bool `json:"payload_format_indicator"`
+}
+
+// Has returns whether the property is present or not.
+func (p *PropertiesWill) Has(prop Property) bool {
+	if p == nil {
+		return false
+	}
+	return p.Flags.has(prop)
+}
+
+// Set sets the property indicating that it's present.
+func (p *PropertiesWill) Set(prop Property) {
+	if p == nil {
+		return
+	}
+	p.Flags = p.Flags.set(prop)
+}
+
+func (p *PropertiesWill) size() int {
+	if p == nil {
+		return 0
+	}
+
+	var size int
+
+	size += sizePropWillDelayInterval(p.Flags)
+	size += sizePropPayloadFormatIndicator(p.Flags)
+	size += sizePropMessageExpiryInterval(p.Flags)
+	size += sizePropContentType(p.Flags, p.ContentType)
+	size += sizePropResponseTopic(p.Flags, p.ResponseTopic)
+	size += sizePropCorrelationData(p.Flags, p.CorrelationData)
+	size += sizePropUserProperties(p.Flags, p.UserProperties)
+
+	return size
+}
+
+func (p *PropertiesWill) decode(buf []byte, remaining int) (n int, err error) {
+	for remaining > 0 {
+		var b byte
+		var size int
+
+		if n >= len(buf) {
+			return n, ErrMalformedPropertyWill
+		}
+
+		b = buf[n]
+		n++
+		remaining--
+
+		size, err = p.decodeProperty(Property(b), buf[n:])
+		n += size
+		remaining -= size
+
+		if err != nil {
+			return n, err
+		}
+	}
+
+	return n, nil
+}
+
+func (p *PropertiesWill) decodeProperty(prop Property, buf []byte) (n int, err error) {
+	switch prop {
+	case PropertyWillDelayInterval:
+		p.WillDelayInterval, n, err = decodePropWillDelayInterval(buf, p)
+	case PropertyPayloadFormatIndicator:
+		p.PayloadFormatIndicator, n, err = decodePropPayloadFormatIndicator(buf, p)
+	case PropertyMessageExpiryInterval:
+		p.MessageExpiryInterval, n, err = decodePropMessageExpiryInterval(buf, p)
+	case PropertyContentType:
+		p.ContentType, n, err = decodePropContentType(buf, p)
+	case PropertyResponseTopic:
+		p.ResponseTopic, n, err = decodePropResponseTopic(buf, p)
+	case PropertyCorrelationData:
+		p.CorrelationData, n, err = decodePropCorrelationData(buf, p)
+	case PropertyUserProperty:
+		var user UserProperty
+		user, n, err = decodePropUserProperty(buf, p)
+		if err == nil {
+			p.UserProperties = append(p.UserProperties, user)
+		}
+	default:
+		err = ErrMalformedPropertyInvalid
+	}
+
+	return n, err
 }
