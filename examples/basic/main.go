@@ -23,6 +23,7 @@ import (
 	"sync"
 
 	"github.com/gsalomao/akira"
+	"github.com/gsalomao/akira/listener"
 )
 
 func main() {
@@ -32,7 +33,7 @@ func main() {
 	}
 	defer server.Close()
 
-	tcp := akira.NewTCPListener("tcp", ":1883", nil)
+	tcp := listener.NewTCPListener("tcp", ":1883", nil)
 	defer func() { _ = tcp.Close() }()
 
 	err = server.AddListener(tcp)

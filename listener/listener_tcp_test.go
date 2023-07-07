@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package akira
+package listener
 
 import (
 	"crypto/tls"
 	"net"
 	"testing"
 
+	"github.com/gsalomao/akira"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -50,15 +51,13 @@ func (s *TCPListenerTestSuite) TestNewTCPListenerSuccess() {
 	defer func() { _ = l.Close() }()
 
 	s.Assert().Equal("tcp1", l.Name())
-	s.Assert().Equal(":1883", l.Address())
-	s.Assert().Equal("tcp", l.Protocol())
 }
 
 func (s *TCPListenerTestSuite) TestListenSuccess() {
 	l := NewTCPListener("tcp1", ":1883", nil)
 	defer func() { _ = l.Close() }()
 
-	listening, err := l.Listen(func(Listener, net.Conn) {})
+	listening, err := l.Listen(func(akira.Listener, net.Conn) {})
 	s.Require().NotNil(listening)
 	s.Require().NoError(err)
 	<-listening
@@ -75,7 +74,7 @@ func (s *TCPListenerTestSuite) TestListenWithTLSConfigSuccess() {
 	l := NewTCPListener("tcp1", ":1883", &tlsConfig)
 	defer func() { _ = l.Close() }()
 
-	listening, err := l.Listen(func(Listener, net.Conn) {})
+	listening, err := l.Listen(func(akira.Listener, net.Conn) {})
 	s.Require().NotNil(listening)
 	s.Require().NoError(err)
 	<-listening
@@ -85,7 +84,7 @@ func (s *TCPListenerTestSuite) TestListenError() {
 	l := NewTCPListener("tcp1", ":abc", nil)
 	defer func() { _ = l.Close() }()
 
-	listening, err := l.Listen(func(Listener, net.Conn) {})
+	listening, err := l.Listen(func(akira.Listener, net.Conn) {})
 	s.Require().Nil(listening)
 	s.Require().Error(err)
 }
@@ -97,7 +96,7 @@ func (s *TCPListenerTestSuite) TestListenOnConnection() {
 	var nc net.Conn
 	done := make(chan struct{})
 
-	listening, _ := l.Listen(func(lsn Listener, c net.Conn) {
+	listening, _ := l.Listen(func(lsn akira.Listener, c net.Conn) {
 		s.Require().Equal(l, lsn)
 		s.Require().NotNil(c)
 		nc = c
@@ -118,7 +117,7 @@ func (s *TCPListenerTestSuite) TestStop() {
 	l := NewTCPListener("tcp1", ":1883", nil)
 	defer func() { _ = l.Close() }()
 
-	listening, _ := l.Listen(func(Listener, net.Conn) {})
+	listening, _ := l.Listen(func(akira.Listener, net.Conn) {})
 	<-listening
 
 	l.Stop()
@@ -129,7 +128,7 @@ func (s *TCPListenerTestSuite) TestListening() {
 	l := NewTCPListener("tcp1", ":1883", nil)
 	defer func() { _ = l.Close() }()
 
-	listening, _ := l.Listen(func(Listener, net.Conn) {})
+	listening, _ := l.Listen(func(akira.Listener, net.Conn) {})
 	<-listening
 	s.Require().True(l.Listening())
 }
@@ -144,7 +143,7 @@ func (s *TCPListenerTestSuite) TestListeningStopped() {
 	l := NewTCPListener("tcp1", ":1883", nil)
 	defer func() { _ = l.Close() }()
 
-	listening, _ := l.Listen(func(Listener, net.Conn) {})
+	listening, _ := l.Listen(func(akira.Listener, net.Conn) {})
 	<-listening
 
 	l.Stop()

@@ -17,74 +17,54 @@ package akira
 import (
 	"errors"
 	"net"
-	"sync"
 	"sync/atomic"
 )
 
-type mockListener struct {
-	name      string
-	address   string
-	done      chan struct{}
-	wg        sync.WaitGroup
-	handle    OnConnectionFunc
-	listening atomic.Bool
+type listenerMock struct {
+	name         string
+	address      string
+	listening    chan bool
+	onConnection OnConnectionFunc
+	running      atomic.Bool
 }
 
-func newMockListener(name, address string) *mockListener {
-	m := mockListener{
+func newListenerMock(name, address string) *listenerMock {
+	m := listenerMock{
 		name:    name,
 		address: address,
-		done:    make(chan struct{}),
 	}
 	return &m
 }
 
-func (l *mockListener) Name() string {
+func (l *listenerMock) Name() string {
 	return l.name
 }
 
-func (l *mockListener) Address() string {
-	return l.address
-}
-
-func (l *mockListener) Protocol() string {
-	return "mock"
-}
-
-func (l *mockListener) Listen(f OnConnectionFunc) (<-chan bool, error) {
+func (l *listenerMock) Listen(f OnConnectionFunc) (<-chan bool, error) {
 	if _, _, err := net.SplitHostPort(l.address); err != nil {
 		return nil, errors.New("invalid address")
 	}
 
-	listening := make(chan bool, 1)
+	l.onConnection = f
+	l.listening = make(chan bool, 1)
 
-	l.done = make(chan struct{})
-	l.handle = f
-	l.wg.Add(1)
+	l.running.Store(true)
+	l.listening <- true
 
-	go func() {
-		defer l.wg.Done()
-		defer close(listening)
-
-		l.listening.Store(true)
-		listening <- true
-
-		<-l.done
-		l.listening.Store(false)
-	}()
-
-	return listening, nil
+	return l.listening, nil
 }
 
-func (l *mockListener) Stop() {
-	close(l.done)
-	l.wg.Wait()
+func (l *listenerMock) Stop() {
+	if l.Listening() {
+		l.running.Store(false)
+		close(l.listening)
+	}
 }
 
-func (l *mockListener) Listening() bool {
-	return l.listening.Load()
+func (l *listenerMock) Listening() bool {
+	return l.running.Load()
 }
 
-func (l *mockListener) onConnection(c net.Conn) {
-	l.handle(l, c)
+func (l *listenerMock) handle(c net.Conn) {
+	l.onConnection(l, c)
 }

@@ -24,12 +24,12 @@ import (
 type ListenersTestSuite struct {
 	suite.Suite
 	listeners *listeners
-	listener  *mockListener
+	listener  *listenerMock
 }
 
 func (s *ListenersTestSuite) SetupTest() {
 	s.listeners = newListeners()
-	s.listener = newMockListener("mock", ":1883")
+	s.listener = newListenerMock("mock", ":1883")
 }
 
 func (s *ListenersTestSuite) TestNewListeners() {
@@ -81,7 +81,7 @@ func (s *ListenersTestSuite) TestListen() {
 
 func (s *ListenersTestSuite) TestListenAll() {
 	s.listeners.add(s.listener)
-	l := newMockListener("mock2", ":1883")
+	l := newListenerMock("mock2", ":1883")
 	s.listeners.add(l)
 
 	err := s.listeners.listenAll(func(_ Listener, _ net.Conn) {})
@@ -92,7 +92,7 @@ func (s *ListenersTestSuite) TestListenAll() {
 
 func (s *ListenersTestSuite) TestStopAll() {
 	s.listeners.add(s.listener)
-	l := newMockListener("mock2", ":1883")
+	l := newListenerMock("mock2", ":1883")
 	s.listeners.add(l)
 	_ = s.listeners.listenAll(func(_ Listener, _ net.Conn) {})
 

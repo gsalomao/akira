@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package akira
+package listener
 
 import (
 	"crypto/tls"
 	"net"
 	"sync"
 	"sync/atomic"
+
+	"github.com/gsalomao/akira"
 )
 
 // TCPListener is a Listener responsible for listen and accept TCP connections.
@@ -27,7 +29,7 @@ type TCPListener struct {
 	address   string
 	listener  net.Listener
 	tlsConfig *tls.Config
-	handle    OnConnectionFunc
+	handle    akira.OnConnectionFunc
 	wg        sync.WaitGroup
 	listening atomic.Bool
 }
@@ -47,21 +49,11 @@ func (l *TCPListener) Name() string {
 	return l.name
 }
 
-// Address returns the network address of the listener.
-func (l *TCPListener) Address() string {
-	return l.address
-}
-
-// Protocol returns the network protocol of the listener.
-func (l *TCPListener) Protocol() string {
-	return "tcp"
-}
-
 // Listen starts the listener. The listener calls the OnConnectionFunc for any received incoming TCP connection.
 // This function does not block the caller and returns a channel, which an event is sent when the listener is
 // ready for accept incoming connection, and closed when the listener has stopped.
 // It returns an error if the Listener fails to start.
-func (l *TCPListener) Listen(f OnConnectionFunc) (<-chan bool, error) {
+func (l *TCPListener) Listen(f akira.OnConnectionFunc) (<-chan bool, error) {
 	var err error
 
 	if l.tlsConfig == nil {

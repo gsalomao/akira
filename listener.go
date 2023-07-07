@@ -33,12 +33,6 @@ type Listener interface {
 	// added into the server with the same name of another listener, the ErrListenerAlreadyExists is returned.
 	Name() string
 
-	// Address returns the network address of the listener.
-	Address() string
-
-	// Protocol returns the network protocol of the listener.
-	Protocol() string
-
 	// Listen starts the listener. The listener calls the OnConnectionFunc for any received incoming connection.
 	// This function does not block the caller and returns a channel, which an event is sent when the listener is
 	// ready for accept incoming connection, and closed when the listener has stopped.

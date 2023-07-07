@@ -31,7 +31,7 @@ import (
 type ServerTestSuite struct {
 	suite.Suite
 	server   *Server
-	listener *mockListener
+	listener *listenerMock
 	hook     *hookMock
 }
 
@@ -41,7 +41,7 @@ func (s *ServerTestSuite) SetupTest() {
 	s.server, err = NewServer(NewDefaultOptions())
 	s.Require().NoError(err)
 
-	s.listener = newMockListener("mock", ":1883")
+	s.listener = newListenerMock("mock", ":1883")
 	s.hook = nil
 	_ = s.server.AddListener(s.listener)
 }
@@ -100,7 +100,7 @@ func (s *ServerTestSuite) TestNewServerDefaultConfig() {
 }
 
 func (s *ServerTestSuite) TestNewServerWithListeners() {
-	l := []Listener{newMockListener("mock", ":1883")}
+	l := []Listener{newListenerMock("mock", ":1883")}
 	srv, err := NewServer(&Options{Listeners: l})
 
 	s.Require().NoError(err)
@@ -111,8 +111,8 @@ func (s *ServerTestSuite) TestNewServerWithListeners() {
 func (s *ServerTestSuite) TestNewServerWithListenersError() {
 	_, err := NewServer(&Options{
 		Listeners: []Listener{
-			newMockListener("mock", ":1883"),
-			newMockListener("mock", ":1884"),
+			newListenerMock("mock", ":1883"),
+			newListenerMock("mock", ":1884"),
 		},
 	})
 
@@ -140,7 +140,7 @@ func (s *ServerTestSuite) TestNewServerWithHooksError() {
 }
 
 func (s *ServerTestSuite) TestAddListenerSuccess() {
-	l := newMockListener("mock2", ":1883")
+	l := newListenerMock("mock2", ":1883")
 
 	err := s.server.AddListener(l)
 	s.Require().NoError(err)
@@ -150,7 +150,7 @@ func (s *ServerTestSuite) TestAddListenerSuccess() {
 }
 
 func (s *ServerTestSuite) TestAddListenerError() {
-	l := newMockListener("mock", ":1883")
+	l := newListenerMock("mock", ":1883")
 
 	err := s.server.AddListener(l)
 	s.Require().ErrorIs(err, ErrListenerAlreadyExists)
@@ -158,7 +158,7 @@ func (s *ServerTestSuite) TestAddListenerError() {
 
 func (s *ServerTestSuite) TestAddListenerServerRunning() {
 	_ = s.server.Start(context.Background())
-	l := newMockListener("mock2", ":1883")
+	l := newListenerMock("mock2", ":1883")
 
 	err := s.server.AddListener(l)
 	s.Require().NoError(err)
@@ -167,7 +167,7 @@ func (s *ServerTestSuite) TestAddListenerServerRunning() {
 
 func (s *ServerTestSuite) TestAddListenerServerRunningError() {
 	_ = s.server.Start(context.Background())
-	l := newMockListener("mock2", "abc")
+	l := newListenerMock("mock2", "abc")
 
 	err := s.server.AddListener(l)
 	s.Require().Error(err)
@@ -278,7 +278,7 @@ func (s *ServerTestSuite) TestStartListenerListenError() {
 	s.hook.On("OnServerStart", s.server)
 	s.hook.On("OnStart", s.server)
 	s.hook.On("OnServerStartFailed", s.server, mock.Anything)
-	l := newMockListener("mock2", "abc")
+	l := newListenerMock("mock2", "abc")
 	_ = s.server.AddListener(l)
 
 	err := s.server.Start(context.Background())
@@ -324,7 +324,7 @@ func (s *ServerTestSuite) TestStopClosesClients() {
 	c1, c2 := net.Pipe()
 	defer func() { _ = c1.Close() }()
 
-	s.listener.onConnection(c2)
+	s.listener.handle(c2)
 	<-ready
 
 	err := s.server.Stop(context.Background())
@@ -398,7 +398,7 @@ func (s *ServerTestSuite) TestHandleConnection() {
 	s.startServer()
 	c1, c2 := net.Pipe()
 
-	s.listener.onConnection(c2)
+	s.listener.handle(c2)
 	_ = c1.Close()
 	s.stopServer()
 	s.Require().Equal(ServerStopped, s.server.State())
@@ -426,7 +426,7 @@ func (s *ServerTestSuite) TestHandleConnectionWithHook() {
 
 	c1, c2 := net.Pipe()
 
-	s.listener.onConnection(c2)
+	s.listener.handle(c2)
 	<-connOpened
 
 	_ = c1.Close()
@@ -457,7 +457,7 @@ func (s *ServerTestSuite) TestHandleConnectionReadTimeout() {
 	c1, c2 := net.Pipe()
 	defer func() { _ = c1.Close() }()
 
-	s.listener.onConnection(c2)
+	s.listener.handle(c2)
 	<-connOpened
 	<-connClosed
 }
@@ -476,7 +476,7 @@ func (s *ServerTestSuite) TestOnConnectionOpenedError() {
 	c1, c2 := net.Pipe()
 	defer func() { _ = c1.Close() }()
 
-	s.listener.onConnection(c2)
+	s.listener.handle(c2)
 	<-connClosed
 }
 
@@ -723,8 +723,8 @@ func BenchmarkReceivePacket(b *testing.B) {
 func benchmarkServerReceivePacket(b *testing.B, server *Server, data []byte) {
 	b.Helper()
 
-	listener := newMockListener("mock", ":1883")
-	err := server.AddListener(listener)
+	l := newListenerMock("mock", ":1883")
+	err := server.AddListener(l)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -757,7 +757,7 @@ func benchmarkServerReceivePacket(b *testing.B, server *Server, data []byte) {
 	}
 	defer func() { _ = sConn.Close() }()
 
-	c := newClient(sConn, server, listener)
+	c := newClient(sConn, server, l)
 
 	ctx, cancel = context.WithCancel(context.Background())
 
