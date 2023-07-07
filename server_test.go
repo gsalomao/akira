@@ -721,6 +721,8 @@ func BenchmarkReceivePacket(b *testing.B) {
 }
 
 func benchmarkServerReceivePacket(b *testing.B, server *Server, data []byte) {
+	b.Helper()
+
 	listener := newMockListener("mock", ":1883")
 	err := server.AddListener(listener)
 	if err != nil {
@@ -731,7 +733,7 @@ func benchmarkServerReceivePacket(b *testing.B, server *Server, data []byte) {
 	var sErr error
 
 	ctx, cancel := context.WithCancel(context.Background())
-	lsn, _ := net.Listen("tcp", ":1883")
+	lsn, _ := net.Listen("tcp", "127.0.0.1:1883")
 	defer func() { _ = lsn.Close() }()
 
 	var wg sync.WaitGroup

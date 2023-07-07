@@ -308,11 +308,12 @@ func decodeBool(data []byte, val *bool) error {
 	var b byte
 	err := decodeUint(data, &b)
 
-	if b == 1 {
-		*val = true
-	} else if b == 0 {
+	switch b {
+	case 0:
 		*val = false
-	} else {
+	case 1:
+		*val = true
+	default:
 		err = ErrMalformedInteger
 	}
 

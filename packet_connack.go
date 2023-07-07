@@ -197,78 +197,80 @@ func (p *PropertiesConnAck) size() int {
 func (p *PropertiesConnAck) encode(buf []byte) (n int, err error) {
 	n = encodeVarInteger(buf, p.size())
 
-	if p != nil {
-		var size int
-
-		size = encodePropUint(buf[n:], p.Flags, PropertySessionExpiryInterval, p.SessionExpiryInterval)
-		n += size
-
-		size = encodePropUint(buf[n:], p.Flags, PropertyReceiveMaximum, p.ReceiveMaximum)
-		n += size
-
-		size = encodePropUint(buf[n:], p.Flags, PropertyMaximumQoS, p.MaximumQoS)
-		n += size
-
-		size = encodePropBool(buf[n:], p.Flags, PropertyRetainAvailable, p.RetainAvailable)
-		n += size
-
-		size = encodePropUint(buf[n:], p.Flags, PropertyMaximumPacketSize, p.MaximumPacketSize)
-		n += size
-
-		size, err = encodePropString(buf[n:], p.Flags, PropertyAssignedClientID, p.AssignedClientID)
-		n += size
-		if err != nil {
-			return n, err
-		}
-
-		size = encodePropUint(buf[n:], p.Flags, PropertyTopicAliasMaximum, p.TopicAliasMaximum)
-		n += size
-
-		size, err = encodePropString(buf[n:], p.Flags, PropertyReasonString, p.ReasonString)
-		n += size
-		if err != nil {
-			return n, err
-		}
-
-		size, err = encodePropUserProperties(buf[n:], p.Flags, p.UserProperties, err)
-		n += size
-		if err != nil {
-			return n, err
-		}
-
-		size = encodePropBool(buf[n:], p.Flags, PropertyWildcardSubscriptionAvailable, p.WildcardSubscriptionAvailable)
-		n += size
-
-		size = encodePropBool(buf[n:], p.Flags, PropertySubscriptionIDAvailable, p.SubscriptionIDAvailable)
-		n += size
-
-		size = encodePropBool(buf[n:], p.Flags, PropertySharedSubscriptionAvailable, p.SharedSubscriptionAvailable)
-		n += size
-
-		size = encodePropUint(buf[n:], p.Flags, PropertyServerKeepAlive, p.ServerKeepAlive)
-		n += size
-
-		size, err = encodePropString(buf[n:], p.Flags, PropertyResponseInfo, p.ResponseInfo)
-		n += size
-		if err != nil {
-			return n, err
-		}
-
-		size, err = encodePropString(buf[n:], p.Flags, PropertyServerReference, p.ServerReference)
-		n += size
-		if err != nil {
-			return n, err
-		}
-
-		size, err = encodePropString(buf[n:], p.Flags, PropertyAuthenticationMethod, p.AuthenticationMethod)
-		n += size
-		if err != nil {
-			return n, err
-		}
-
-		size, err = encodePropString(buf[n:], p.Flags, PropertyAuthenticationData, p.AuthenticationData)
-		n += size
+	if p == nil {
+		return n, nil
 	}
+
+	var size int
+
+	size = encodePropUint(buf[n:], p.Flags, PropertySessionExpiryInterval, p.SessionExpiryInterval)
+	n += size
+
+	size = encodePropUint(buf[n:], p.Flags, PropertyReceiveMaximum, p.ReceiveMaximum)
+	n += size
+
+	size = encodePropUint(buf[n:], p.Flags, PropertyMaximumQoS, p.MaximumQoS)
+	n += size
+
+	size = encodePropBool(buf[n:], p.Flags, PropertyRetainAvailable, p.RetainAvailable)
+	n += size
+
+	size = encodePropUint(buf[n:], p.Flags, PropertyMaximumPacketSize, p.MaximumPacketSize)
+	n += size
+
+	size, err = encodePropString(buf[n:], p.Flags, PropertyAssignedClientID, p.AssignedClientID)
+	n += size
+	if err != nil {
+		return n, err
+	}
+
+	size = encodePropUint(buf[n:], p.Flags, PropertyTopicAliasMaximum, p.TopicAliasMaximum)
+	n += size
+
+	size, err = encodePropString(buf[n:], p.Flags, PropertyReasonString, p.ReasonString)
+	n += size
+	if err != nil {
+		return n, err
+	}
+
+	size, err = encodePropUserProperties(buf[n:], p.Flags, p.UserProperties, err)
+	n += size
+	if err != nil {
+		return n, err
+	}
+
+	size = encodePropBool(buf[n:], p.Flags, PropertyWildcardSubscriptionAvailable, p.WildcardSubscriptionAvailable)
+	n += size
+
+	size = encodePropBool(buf[n:], p.Flags, PropertySubscriptionIDAvailable, p.SubscriptionIDAvailable)
+	n += size
+
+	size = encodePropBool(buf[n:], p.Flags, PropertySharedSubscriptionAvailable, p.SharedSubscriptionAvailable)
+	n += size
+
+	size = encodePropUint(buf[n:], p.Flags, PropertyServerKeepAlive, p.ServerKeepAlive)
+	n += size
+
+	size, err = encodePropString(buf[n:], p.Flags, PropertyResponseInfo, p.ResponseInfo)
+	n += size
+	if err != nil {
+		return n, err
+	}
+
+	size, err = encodePropString(buf[n:], p.Flags, PropertyServerReference, p.ServerReference)
+	n += size
+	if err != nil {
+		return n, err
+	}
+
+	size, err = encodePropString(buf[n:], p.Flags, PropertyAuthenticationMethod, p.AuthenticationMethod)
+	n += size
+	if err != nil {
+		return n, err
+	}
+
+	size, err = encodePropString(buf[n:], p.Flags, PropertyAuthenticationData, p.AuthenticationData)
+	n += size
 
 	return n, err
 }

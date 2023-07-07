@@ -143,8 +143,9 @@ func (s *PacketConnectTestSuite) TestDecodeSuccess() {
 				0, 255, // Keep alive
 				0, 2, 'a', 'b', // Client ID
 			},
-			PacketConnect{Version: MQTT311, KeepAlive: 255, Flags: connectFlagCleanSession,
-				ClientID: []byte("ab")},
+			PacketConnect{
+				Version: MQTT311, KeepAlive: 255, Flags: connectFlagCleanSession, ClientID: []byte("ab"),
+			},
 		},
 		{
 			"V3.1.1, clean session + no client ID",
@@ -155,8 +156,9 @@ func (s *PacketConnectTestSuite) TestDecodeSuccess() {
 				0, 255, // Keep alive
 				0, 0, // Client ID
 			},
-			PacketConnect{Version: MQTT311, KeepAlive: 255, Flags: connectFlagCleanSession,
-				ClientID: []byte{}},
+			PacketConnect{
+				Version: MQTT311, KeepAlive: 255, Flags: connectFlagCleanSession, ClientID: []byte{},
+			},
 		},
 		{
 			"V3.1.1, will flags",
@@ -245,8 +247,10 @@ func (s *PacketConnectTestSuite) TestDecodeSuccess() {
 				0, 3, 'a', 'b', 'c', // Client ID
 				0, 1, 'd', // Password
 			},
-			PacketConnect{Version: MQTT50, KeepAlive: 65535, ClientID: []byte("abc"),
-				Flags: connectFlagPasswordFlag, Password: []byte("d")},
+			PacketConnect{
+				Version: MQTT50, KeepAlive: 65535, ClientID: []byte("abc"), Flags: connectFlagPasswordFlag,
+				Password: []byte("d"),
+			},
 		},
 		{
 			"V5.0, properties",
@@ -307,33 +311,62 @@ func (s *PacketConnectTestSuite) TestDecodeError() {
 		{"Invalid protocol version", []byte{0, 4, 'M', 'Q', 'T', 'T', 0}, ErrMalformedProtocolVersion},
 		{"Missing CONNECT flags", []byte{0, 4, 'M', 'Q', 'T', 'T', 4}, ErrMalformedConnectFlags},
 		{"Invalid CONNECT flags", []byte{0, 4, 'M', 'Q', 'T', 'T', 4, 1}, ErrMalformedConnectFlags},
-		{"Invalid WillFlag and WillQoS combination", []byte{0, 4, 'M', 'Q', 'T', 'T', 4, 0x10},
-			ErrMalformedConnectFlags},
+		{
+			"Invalid WillFlag and WillQoS combination",
+			[]byte{0, 4, 'M', 'Q', 'T', 'T', 4, 0x10},
+			ErrMalformedConnectFlags,
+		},
 		{"Invalid WillQoS", []byte{0, 4, 'M', 'Q', 'T', 'T', 4, 0x1c}, ErrMalformedConnectFlags},
-		{"Invalid WillFlag and WillRetain combination", []byte{0, 4, 'M', 'Q', 'T', 'T', 4, 0x20},
-			ErrMalformedConnectFlags},
-		{"Invalid Username and Password flags combination", []byte{0, 4, 'M', 'Q', 'T', 'T', 4, 0x40},
-			ErrMalformedConnectFlags},
+		{
+			"Invalid WillFlag and WillRetain combination",
+			[]byte{0, 4, 'M', 'Q', 'T', 'T', 4, 0x20},
+			ErrMalformedConnectFlags,
+		},
+		{
+			"Invalid Username and Password flags combination",
+			[]byte{0, 4, 'M', 'Q', 'T', 'T', 4, 0x40},
+			ErrMalformedConnectFlags,
+		},
 		{"Missing keep alive", []byte{0, 4, 'M', 'Q', 'T', 'T', 4, 0}, ErrMalformedKeepAlive},
 		{"Missing property length", []byte{0, 4, 'M', 'Q', 'T', 'T', 5, 0, 0, 10}, ErrMalformedPropertyLength},
 		{"Invalid property", []byte{0, 4, 'M', 'Q', 'T', 'T', 5, 0, 0, 10, 1, 255}, ErrMalformedPropertyInvalid},
 		{"Missing client ID", []byte{0, 4, 'M', 'Q', 'T', 'T', 4, 0, 0, 10}, ErrMalformedClientID},
-		{"Zero-byte Client ID with Clean Session flag (V3.1)",
-			[]byte{0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 2, 0, 10, 0, 0}, ErrV3ClientIDRejected},
-		{"Zero-byte Client ID without Clean Session flag (V3.1.1)", []byte{0, 4, 'M', 'Q', 'T', 'T', 4, 0, 0, 10, 0, 0},
-			ErrV3ClientIDRejected},
-		{"Client ID more than 23 bytes (V3.1)",
-			[]byte{0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 0, 0, 10, 0, 24, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65,
-				65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65}, ErrV3ClientIDRejected},
-		{"Missing Will property length", []byte{0, 4, 'M', 'Q', 'T', 'T', 5, 4, 0, 10, 0, 0, 0},
-			ErrMalformedPropertyLength},
-		{"Invalid Will property", []byte{0, 4, 'M', 'Q', 'T', 'T', 5, 4, 0, 10, 0, 0, 0, 1, 255},
-			ErrMalformedPropertyInvalid},
+		{
+			"Zero-byte Client ID with Clean Session flag (V3.1)",
+			[]byte{0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 2, 0, 10, 0, 0},
+			ErrV3ClientIDRejected,
+		},
+		{
+			"Zero-byte Client ID without Clean Session flag (V3.1.1)",
+			[]byte{0, 4, 'M', 'Q', 'T', 'T', 4, 0, 0, 10, 0, 0},
+			ErrV3ClientIDRejected,
+		},
+		{
+			"Client ID more than 23 bytes (V3.1)",
+			[]byte{
+				0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 0, 0, 10, 0, 24, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65,
+				65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65,
+			},
+			ErrV3ClientIDRejected,
+		},
+		{
+			"Missing Will property length",
+			[]byte{0, 4, 'M', 'Q', 'T', 'T', 5, 4, 0, 10, 0, 0, 0},
+			ErrMalformedPropertyLength,
+		},
+		{
+			"Invalid Will property",
+			[]byte{0, 4, 'M', 'Q', 'T', 'T', 5, 4, 0, 10, 0, 0, 0, 1, 255},
+			ErrMalformedPropertyInvalid,
+		},
 		{"Missing Will topic", []byte{0, 4, 'M', 'Q', 'T', 'T', 4, 6, 0, 10, 0, 0}, ErrMalformedWillTopic},
 		{"Empty Will topic", []byte{0, 4, 'M', 'Q', 'T', 'T', 4, 6, 0, 10, 0, 0, 0, 0}, ErrMalformedWillTopic},
 		{"Invalid Will Topic", []byte{0, 4, 'M', 'Q', 'T', 'T', 4, 6, 0, 10, 0, 0, 0, 1, '#'}, ErrMalformedWillTopic},
-		{"Missing Will Payload", []byte{0, 4, 'M', 'Q', 'T', 'T', 4, 6, 0, 10, 0, 0, 0, 1, 'a'},
-			ErrMalformedWillPayload},
+		{
+			"Missing Will Payload",
+			[]byte{0, 4, 'M', 'Q', 'T', 'T', 4, 6, 0, 10, 0, 0, 0, 1, 'a'},
+			ErrMalformedWillPayload,
+		},
 		{"Missing username", []byte{0, 4, 'M', 'Q', 'T', 'T', 4, 0x82, 0, 10, 0, 0}, ErrMalformedUsername},
 		{"Missing password", []byte{0, 4, 'M', 'Q', 'T', 'T', 5, 0x40, 0, 10, 0, 0, 0}, ErrMalformedPassword},
 	}
@@ -533,7 +566,9 @@ func (s *PropertiesTestSuite) TestDecodeError() {
 		{"No property", []byte{1}, ErrMalformedPropertyConnect},
 		{"Missing Session Expiry Interval", []byte{1, 17}, ErrMalformedPropertySessionExpiryInterval},
 		{"Session Expiry Interval - uint", []byte{2, 17, 0}, ErrMalformedPropertySessionExpiryInterval},
-		{"Duplicated Session Expiry Interval", []byte{10, 17, 0, 0, 0, 10, 17, 0, 0, 0, 11},
+		{
+			"Duplicated Session Expiry Interval",
+			[]byte{10, 17, 0, 0, 0, 10, 17, 0, 0, 0, 11},
 			ErrMalformedPropertySessionExpiryInterval,
 		},
 		{"Missing Receive Max", []byte{1, 33}, ErrMalformedPropertyReceiveMaximum},
@@ -541,8 +576,11 @@ func (s *PropertiesTestSuite) TestDecodeError() {
 		{"Duplicated Receive Max", []byte{6, 33, 0, 50, 33, 0, 51}, ErrMalformedPropertyReceiveMaximum},
 		{"Missing Maximum Packet Size", []byte{1, 39}, ErrMalformedPropertyMaxPacketSize},
 		{"Invalid Maximum Packet Size", []byte{5, 39, 0, 0, 0, 0}, ErrMalformedPropertyMaxPacketSize},
-		{"Duplicated Maximum Packet Size", []byte{10, 39, 0, 0, 0, 200, 39, 0, 0, 0, 201},
-			ErrMalformedPropertyMaxPacketSize},
+		{
+			"Duplicated Maximum Packet Size",
+			[]byte{10, 39, 0, 0, 0, 200, 39, 0, 0, 0, 201},
+			ErrMalformedPropertyMaxPacketSize,
+		},
 		{"Missing Topic Alias Max", []byte{1, 34}, ErrMalformedPropertyTopicAliasMaximum},
 		{"Duplicated Topic Alias Max", []byte{6, 34, 0, 50, 34, 0, 51}, ErrMalformedPropertyTopicAliasMaximum},
 		{"Missing Request Response Info", []byte{1, 25}, ErrMalformedPropertyRequestResponseInfo},
@@ -555,8 +593,11 @@ func (s *PropertiesTestSuite) TestDecodeError() {
 		{"Missing User Property Value", []byte{4, 38, 0, 1, 'a'}, ErrMalformedPropertyUserProperty},
 		{"User Prop Value - Incomplete str", []byte{4, 38, 0, 5, 'a'}, ErrMalformedPropertyUserProperty},
 		{"Missing Authentication Method", []byte{1, 21}, ErrMalformedPropertyAuthenticationMethod},
-		{"Duplicated Auth Method", []byte{10, 21, 0, 2, 'a', 'b', 21, 0, 2, 'c', 'd'},
-			ErrMalformedPropertyAuthenticationMethod},
+		{
+			"Duplicated Auth Method",
+			[]byte{10, 21, 0, 2, 'a', 'b', 21, 0, 2, 'c', 'd'},
+			ErrMalformedPropertyAuthenticationMethod,
+		},
 		{"Missing Auth Data", []byte{1, 22}, ErrMalformedPropertyAuthenticationData},
 		{"Duplicated Auth Data", []byte{8, 22, 0, 1, 10, 22, 0, 1, 11}, ErrMalformedPropertyAuthenticationData},
 	}
@@ -674,18 +715,27 @@ func (s *PropertiesWillTestSuite) TestDecodeError() {
 	}{
 		{"No property", []byte{1}, ErrMalformedPropertyWill},
 		{"Missing Will Delay Interval", []byte{1, 24}, ErrMalformedPropertyWillDelayInterval},
-		{"Duplicated Will Delay Interval", []byte{10, 24, 0, 0, 0, 15, 24, 0, 0, 0, 16},
-			ErrMalformedPropertyWillDelayInterval},
+		{
+			"Duplicated Will Delay Interval",
+			[]byte{10, 24, 0, 0, 0, 15, 24, 0, 0, 0, 16},
+			ErrMalformedPropertyWillDelayInterval,
+		},
 		{"Missing Payload Format Indicator", []byte{1, 1}, ErrMalformedPropertyPayloadFormatIndicator},
 		{"Invalid Payload Format Indicator", []byte{2, 1, 2}, ErrMalformedPropertyPayloadFormatIndicator},
 		{"Duplicated Payload Format Indicator", []byte{4, 1, 0, 1, 1}, ErrMalformedPropertyPayloadFormatIndicator},
 		{"Missing Message Expiry Interval", []byte{1, 2}, ErrMalformedPropertyMessageExpiryInterval},
-		{"Duplicated Message Expiry Interval", []byte{10, 2, 0, 0, 0, 10, 2, 0, 0, 0, 11},
-			ErrMalformedPropertyMessageExpiryInterval},
+		{
+			"Duplicated Message Expiry Interval",
+			[]byte{10, 2, 0, 0, 0, 10, 2, 0, 0, 0, 11},
+			ErrMalformedPropertyMessageExpiryInterval,
+		},
 		{"Missing Content Type", []byte{1, 3}, ErrMalformedPropertyContentType},
 		{"Content Type - Missing string", []byte{3, 3, 0, 4}, ErrMalformedPropertyContentType},
-		{"Duplicated Content Type", []byte{13, 3, 0, 4, 'j', 's', 'o', 'n', 3, 0, 3, 'x', 'm', 'l'},
-			ErrMalformedPropertyContentType},
+		{
+			"Duplicated Content Type",
+			[]byte{13, 3, 0, 4, 'j', 's', 'o', 'n', 3, 0, 3, 'x', 'm', 'l'},
+			ErrMalformedPropertyContentType,
+		},
 		{"Missing Response Topic", []byte{1, 8}, ErrMalformedPropertyResponseTopic},
 		{"Response Topic - Missing string", []byte{3, 8, 0, 0}, ErrMalformedPropertyResponseTopic},
 		{"Response Topic - Incomplete string", []byte{3, 8, 0, 1}, ErrMalformedPropertyResponseTopic},
@@ -693,8 +743,11 @@ func (s *PropertiesWillTestSuite) TestDecodeError() {
 		{"Duplicated Response Topic", []byte{8, 8, 0, 1, 'b', 8, 0, 1, 'c'}, ErrMalformedPropertyResponseTopic},
 		{"Missing Correlation Data", []byte{1, 9}, ErrMalformedPropertyCorrelationData},
 		{"Correlation Data - Missing data", []byte{3, 9, 0, 2}, ErrMalformedPropertyCorrelationData},
-		{"Duplicated Correlation Data", []byte{10, 9, 0, 2, 20, 1, 9, 0, 2, 20, 2},
-			ErrMalformedPropertyCorrelationData},
+		{
+			"Duplicated Correlation Data",
+			[]byte{10, 9, 0, 2, 20, 1, 9, 0, 2, 20, 2},
+			ErrMalformedPropertyCorrelationData,
+		},
 	}
 
 	for _, test := range testCases {

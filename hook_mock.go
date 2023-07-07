@@ -111,8 +111,7 @@ func (h *hookMock) OnPacketReceived(s *Server, c *Client, p Packet) error {
 	return nil
 }
 
-type hookSpy struct {
-}
+type hookSpy struct{}
 
 func (h *hookSpy) Name() string {
 	return "hook-spy"

@@ -157,7 +157,7 @@ func sizePropUserProperties(flags propertyFlags, val []UserProperty) int {
 		var size int
 
 		for _, p := range val {
-			size += 1
+			size++
 			size += sizeBinary(p.Key)
 			size += sizeBinary(p.Value)
 		}
