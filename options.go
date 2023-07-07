@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package melitte
+package akira
 
 // Options contains the Server options to be used.
 type Options struct {

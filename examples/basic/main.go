@@ -22,17 +22,17 @@ import (
 	"os/signal"
 	"sync"
 
-	"github.com/gsalomao/melitte"
+	"github.com/gsalomao/akira"
 )
 
 func main() {
-	server, err := melitte.NewServer(melitte.NewDefaultOptions())
+	server, err := akira.NewServer(akira.NewDefaultOptions())
 	if err != nil {
 		log.Fatal("Failed to create server")
 	}
 	defer server.Close()
 
-	tcp := melitte.NewTCPListener("tcp", ":1883", nil)
+	tcp := akira.NewTCPListener("tcp", ":1883", nil)
 	defer func() { _ = tcp.Close() }()
 
 	err = server.AddListener(tcp)
@@ -72,40 +72,40 @@ func (h *loggingHook) Name() string {
 	return "logging"
 }
 
-func (h *loggingHook) OnServerStart(_ *melitte.Server) error {
+func (h *loggingHook) OnServerStart(_ *akira.Server) error {
 	fmt.Println("Server starting")
 	return nil
 }
 
-func (h *loggingHook) OnServerStarted(_ *melitte.Server) {
+func (h *loggingHook) OnServerStarted(_ *akira.Server) {
 	fmt.Println("Server started")
 }
 
-func (h *loggingHook) OnServerStartFailed(_ *melitte.Server, err error) {
+func (h *loggingHook) OnServerStartFailed(_ *akira.Server, err error) {
 	fmt.Println("Failed to start server: " + err.Error())
 }
 
-func (h *loggingHook) OnServerStop(_ *melitte.Server) {
+func (h *loggingHook) OnServerStop(_ *akira.Server) {
 	fmt.Println("Server stopping")
 }
 
-func (h *loggingHook) OnServerStopped(_ *melitte.Server) {
+func (h *loggingHook) OnServerStopped(_ *akira.Server) {
 	fmt.Println("Server stopped")
 }
 
-func (h *loggingHook) OnConnectionOpen(_ *melitte.Server, _ melitte.Listener) error {
+func (h *loggingHook) OnConnectionOpen(_ *akira.Server, _ akira.Listener) error {
 	fmt.Println("Client open")
 	return nil
 }
 
-func (h *loggingHook) OnConnectionOpened(_ *melitte.Server, _ melitte.Listener) {
+func (h *loggingHook) OnConnectionOpened(_ *akira.Server, _ akira.Listener) {
 	fmt.Println("Client opened")
 }
 
-func (h *loggingHook) OnConnectionClose(_ *melitte.Server, _ melitte.Listener) {
+func (h *loggingHook) OnConnectionClose(_ *akira.Server, _ akira.Listener) {
 	fmt.Println("Client close")
 }
 
-func (h *loggingHook) OnConnectionClosed(_ *melitte.Server, _ melitte.Listener) {
+func (h *loggingHook) OnConnectionClosed(_ *akira.Server, _ akira.Listener) {
 	fmt.Println("Client closed")
 }

@@ -10,7 +10,7 @@ requests to discuss code changes. Here are the steps in details:
 
 ### Set up your GitHub Repository
 
-Fork the [upstream](https://github.com/gsalomao/melitte/fork) source repository to your own personal repository. Copy
+Fork the [upstream](https://github.com/gsalomao/akira/fork) source repository to your own personal repository. Copy
 the URL of your fork (you will need it for the `git clone` command below).
 
 ```sh
@@ -22,7 +22,7 @@ $ make build
 
 ```sh
 $ cd mqtt
-$ git remote add upstream https://github.com/gsalomao/melitte
+$ git remote add upstream https://github.com/gsalomao/akira
 $ git fetch upstream
 $ git merge upstream/master
 ...
