@@ -144,6 +144,20 @@ func sizeVarInteger(val int) int {
 	return 0
 }
 
+func sizeUint[T constraints.Unsigned](val T) int {
+	return int(unsafe.Sizeof(val))
+}
+
+func sizeBinary(data []byte) int {
+	// The size of the data, +2 bytes for the data length.
+	return len(data) + 2
+}
+
+func sizeString(s string) int {
+	// The size of the string, +2 bytes for the string length.
+	return len(s) + 2
+}
+
 func readVarInteger(r *bufio.Reader, val *int) (int, error) {
 	var n int
 	multiplier := 1
@@ -198,91 +212,6 @@ func decodeVarInteger(buf []byte, val *int) (int, error) {
 	return n, nil
 }
 
-func encodeVarInteger(buf []byte, val int) int {
-	var n int
-	var data byte
-
-	for {
-		data = byte(val % 128)
-
-		val /= 128
-		if val > 0 {
-			data |= 128
-		}
-
-		buf[n] = data
-		n++
-		if val == 0 {
-			return n
-		}
-	}
-}
-
-func sizeString(s string) int {
-	// The size of the string, +2 bytes for the string length.
-	return len(s) + 2
-}
-
-func decodeString(data []byte) ([]byte, int, error) {
-	str, n, err := decodeBinary(data)
-	if err != nil {
-		return nil, n, ErrMalformedString
-	}
-
-	if !isValidString(str) {
-		return nil, n, ErrMalformedString
-	}
-
-	return str, n, nil
-}
-
-func encodeString(buf []byte, str []byte) (int, error) {
-	if !isValidString(str) {
-		return 0, ErrMalformedString
-	}
-
-	n := encodeBinary(buf, str)
-	return n, nil
-}
-
-func sizeBinary(data []byte) int {
-	// The size of the data, +2 bytes for the data length.
-	return len(data) + 2
-}
-
-func decodeBinary(data []byte) ([]byte, int, error) {
-	var n int
-	var length uint16
-
-	err := decodeUint[uint16](data, &length)
-	if err != nil {
-		return nil, 0, ErrMalformedBinary
-	}
-	n += 2
-
-	if int(length) > len(data)-n {
-		return nil, n, ErrMalformedBinary
-	}
-
-	bin := data[n : n+int(length)]
-	n += int(length)
-
-	return bin, n, nil
-}
-
-func encodeBinary(buf []byte, bin []byte) int {
-	n := encodeUint(buf, uint16(len(bin)))
-
-	copy(buf[n:], bin)
-	n += len(bin)
-
-	return n
-}
-
-func sizeUint[T constraints.Unsigned](val T) int {
-	return int(unsafe.Sizeof(val))
-}
-
 func decodeUint[T constraints.Unsigned](data []byte, val *T) (err error) {
 	size := int(unsafe.Sizeof(*val))
 
@@ -320,6 +249,59 @@ func decodeBool(data []byte, val *bool) error {
 	return err
 }
 
+func decodeBinary(data []byte) ([]byte, int, error) {
+	var n int
+	var length uint16
+
+	err := decodeUint[uint16](data, &length)
+	if err != nil {
+		return nil, 0, ErrMalformedBinary
+	}
+	n += 2
+
+	if int(length) > len(data)-n {
+		return nil, n, ErrMalformedBinary
+	}
+
+	bin := data[n : n+int(length)]
+	n += int(length)
+
+	return bin, n, nil
+}
+
+func decodeString(data []byte) ([]byte, int, error) {
+	str, n, err := decodeBinary(data)
+	if err != nil {
+		return nil, n, ErrMalformedString
+	}
+
+	if !isValidString(str) {
+		return nil, n, ErrMalformedString
+	}
+
+	return str, n, nil
+}
+
+func encodeVarInteger(buf []byte, val int) int {
+	var n int
+	var data byte
+
+	for {
+		data = byte(val % 128)
+
+		val /= 128
+		if val > 0 {
+			data |= 128
+		}
+
+		buf[n] = data
+		n++
+		if val == 0 {
+			return n
+		}
+	}
+}
+
 func encodeUint[T constraints.Unsigned](buf []byte, val T) int {
 	size := int(unsafe.Sizeof(val))
 
@@ -343,6 +325,24 @@ func encodeBool(buf []byte, val bool) int {
 		b = 1
 	}
 	return encodeUint(buf, b)
+}
+
+func encodeBinary(buf []byte, bin []byte) int {
+	n := encodeUint(buf, uint16(len(bin)))
+
+	copy(buf[n:], bin)
+	n += len(bin)
+
+	return n
+}
+
+func encodeString(buf []byte, str []byte) (int, error) {
+	if !isValidString(str) {
+		return 0, ErrMalformedString
+	}
+
+	n := encodeBinary(buf, str)
+	return n, nil
 }
 
 func isValidString(str []byte) bool {
