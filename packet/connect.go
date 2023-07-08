@@ -64,7 +64,7 @@ type Connect struct {
 	KeepAlive uint16 `json:"keep_alive"`
 
 	// Version represents the MQTT version.
-	Version MQTTVersion `json:"version"`
+	Version Version `json:"version"`
 
 	// Flags represents the Connect flags.
 	Flags ConnectFlags `json:"flags"`
@@ -197,7 +197,7 @@ func (p *Connect) decodeVersion(buf []byte) (int, error) {
 		return n, ErrMalformedProtocolVersion
 	}
 
-	p.Version = MQTTVersion(buf[n])
+	p.Version = Version(buf[n])
 	n++
 
 	if p.Version < MQTT31 || p.Version > MQTT50 {

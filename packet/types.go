@@ -24,7 +24,7 @@ import (
 
 const (
 	// MQTT31 represents the MQTT version 3.1.
-	MQTT31 MQTTVersion = iota + 3
+	MQTT31 Version = iota + 3
 
 	// MQTT311 represents the MQTT version 3.1.1.
 	MQTT311
@@ -121,8 +121,8 @@ var packetTypeToString = map[Type]string{
 	TypeAuth:        "AUTH",
 }
 
-// MQTTVersion represents the MQTT version.
-type MQTTVersion byte
+// Version represents the MQTT version.
+type Version byte
 
 // QoS represents the quality of service.
 type QoS byte

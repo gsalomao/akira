@@ -24,7 +24,7 @@ type ConnAck struct {
 	Properties *PropertiesConnAck `json:"properties"`
 
 	// Version represents the MQTT version.
-	Version MQTTVersion `json:"version"`
+	Version Version `json:"version"`
 
 	// Code represents the reason code based on the MQTT specifications.
 	Code ReasonCode `json:"code"`
