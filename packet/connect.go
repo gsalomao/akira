@@ -143,7 +143,7 @@ func (p *Connect) Decode(buf []byte, h FixedHeader) (n int, err error) {
 	}
 	n += cnt
 
-	err = decodeUint[uint16](buf[n:], &p.KeepAlive)
+	p.KeepAlive, err = decodeUint[uint16](buf[n:])
 	if err != nil {
 		return 0, ErrMalformedKeepAlive
 	}

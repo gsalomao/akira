@@ -14,10 +14,6 @@
 
 package packet
 
-import (
-	"golang.org/x/exp/constraints"
-)
-
 // Represents the MQTT property identifiers.
 const (
 	PropertyIDPayloadFormatIndicator        PropertyID = 0x01
@@ -376,11 +372,12 @@ func decodePropRequestResponseInfo(buf []byte, p properties) (v bool, n int, err
 		return v, n, ErrMalformedPropertyRequestResponseInfo
 	}
 
-	n, err = decodePropBool(buf, &v)
+	v, err = decodeBool(buf)
 	if err != nil {
 		return v, n, ErrMalformedPropertyRequestResponseInfo
 	}
 
+	n++
 	p.Set(PropertyIDRequestResponseInfo)
 	return v, n, nil
 }
@@ -390,11 +387,12 @@ func decodePropRequestProblemInfo(buf []byte, p properties) (v bool, n int, err 
 		return v, n, ErrMalformedPropertyRequestProblemInfo
 	}
 
-	n, err = decodePropBool(buf, &v)
+	v, err = decodeBool(buf)
 	if err != nil {
 		return v, n, ErrMalformedPropertyRequestProblemInfo
 	}
 
+	n++
 	p.Set(PropertyIDRequestProblemInfo)
 	return v, n, nil
 }
@@ -465,11 +463,12 @@ func decodePropPayloadFormatIndicator(buf []byte, p properties) (v bool, n int, 
 		return v, n, ErrMalformedPropertyPayloadFormatIndicator
 	}
 
-	n, err = decodePropBool(buf, &v)
+	v, err = decodeBool(buf)
 	if err != nil {
 		return v, n, ErrMalformedPropertyPayloadFormatIndicator
 	}
 
+	n++
 	p.Set(PropertyIDPayloadFormatIndicator)
 	return v, n, nil
 }
@@ -534,10 +533,10 @@ func decodePropCorrelationData(buf []byte, p properties) (v []byte, n int, err e
 	return v, n, nil
 }
 
-func decodePropUint[T constraints.Unsigned](buf []byte, v *T, validator func(T) bool) (n int, err error) {
+func decodePropUint[T integer](buf []byte, v *T, validator func(T) bool) (n int, err error) {
 	var prop T
 
-	err = decodeUint[T](buf, &prop)
+	prop, err = decodeUint[T](buf)
 	if err != nil {
 		return 0, err
 	}
@@ -548,15 +547,6 @@ func decodePropUint[T constraints.Unsigned](buf []byte, v *T, validator func(T) 
 
 	*v = prop
 	return sizeUint(prop), nil
-}
-
-func decodePropBool(buf []byte, v *bool) (n int, err error) {
-	err = decodeBool(buf, v)
-	if err != nil {
-		return 0, err
-	}
-
-	return 1, nil
 }
 
 func decodePropString(buf []byte, str *[]byte) (n int, err error) {
@@ -608,7 +598,7 @@ func encodePropUserProperties(buf []byte, flags PropertyFlags, props []UserPrope
 	return n, err
 }
 
-func encodePropUint[T constraints.Unsigned](buf []byte, f PropertyFlags, id PropertyID, v T) int {
+func encodePropUint[T integer](buf []byte, f PropertyFlags, id PropertyID, v T) int {
 	if f.Has(id) {
 		var n int
 

@@ -20,8 +20,6 @@ import (
 	"strings"
 	"unicode/utf8"
 	"unsafe"
-
-	"golang.org/x/exp/constraints"
 )
 
 const (
@@ -142,6 +140,10 @@ func (t Type) String() string {
 	return name
 }
 
+type integer interface {
+	int8 | uint8 | int16 | uint16 | int32 | uint32
+}
+
 func sizeVarInteger(val int) int {
 	if val < 128 {
 		return 1
@@ -158,7 +160,7 @@ func sizeVarInteger(val int) int {
 	return 0
 }
 
-func sizeUint[T constraints.Unsigned](val T) int {
+func sizeUint[T integer](val T) int {
 	return int(unsafe.Sizeof(val))
 }
 
@@ -226,52 +228,45 @@ func decodeVarInteger(buf []byte, val *int) (int, error) {
 	return n, nil
 }
 
-func decodeUint[T constraints.Unsigned](data []byte, val *T) (err error) {
-	size := int(unsafe.Sizeof(*val))
+func decodeUint[T integer](data []byte) (T, error) {
+	var v T
 
-	if size > len(data) {
-		return ErrMalformedInteger
+	if int(unsafe.Sizeof(v)) > len(data) {
+		return v, ErrMalformedInteger
 	}
 
-	switch size {
-	case 1:
-		*val = T(data[0])
-	case 2:
-		*val = T(binary.BigEndian.Uint16(data[:size]))
-	case 4:
-		*val = T(binary.BigEndian.Uint32(data[:size]))
+	switch any(v).(type) {
+	case int32, uint32:
+		return T(binary.BigEndian.Uint32(data[:4])), nil
+	case int16, uint16:
+		return T(binary.BigEndian.Uint16(data[:2])), nil
 	default:
-		return ErrMalformedInteger
+		return T(data[0]), nil
 	}
-
-	return nil
 }
 
-func decodeBool(data []byte, val *bool) error {
-	var b byte
-	err := decodeUint(data, &b)
+func decodeBool(data []byte) (bool, error) {
+	var v bool
+
+	b, err := decodeUint[uint8](data)
 
 	switch b {
 	case 0:
-		*val = false
 	case 1:
-		*val = true
+		v = true
 	default:
 		err = ErrMalformedInteger
 	}
 
-	return err
+	return v, err
 }
 
 func decodeBinary(data []byte) ([]byte, int, error) {
-	var n int
-	var length uint16
-
-	err := decodeUint[uint16](data, &length)
+	length, err := decodeUint[uint16](data)
 	if err != nil {
 		return nil, 0, ErrMalformedBinary
 	}
-	n += 2
+	n := 2
 
 	if int(length) > len(data)-n {
 		return nil, n, ErrMalformedBinary
@@ -316,21 +311,22 @@ func encodeVarInteger(buf []byte, val int) int {
 	}
 }
 
-func encodeUint[T constraints.Unsigned](buf []byte, val T) int {
-	size := int(unsafe.Sizeof(val))
+func encodeUint[T integer](buf []byte, val T) int {
+	var n int
 
-	switch size {
-	case 1:
-		buf[0] = byte(val)
-	case 2:
-		binary.BigEndian.PutUint16(buf, uint16(val))
-	case 4:
+	switch any(val).(type) {
+	case int32, uint32:
 		binary.BigEndian.PutUint32(buf, uint32(val))
+		n = 4
+	case int16, uint16:
+		binary.BigEndian.PutUint16(buf, uint16(val))
+		n = 2
 	default:
-		return 0
+		buf[0] = byte(val)
+		n = 1
 	}
 
-	return size
+	return n
 }
 
 func encodeBool(buf []byte, val bool) int {

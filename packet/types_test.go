@@ -286,13 +286,8 @@ func TestEncodeBinarySuccess(t *testing.T) {
 }
 
 func TestDecodeUintErrorNoData(t *testing.T) {
-	err := decodeUint[uint8]([]byte{}, nil)
+	_, err := decodeUint[uint8](nil)
 	require.ErrorIs(t, err, ErrMalformedInteger)
-}
-
-func TestDecodeUintErrorSize(t *testing.T) {
-	err := decodeUint[uint64]([]byte{0, 0, 0, 0, 0, 0, 0, 0}, nil)
-	require.Error(t, err)
 }
 
 func TestDecodeUint8(t *testing.T) {
@@ -306,9 +301,7 @@ func TestDecodeUint8(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(fmt.Sprint(test.val), func(t *testing.T) {
-			var val uint8
-
-			err := decodeUint[uint8](test.data, &val)
+			val, err := decodeUint[uint8](test.data)
 			require.NoError(t, err)
 			assert.Equal(t, test.val, val)
 		})
@@ -328,9 +321,7 @@ func TestDecodeUint16(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(fmt.Sprint(test.val), func(t *testing.T) {
-			var val uint16
-
-			err := decodeUint[uint16](test.data, &val)
+			val, err := decodeUint[uint16](test.data)
 			require.NoError(t, err)
 			assert.Equal(t, test.val, val)
 		})
@@ -348,9 +339,7 @@ func TestDecodeUint32(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(fmt.Sprint(test.val), func(t *testing.T) {
-			var val uint32
-
-			err := decodeUint[uint32](test.data, &val)
+			val, err := decodeUint[uint32](test.data)
 			require.NoError(t, err)
 			assert.Equal(t, test.val, val)
 		})
@@ -417,9 +406,4 @@ func TestEncodeUint32(t *testing.T) {
 			assert.Equal(t, test.data, data)
 		})
 	}
-}
-
-func TestEncodeUintInvalidSize(t *testing.T) {
-	n := encodeUint(make([]byte, 10), uint64(10))
-	assert.Zero(t, n)
 }
