@@ -23,6 +23,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gsalomao/akira/packet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
@@ -482,10 +483,10 @@ func (s *ServerTestSuite) TestOnConnectionOpenedError() {
 
 func (s *ServerTestSuite) TestReceivePacket() {
 	msg := []byte{
-		byte(PacketTypeConnect) << 4, 14, // Fixed header
+		byte(packet.TypeConnect) << 4, 14, // Fixed header
 		0, 4, 'M', 'Q', 'T', 'T', // Protocol name
 		4,      // Protocol version
-		2,      // Packet flags (Clean Session)
+		2,      // Packet flags (Clean session)
 		0, 255, // Keep alive
 		0, 2, 'a', 'b', // Client ID
 	}
@@ -507,21 +508,21 @@ func (s *ServerTestSuite) TestReceivePacket() {
 	s.Require().NoError(err)
 	s.Require().NotNil(p)
 
-	packet := &PacketConnect{
-		Version:   MQTT311,
+	connect := &packet.Connect{
+		Version:   packet.MQTT311,
 		KeepAlive: 255,
-		Flags:     connectFlagCleanSession,
+		Flags:     packet.ConnectFlags(0x02), // Clean session flag
 		ClientID:  []byte("ab"),
 	}
-	s.Assert().Equal(packet, p)
+	s.Assert().Equal(connect, p)
 }
 
 func (s *ServerTestSuite) TestReceivePacketWithHooks() {
 	msg := []byte{
-		byte(PacketTypeConnect) << 4, 14, // Fixed header
+		byte(packet.TypeConnect) << 4, 14, // Fixed header
 		0, 4, 'M', 'Q', 'T', 'T', // Protocol name
 		4,      // Protocol version
-		2,      // Packet flags (Clean Session)
+		2,      // Packet flags (Clean session)
 		0, 255, // Keep alive
 		0, 2, 'a', 'b', // Client ID
 	}
@@ -529,15 +530,15 @@ func (s *ServerTestSuite) TestReceivePacketWithHooks() {
 	defer func() { _ = c1.Close() }()
 
 	c := newClient(c2, s.server, s.listener)
-	packet := &PacketConnect{
-		Version:   MQTT311,
+	connect := &packet.Connect{
+		Version:   packet.MQTT311,
 		KeepAlive: 255,
-		Flags:     connectFlagCleanSession,
+		Flags:     packet.ConnectFlags(0x02), // Clean session flag
 		ClientID:  []byte("ab"),
 	}
 	s.addHook()
 	s.hook.On("OnPacketReceive", s.server, c)
-	s.hook.On("OnPacketReceived", s.server, c, packet)
+	s.hook.On("OnPacketReceived", s.server, c, connect)
 
 	var wg sync.WaitGroup
 	defer wg.Wait()
@@ -551,7 +552,7 @@ func (s *ServerTestSuite) TestReceivePacketWithHooks() {
 	p, err := s.server.receivePacket(c)
 	s.Require().NoError(err)
 	s.Require().NotNil(p)
-	s.Assert().Equal(packet, p)
+	s.Assert().Equal(connect, p)
 }
 
 func (s *ServerTestSuite) TestReceivePacketOnPacketReceiveWithError() {
@@ -567,7 +568,7 @@ func (s *ServerTestSuite) TestReceivePacketOnPacketReceiveWithError() {
 
 func (s *ServerTestSuite) TestReceivePacketOnPacketReceiveError() {
 	msg := []byte{
-		byte(PacketTypeConnect) << 4, 7, // Fixed header
+		byte(packet.TypeConnect) << 4, 7, // Fixed header
 		0, 4, 'M', 'Q', 'T', 'T', // Protocol name
 		0, // Protocol version
 	}
@@ -578,7 +579,7 @@ func (s *ServerTestSuite) TestReceivePacketOnPacketReceiveError() {
 	s.addHook()
 	s.hook.On("OnPacketReceive", s.server, c)
 	s.hook.On("OnPacketReceiveError", s.server, c, mock.MatchedBy(func(err error) bool {
-		return errors.Is(err, ErrMalformedProtocolVersion)
+		return errors.Is(err, packet.ErrMalformedProtocolVersion)
 	})).Return(assert.AnError)
 
 	var wg sync.WaitGroup
@@ -597,7 +598,7 @@ func (s *ServerTestSuite) TestReceivePacketOnPacketReceiveError() {
 
 func (s *ServerTestSuite) TestReceivePacketOnPacketReceiveErrorNoError() {
 	msg := []byte{
-		byte(PacketTypeConnect) << 4, 7, // Fixed header
+		byte(packet.TypeConnect) << 4, 7, // Fixed header
 		0, 4, 'M', 'Q', 'T', 'T', // Protocol name
 		0, // Protocol version
 	}
@@ -621,10 +622,10 @@ func (s *ServerTestSuite) TestReceivePacketOnPacketReceiveErrorNoError() {
 
 func (s *ServerTestSuite) TestReceivePacketOnPacketReceivedWithError() {
 	msg := []byte{
-		byte(PacketTypeConnect) << 4, 14, // Fixed header
+		byte(packet.TypeConnect) << 4, 14, // Fixed header
 		0, 4, 'M', 'Q', 'T', 'T', // Protocol name
 		4,      // Protocol version
-		2,      // Packet flags (Clean Session)
+		2,      // Packet flags (Clean session)
 		0, 255, // Keep alive
 		0, 2, 'a', 'b', // Client ID
 	}
@@ -632,15 +633,15 @@ func (s *ServerTestSuite) TestReceivePacketOnPacketReceivedWithError() {
 	defer func() { _ = c1.Close() }()
 
 	c := newClient(c2, s.server, s.listener)
-	packet := &PacketConnect{
-		Version:   MQTT311,
+	connect := &packet.Connect{
+		Version:   packet.MQTT311,
 		KeepAlive: 255,
-		Flags:     connectFlagCleanSession,
+		Flags:     packet.ConnectFlags(0x02), // Clean session flag
 		ClientID:  []byte("ab"),
 	}
 	s.addHook()
 	s.hook.On("OnPacketReceive", s.server, c)
-	s.hook.On("OnPacketReceived", s.server, c, packet).Return(assert.AnError)
+	s.hook.On("OnPacketReceived", s.server, c, connect).Return(assert.AnError)
 
 	var wg sync.WaitGroup
 	defer wg.Wait()
@@ -668,7 +669,7 @@ func BenchmarkReceivePacket(b *testing.B) {
 		{
 			name: "CONNECT-V3",
 			data: []byte{
-				byte(PacketTypeConnect) << 4, 14, // Fixed header
+				byte(packet.TypeConnect) << 4, 14, // Fixed header
 				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
 				4,      // Protocol version
 				2,      // Packet flags (Clean Session)
@@ -679,7 +680,7 @@ func BenchmarkReceivePacket(b *testing.B) {
 		{
 			name: "CONNECT-V5",
 			data: []byte{
-				byte(PacketTypeConnect) << 4, 15, // Fixed header
+				byte(packet.TypeConnect) << 4, 15, // Fixed header
 				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
 				5,      // Protocol version
 				2,      // Packet flags (Clean Session)

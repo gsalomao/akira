@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package akira
+package packet
 
 import (
 	"bufio"
@@ -25,94 +25,15 @@ import (
 )
 
 const (
-	// PacketTypeReserved is the reserved packet type.
-	PacketTypeReserved PacketType = iota
+	// MQTT31 represents the MQTT version 3.1.
+	MQTT31 MQTTVersion = iota + 3
 
-	// PacketTypeConnect is the CONNECT packet type.
-	PacketTypeConnect
+	// MQTT311 represents the MQTT version 3.1.1.
+	MQTT311
 
-	// PacketTypeConnAck is the CONNACK packet type.
-	PacketTypeConnAck
-
-	// PacketTypePublish is the PUBLISH packet type.
-	PacketTypePublish
-
-	// PacketTypePubAck is the PUBACK packet type.
-	PacketTypePubAck
-
-	// PacketTypePubRec is the PUBREC packet type.
-	PacketTypePubRec
-
-	// PacketTypePubRel is the PUBREL packet type.
-	PacketTypePubRel
-
-	// PacketTypePubComp is the PUBCOMP packet type.
-	PacketTypePubComp
-
-	// PacketTypeSubscribe is the SUBSCRIBE packet type.
-	PacketTypeSubscribe
-
-	// PacketTypeSubAck is the SUBACK packet type.
-	PacketTypeSubAck
-
-	// PacketTypeUnsubscribe is the UNSUBSCRIBE packet type.
-	PacketTypeUnsubscribe
-
-	// PacketTypeUnsubAck is the UNSUBSCRIBE packet type.
-	PacketTypeUnsubAck
-
-	// PacketTypePingReq is the PINGREQ packet type.
-	PacketTypePingReq
-
-	// PacketTypePingResp is the PINGRESP packet type.
-	PacketTypePingResp
-
-	// PacketTypeDisconnect is the DISCONNECT packet type.
-	PacketTypeDisconnect
-
-	// PacketTypeAuth is the AUTH packet type.
-	PacketTypeAuth
-
-	// PacketTypeInvalid indicates that the packet type is invalid.
-	PacketTypeInvalid
+	// MQTT50 represents the MQTT version 5.0.
+	MQTT50
 )
-
-const (
-	packetTypeBitsShift = 4
-	packetFlagsBitsMask = 0x0f
-)
-
-var packetTypeToString = map[PacketType]string{
-	PacketTypeReserved:    "RESERVED",
-	PacketTypeConnect:     "CONNECT",
-	PacketTypeConnAck:     "CONNACK",
-	PacketTypePublish:     "PUBLISH",
-	PacketTypePubAck:      "PUBACK",
-	PacketTypePubRec:      "PUBREC",
-	PacketTypePubRel:      "PUBREL",
-	PacketTypePubComp:     "PUBCOMP",
-	PacketTypeSubscribe:   "SUBSCRIBE",
-	PacketTypeSubAck:      "SUBACK",
-	PacketTypeUnsubscribe: "UNSUBSCRIBE",
-	PacketTypeUnsubAck:    "UNSUBACK",
-	PacketTypePingReq:     "PINGREQ",
-	PacketTypePingResp:    "PINGRESP",
-	PacketTypeDisconnect:  "DISCONNECT",
-	PacketTypeAuth:        "AUTH",
-}
-
-// PacketType represents the packet type (e.g. CONNECT, CONNACK, etc.).
-type PacketType byte
-
-// String returns the packet type name.
-func (t PacketType) String() string {
-	name, ok := packetTypeToString[t]
-	if !ok {
-		return "INVALID"
-	}
-
-	return name
-}
 
 const (
 	// QoS0 indicates the quality of service 0.
@@ -125,8 +46,101 @@ const (
 	QoS2
 )
 
+const (
+	// TypeReserved is the reserved packet type.
+	TypeReserved Type = iota
+
+	// TypeConnect is the CONNECT packet type.
+	TypeConnect
+
+	// TypeConnAck is the CONNACK packet type.
+	TypeConnAck
+
+	// TypePublish is the PUBLISH packet type.
+	TypePublish
+
+	// TypePubAck is the PUBACK packet type.
+	TypePubAck
+
+	// TypePubRec is the PUBREC packet type.
+	TypePubRec
+
+	// TypePubRel is the PUBREL packet type.
+	TypePubRel
+
+	// TypePubComp is the PUBCOMP packet type.
+	TypePubComp
+
+	// TypeSubscribe is the SUBSCRIBE packet type.
+	TypeSubscribe
+
+	// TypeSubAck is the SUBACK packet type.
+	TypeSubAck
+
+	// TypeUnsubscribe is the UNSUBSCRIBE packet type.
+	TypeUnsubscribe
+
+	// TypeUnsubAck is the UNSUBSCRIBE packet type.
+	TypeUnsubAck
+
+	// TypePingReq is the PINGREQ packet type.
+	TypePingReq
+
+	// TypePingResp is the PINGRESP packet type.
+	TypePingResp
+
+	// TypeDisconnect is the DISCONNECT packet type.
+	TypeDisconnect
+
+	// TypeAuth is the AUTH packet type.
+	TypeAuth
+
+	// TypeInvalid indicates that the packet type is invalid.
+	TypeInvalid
+)
+
+const (
+	packetTypeBitsShift = 4
+	packetFlagsBitsMask = 0x0f
+)
+
+var packetTypeToString = map[Type]string{
+	TypeReserved:    "RESERVED",
+	TypeConnect:     "CONNECT",
+	TypeConnAck:     "CONNACK",
+	TypePublish:     "PUBLISH",
+	TypePubAck:      "PUBACK",
+	TypePubRec:      "PUBREC",
+	TypePubRel:      "PUBREL",
+	TypePubComp:     "PUBCOMP",
+	TypeSubscribe:   "SUBSCRIBE",
+	TypeSubAck:      "SUBACK",
+	TypeUnsubscribe: "UNSUBSCRIBE",
+	TypeUnsubAck:    "UNSUBACK",
+	TypePingReq:     "PINGREQ",
+	TypePingResp:    "PINGRESP",
+	TypeDisconnect:  "DISCONNECT",
+	TypeAuth:        "AUTH",
+}
+
+// MQTTVersion represents the MQTT version.
+type MQTTVersion byte
+
 // QoS represents the quality of service.
 type QoS byte
+
+// Type represents the packet type (e.g. CONNECT, CONNACK, etc.).
+type Type byte
+
+// String returns the packet type name.
+func (t Type) String() string {
+	name, ok := packetTypeToString[t]
+	if !ok {
+		return "INVALID"
+	}
+
+	return name
+}
 
 func sizeVarInteger(val int) int {
 	if val < 128 {

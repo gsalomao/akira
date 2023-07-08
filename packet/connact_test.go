@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package akira
+package packet
 
 import (
 	"fmt"
@@ -21,55 +21,31 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type PacketConnAckTestSuite struct {
+type ConnAckTestSuite struct {
 	suite.Suite
 }
 
-func (s *PacketConnAckTestSuite) TestType() {
-	var p PacketConnAck
-	s.Require().Equal(PacketTypeConnAck, p.Type())
+func (s *ConnAckTestSuite) TestType() {
+	var p ConnAck
+	s.Require().Equal(TypeConnAck, p.Type())
 }
 
-func (s *PacketConnAckTestSuite) TestSize() {
+func (s *ConnAckTestSuite) TestSize() {
 	testCases := []struct {
 		name   string
-		packet PacketConnAck
+		packet ConnAck
 		size   int
 	}{
-		{
-			name:   "V3.1",
-			packet: PacketConnAck{Version: MQTT31},
-			size:   4,
-		},
-		{
-			name:   "V3.1.1",
-			packet: PacketConnAck{Version: MQTT311, Code: ReasonCodeIdentifierRejected, SessionPresent: true},
-			size:   4,
-		},
-		{
-			name:   "V3.1.1",
-			packet: PacketConnAck{Version: MQTT311, Code: ReasonCodeIdentifierRejected, SessionPresent: true},
-			size:   4,
-		},
-		{
-			name:   "V5.0, no properties",
-			packet: PacketConnAck{Version: MQTT50},
-			size:   5,
-		},
-		{
-			name: "V5.0, empty properties",
-			packet: PacketConnAck{
-				Version:    MQTT50,
-				Properties: &PropertiesConnAck{},
-			},
-			size: 5,
-		},
+		{name: "V3.1", packet: ConnAck{Version: MQTT31}, size: 4},
+		{name: "V3.1.1", packet: ConnAck{Version: MQTT311}, size: 4},
+		{name: "V5.0, no properties", packet: ConnAck{Version: MQTT50}, size: 5},
+		{name: "V5.0, empty properties", packet: ConnAck{Version: MQTT50, Properties: &PropertiesConnAck{}}, size: 5},
 		{
 			name: "V5.0, with properties",
-			packet: PacketConnAck{
+			packet: ConnAck{
 				Version: MQTT50,
 				Properties: &PropertiesConnAck{
-					Flags:                 propertyFlags(0).set(PropertySessionExpiryInterval),
+					Flags:                 PropertyFlags(0).Set(PropertyIDSessionExpiryInterval),
 					SessionExpiryInterval: 30,
 				},
 			},
@@ -85,34 +61,34 @@ func (s *PacketConnAckTestSuite) TestSize() {
 	}
 }
 
-func (s *PacketConnAckTestSuite) TestEncodeSuccess() {
+func (s *ConnAckTestSuite) TestEncodeSuccess() {
 	testCases := []struct {
 		name   string
-		packet PacketConnAck
+		packet ConnAck
 		data   []byte
 	}{
 		{
 			name:   "V3.1",
-			packet: PacketConnAck{Version: MQTT31, SessionPresent: true, Code: ReasonCodeConnectionAccepted},
+			packet: ConnAck{Version: MQTT31, SessionPresent: true, Code: ReasonCodeConnectionAccepted},
 			data:   []byte{0x20, 2, 1, 0},
 		},
 		{
 			name:   "V3.1.1",
-			packet: PacketConnAck{Version: MQTT311, Code: ReasonCodeIdentifierRejected},
+			packet: ConnAck{Version: MQTT311, Code: ReasonCodeIdentifierRejected},
 			data:   []byte{0x20, 2, 0, 2},
 		},
 		{
 			name:   "V5.0, no properties",
-			packet: PacketConnAck{Version: MQTT50, Code: ReasonCodeSuccess},
+			packet: ConnAck{Version: MQTT50, Code: ReasonCodeSuccess},
 			data:   []byte{0x20, 3, 0, 0, 0},
 		},
 		{
 			name: "V5.0, with properties",
-			packet: PacketConnAck{
+			packet: ConnAck{
 				Version: MQTT50,
 				Code:    ReasonCodeMalformedPacket,
 				Properties: &PropertiesConnAck{
-					Flags:                 propertyFlags(0).set(PropertySessionExpiryInterval),
+					Flags:                 PropertyFlags(0).Set(PropertyIDSessionExpiryInterval),
 					SessionExpiryInterval: 10,
 				},
 			},
@@ -132,40 +108,39 @@ func (s *PacketConnAckTestSuite) TestEncodeSuccess() {
 	}
 }
 
-func (s *PacketConnAckTestSuite) TestEncodeError() {
-	packet := PacketConnAck{Version: MQTT50, Code: ReasonCodeSuccess}
+func (s *ConnAckTestSuite) TestEncodeError() {
+	packet := ConnAck{Version: MQTT50, Code: ReasonCodeSuccess}
 
 	n, err := packet.Encode(nil)
 	s.Require().Error(err)
 	s.Assert().Zero(n)
 }
 
-func TestPacketConnAckTestSuite(t *testing.T) {
-	suite.Run(t, new(PacketConnAckTestSuite))
+func TestConnAckTestSuite(t *testing.T) {
+	suite.Run(t, new(ConnAckTestSuite))
 }
 
-func BenchmarkPacketConnAckEncode(b *testing.B) {
+func BenchmarkConnAckEncode(b *testing.B) {
 	testCases := []struct {
 		name   string
-		packet PacketConnAck
+		packet ConnAck
 	}{
 		{
 			name:   "V3",
-			packet: PacketConnAck{Version: MQTT311, Code: ReasonCodeConnectionAccepted},
+			packet: ConnAck{Version: MQTT311, Code: ReasonCodeConnectionAccepted},
 		},
 		{
 			name:   "V5",
-			packet: PacketConnAck{Version: MQTT50, Code: ReasonCodeSuccess},
+			packet: ConnAck{Version: MQTT50, Code: ReasonCodeSuccess},
 		},
 	}
 
 	for _, test := range testCases {
 		b.Run(test.name, func(b *testing.B) {
+			data := make([]byte, test.packet.Size())
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				data := make([]byte, test.packet.Size())
-
 				_, err := test.packet.Encode(data)
 				if err != nil {
 					b.Fatal(err)
@@ -182,56 +157,56 @@ type PropertiesConnAckTestSuite struct {
 func (s *PropertiesConnAckTestSuite) TestHas() {
 	testCases := []struct {
 		props  *PropertiesConnAck
-		prop   Property
+		id     PropertyID
 		result bool
 	}{
-		{&PropertiesConnAck{}, PropertyUserProperty, true},
-		{&PropertiesConnAck{}, PropertyAssignedClientID, true},
-		{&PropertiesConnAck{}, PropertyReasonString, true},
-		{&PropertiesConnAck{}, PropertyResponseInfo, true},
-		{&PropertiesConnAck{}, PropertyServerReference, true},
-		{&PropertiesConnAck{}, PropertyAuthenticationMethod, true},
-		{&PropertiesConnAck{}, PropertyAuthenticationData, true},
-		{&PropertiesConnAck{}, PropertySessionExpiryInterval, true},
-		{&PropertiesConnAck{}, PropertyMaximumPacketSize, true},
-		{&PropertiesConnAck{}, PropertyReceiveMaximum, true},
-		{&PropertiesConnAck{}, PropertyTopicAliasMaximum, true},
-		{&PropertiesConnAck{}, PropertyServerKeepAlive, true},
-		{&PropertiesConnAck{}, PropertyMaximumQoS, true},
-		{&PropertiesConnAck{}, PropertyRetainAvailable, true},
-		{&PropertiesConnAck{}, PropertyWildcardSubscriptionAvailable, true},
-		{&PropertiesConnAck{}, PropertySubscriptionIDAvailable, true},
-		{&PropertiesConnAck{}, PropertySharedSubscriptionAvailable, true},
+		{&PropertiesConnAck{}, PropertyIDUserProperty, true},
+		{&PropertiesConnAck{}, PropertyIDAssignedClientID, true},
+		{&PropertiesConnAck{}, PropertyIDReasonString, true},
+		{&PropertiesConnAck{}, PropertyIDResponseInfo, true},
+		{&PropertiesConnAck{}, PropertyIDServerReference, true},
+		{&PropertiesConnAck{}, PropertyIDAuthenticationMethod, true},
+		{&PropertiesConnAck{}, PropertyIDAuthenticationData, true},
+		{&PropertiesConnAck{}, PropertyIDSessionExpiryInterval, true},
+		{&PropertiesConnAck{}, PropertyIDMaximumPacketSize, true},
+		{&PropertiesConnAck{}, PropertyIDReceiveMaximum, true},
+		{&PropertiesConnAck{}, PropertyIDTopicAliasMaximum, true},
+		{&PropertiesConnAck{}, PropertyIDServerKeepAlive, true},
+		{&PropertiesConnAck{}, PropertyIDMaximumQoS, true},
+		{&PropertiesConnAck{}, PropertyIDRetainAvailable, true},
+		{&PropertiesConnAck{}, PropertyIDWildcardSubscriptionAvailable, true},
+		{&PropertiesConnAck{}, PropertyIDSubscriptionIDAvailable, true},
+		{&PropertiesConnAck{}, PropertyIDSharedSubscriptionAvailable, true},
 		{nil, 0, false},
 	}
 
 	for _, test := range testCases {
-		s.Run(fmt.Sprint(test.prop), func() {
-			test.props.Set(test.prop)
-			s.Require().Equal(test.result, test.props.Has(test.prop))
+		s.Run(fmt.Sprint(test.id), func() {
+			test.props.Set(test.id)
+			s.Require().Equal(test.result, test.props.Has(test.id))
 		})
 	}
 }
 
 func (s *PropertiesConnAckTestSuite) TestSize() {
-	var flags propertyFlags
-	flags = flags.set(PropertyUserProperty)
-	flags = flags.set(PropertyAssignedClientID)
-	flags = flags.set(PropertyReasonString)
-	flags = flags.set(PropertyResponseInfo)
-	flags = flags.set(PropertyServerReference)
-	flags = flags.set(PropertyAuthenticationMethod)
-	flags = flags.set(PropertyAuthenticationData)
-	flags = flags.set(PropertySessionExpiryInterval)
-	flags = flags.set(PropertyMaximumPacketSize)
-	flags = flags.set(PropertyReceiveMaximum)
-	flags = flags.set(PropertyTopicAliasMaximum)
-	flags = flags.set(PropertyServerKeepAlive)
-	flags = flags.set(PropertyMaximumQoS)
-	flags = flags.set(PropertyRetainAvailable)
-	flags = flags.set(PropertyWildcardSubscriptionAvailable)
-	flags = flags.set(PropertySubscriptionIDAvailable)
-	flags = flags.set(PropertySharedSubscriptionAvailable)
+	var flags PropertyFlags
+	flags = flags.Set(PropertyIDUserProperty)
+	flags = flags.Set(PropertyIDAssignedClientID)
+	flags = flags.Set(PropertyIDReasonString)
+	flags = flags.Set(PropertyIDResponseInfo)
+	flags = flags.Set(PropertyIDServerReference)
+	flags = flags.Set(PropertyIDAuthenticationMethod)
+	flags = flags.Set(PropertyIDAuthenticationData)
+	flags = flags.Set(PropertyIDSessionExpiryInterval)
+	flags = flags.Set(PropertyIDMaximumPacketSize)
+	flags = flags.Set(PropertyIDReceiveMaximum)
+	flags = flags.Set(PropertyIDTopicAliasMaximum)
+	flags = flags.Set(PropertyIDServerKeepAlive)
+	flags = flags.Set(PropertyIDMaximumQoS)
+	flags = flags.Set(PropertyIDRetainAvailable)
+	flags = flags.Set(PropertyIDWildcardSubscriptionAvailable)
+	flags = flags.Set(PropertyIDSubscriptionIDAvailable)
+	flags = flags.Set(PropertyIDSharedSubscriptionAvailable)
 
 	props := PropertiesConnAck{
 		Flags:                flags,
@@ -266,7 +241,7 @@ func (s *PropertiesConnAckTestSuite) TestEncodeSuccess() {
 		{
 			"Session Expiry Interval",
 			&PropertiesConnAck{
-				Flags:                 propertyFlags(0).set(PropertySessionExpiryInterval),
+				Flags:                 PropertyFlags(0).Set(PropertyIDSessionExpiryInterval),
 				SessionExpiryInterval: 256,
 			},
 			[]byte{5, 0x11, 0, 0, 1, 0},
@@ -274,20 +249,20 @@ func (s *PropertiesConnAckTestSuite) TestEncodeSuccess() {
 		{
 			"Receive Maximum",
 			&PropertiesConnAck{
-				Flags:          propertyFlags(0).set(PropertyReceiveMaximum),
+				Flags:          PropertyFlags(0).Set(PropertyIDReceiveMaximum),
 				ReceiveMaximum: 256,
 			},
 			[]byte{3, 0x21, 1, 0},
 		},
 		{
 			"Maximum QoS",
-			&PropertiesConnAck{Flags: propertyFlags(0).set(PropertyMaximumQoS), MaximumQoS: 1},
+			&PropertiesConnAck{Flags: PropertyFlags(0).Set(PropertyIDMaximumQoS), MaximumQoS: 1},
 			[]byte{2, 0x24, 1},
 		},
 		{
 			"Retain Available",
 			&PropertiesConnAck{
-				Flags:           propertyFlags(0).set(PropertyRetainAvailable),
+				Flags:           PropertyFlags(0).Set(PropertyIDRetainAvailable),
 				RetainAvailable: true,
 			},
 			[]byte{2, 0x25, 1},
@@ -295,7 +270,7 @@ func (s *PropertiesConnAckTestSuite) TestEncodeSuccess() {
 		{
 			"Maximum Packet Size",
 			&PropertiesConnAck{
-				Flags:             propertyFlags(0).set(PropertyMaximumPacketSize),
+				Flags:             PropertyFlags(0).Set(PropertyIDMaximumPacketSize),
 				MaximumPacketSize: 4294967295,
 			},
 			[]byte{5, 0x27, 0xff, 0xff, 0xff, 0xff},
@@ -303,7 +278,7 @@ func (s *PropertiesConnAckTestSuite) TestEncodeSuccess() {
 		{
 			"Assigned Client Identifier",
 			&PropertiesConnAck{
-				Flags:            propertyFlags(0).set(PropertyAssignedClientID),
+				Flags:            PropertyFlags(0).Set(PropertyIDAssignedClientID),
 				AssignedClientID: []byte("abc"),
 			},
 			[]byte{6, 0x12, 0, 3, 'a', 'b', 'c'},
@@ -311,7 +286,7 @@ func (s *PropertiesConnAckTestSuite) TestEncodeSuccess() {
 		{
 			"Topic Alias Maximum",
 			&PropertiesConnAck{
-				Flags:             propertyFlags(0).set(PropertyTopicAliasMaximum),
+				Flags:             PropertyFlags(0).Set(PropertyIDTopicAliasMaximum),
 				TopicAliasMaximum: 256,
 			},
 			[]byte{3, 0x22, 1, 0},
@@ -319,7 +294,7 @@ func (s *PropertiesConnAckTestSuite) TestEncodeSuccess() {
 		{
 			"Reason String",
 			&PropertiesConnAck{
-				Flags:        propertyFlags(0).set(PropertyReasonString),
+				Flags:        PropertyFlags(0).Set(PropertyIDReasonString),
 				ReasonString: []byte("abc"),
 			},
 			[]byte{6, 0x1f, 0, 3, 'a', 'b', 'c'},
@@ -327,7 +302,7 @@ func (s *PropertiesConnAckTestSuite) TestEncodeSuccess() {
 		{
 			"User Property",
 			&PropertiesConnAck{
-				Flags: propertyFlags(0).set(PropertyUserProperty),
+				Flags: PropertyFlags(0).Set(PropertyIDUserProperty),
 				UserProperties: []UserProperty{
 					{[]byte("a"), []byte("b")},
 					{[]byte("c"), []byte("d")},
@@ -338,7 +313,7 @@ func (s *PropertiesConnAckTestSuite) TestEncodeSuccess() {
 		{
 			"Wildcard Subscription Available",
 			&PropertiesConnAck{
-				Flags:                         propertyFlags(0).set(PropertyWildcardSubscriptionAvailable),
+				Flags:                         PropertyFlags(0).Set(PropertyIDWildcardSubscriptionAvailable),
 				WildcardSubscriptionAvailable: true,
 			},
 			[]byte{2, 0x28, 1},
@@ -346,7 +321,7 @@ func (s *PropertiesConnAckTestSuite) TestEncodeSuccess() {
 		{
 			"Subscription Identifiers Available",
 			&PropertiesConnAck{
-				Flags:                   propertyFlags(0).set(PropertySubscriptionIDAvailable),
+				Flags:                   PropertyFlags(0).Set(PropertyIDSubscriptionIDAvailable),
 				SubscriptionIDAvailable: true,
 			},
 			[]byte{2, 0x29, 1},
@@ -354,7 +329,7 @@ func (s *PropertiesConnAckTestSuite) TestEncodeSuccess() {
 		{
 			"Shared Subscription Available",
 			&PropertiesConnAck{
-				Flags:                       propertyFlags(0).set(PropertySharedSubscriptionAvailable),
+				Flags:                       PropertyFlags(0).Set(PropertyIDSharedSubscriptionAvailable),
 				SharedSubscriptionAvailable: true,
 			},
 			[]byte{2, 0x2a, 1},
@@ -362,7 +337,7 @@ func (s *PropertiesConnAckTestSuite) TestEncodeSuccess() {
 		{
 			"Server Keep Alive",
 			&PropertiesConnAck{
-				Flags:           propertyFlags(0).set(PropertyServerKeepAlive),
+				Flags:           PropertyFlags(0).Set(PropertyIDServerKeepAlive),
 				ServerKeepAlive: 30,
 			},
 			[]byte{3, 0x13, 0, 30},
@@ -370,7 +345,7 @@ func (s *PropertiesConnAckTestSuite) TestEncodeSuccess() {
 		{
 			"Response Information",
 			&PropertiesConnAck{
-				Flags:        propertyFlags(0).set(PropertyResponseInfo),
+				Flags:        PropertyFlags(0).Set(PropertyIDResponseInfo),
 				ResponseInfo: []byte("abc"),
 			},
 			[]byte{6, 0x1a, 0, 3, 'a', 'b', 'c'},
@@ -378,7 +353,7 @@ func (s *PropertiesConnAckTestSuite) TestEncodeSuccess() {
 		{
 			"Server Reference",
 			&PropertiesConnAck{
-				Flags:           propertyFlags(0).set(PropertyServerReference),
+				Flags:           PropertyFlags(0).Set(PropertyIDServerReference),
 				ServerReference: []byte("abc"),
 			},
 			[]byte{6, 0x1c, 0, 3, 'a', 'b', 'c'},
@@ -386,7 +361,7 @@ func (s *PropertiesConnAckTestSuite) TestEncodeSuccess() {
 		{
 			"Authentication Method",
 			&PropertiesConnAck{
-				Flags:                propertyFlags(0).set(PropertyAuthenticationMethod),
+				Flags:                PropertyFlags(0).Set(PropertyIDAuthenticationMethod),
 				AuthenticationMethod: []byte("abc"),
 			},
 			[]byte{6, 0x15, 0, 3, 'a', 'b', 'c'},
@@ -394,7 +369,7 @@ func (s *PropertiesConnAckTestSuite) TestEncodeSuccess() {
 		{
 			"Authentication Data",
 			&PropertiesConnAck{
-				Flags:              propertyFlags(0).set(PropertyAuthenticationData),
+				Flags:              PropertyFlags(0).Set(PropertyIDAuthenticationData),
 				AuthenticationData: []byte("abc"),
 			},
 			[]byte{6, 0x16, 0, 3, 'a', 'b', 'c'},
@@ -421,60 +396,56 @@ func (s *PropertiesConnAckTestSuite) TestEncodeError() {
 		{
 			"Invalid Assigned Client ID",
 			&PropertiesConnAck{
-				Flags:            propertyFlags(0).set(PropertyAssignedClientID),
+				Flags:            PropertyFlags(0).Set(PropertyIDAssignedClientID),
 				AssignedClientID: []byte{0},
 			},
 		},
 		{
 			"Invalid Reason String",
 			&PropertiesConnAck{
-				Flags:        propertyFlags(0).set(PropertyReasonString),
+				Flags:        PropertyFlags(0).Set(PropertyIDReasonString),
 				ReasonString: []byte{0},
 			},
 		},
 		{
 			"Invalid User Properties - Key",
 			&PropertiesConnAck{
-				Flags: propertyFlags(0).set(PropertyUserProperty),
-				UserProperties: []UserProperty{
-					{[]byte{0}, []byte("b")},
-				},
+				Flags:          PropertyFlags(0).Set(PropertyIDUserProperty),
+				UserProperties: []UserProperty{{[]byte{0}, []byte("b")}},
 			},
 		},
 		{
 			"Invalid User Properties - Value",
 			&PropertiesConnAck{
-				Flags: propertyFlags(0).set(PropertyUserProperty),
-				UserProperties: []UserProperty{
-					{[]byte("a"), []byte{0}},
-				},
+				Flags:          PropertyFlags(0).Set(PropertyIDUserProperty),
+				UserProperties: []UserProperty{{[]byte("a"), []byte{0}}},
 			},
 		},
 		{
 			"Invalid Response Info",
 			&PropertiesConnAck{
-				Flags:        propertyFlags(0).set(PropertyResponseInfo),
+				Flags:        PropertyFlags(0).Set(PropertyIDResponseInfo),
 				ResponseInfo: []byte{0},
 			},
 		},
 		{
 			"Invalid Server Reference",
 			&PropertiesConnAck{
-				Flags:           propertyFlags(0).set(PropertyServerReference),
+				Flags:           PropertyFlags(0).Set(PropertyIDServerReference),
 				ServerReference: []byte{0},
 			},
 		},
 		{
 			"Invalid Authentication Method",
 			&PropertiesConnAck{
-				Flags:                propertyFlags(0).set(PropertyAuthenticationMethod),
+				Flags:                PropertyFlags(0).Set(PropertyIDAuthenticationMethod),
 				AuthenticationMethod: []byte{0},
 			},
 		},
 		{
 			"Invalid Authentication Data",
 			&PropertiesConnAck{
-				Flags:              propertyFlags(0).set(PropertyAuthenticationData),
+				Flags:              PropertyFlags(0).Set(PropertyIDAuthenticationData),
 				AuthenticationData: []byte{0},
 			},
 		},

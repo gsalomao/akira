@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package akira
+package packet
 
 import (
 	"bufio"
@@ -36,23 +36,23 @@ func (s *FixedHeaderTestSuite) SetupTest() {
 func (s *FixedHeaderTestSuite) TestReadPacketType() {
 	testCases := []struct {
 		data       []byte
-		packetType PacketType
+		packetType Type
 	}{
-		{[]byte{0x10, 0x00}, PacketTypeConnect},
-		{[]byte{0x20, 0x00}, PacketTypeConnAck},
-		{[]byte{0x30, 0x00}, PacketTypePublish},
-		{[]byte{0x40, 0x00}, PacketTypePubAck},
-		{[]byte{0x50, 0x00}, PacketTypePubRec},
-		{[]byte{0x60, 0x00}, PacketTypePubRel},
-		{[]byte{0x70, 0x00}, PacketTypePubComp},
-		{[]byte{0x80, 0x00}, PacketTypeSubscribe},
-		{[]byte{0x90, 0x00}, PacketTypeSubAck},
-		{[]byte{0xa0, 0x00}, PacketTypeUnsubscribe},
-		{[]byte{0xb0, 0x00}, PacketTypeUnsubAck},
-		{[]byte{0xc0, 0x00}, PacketTypePingReq},
-		{[]byte{0xd0, 0x00}, PacketTypePingResp},
-		{[]byte{0xe0, 0x00}, PacketTypeDisconnect},
-		{[]byte{0xf0, 0x00}, PacketTypeAuth},
+		{[]byte{0x10, 0x00}, TypeConnect},
+		{[]byte{0x20, 0x00}, TypeConnAck},
+		{[]byte{0x30, 0x00}, TypePublish},
+		{[]byte{0x40, 0x00}, TypePubAck},
+		{[]byte{0x50, 0x00}, TypePubRec},
+		{[]byte{0x60, 0x00}, TypePubRel},
+		{[]byte{0x70, 0x00}, TypePubComp},
+		{[]byte{0x80, 0x00}, TypeSubscribe},
+		{[]byte{0x90, 0x00}, TypeSubAck},
+		{[]byte{0xa0, 0x00}, TypeUnsubscribe},
+		{[]byte{0xb0, 0x00}, TypeUnsubAck},
+		{[]byte{0xc0, 0x00}, TypePingReq},
+		{[]byte{0xd0, 0x00}, TypePingResp},
+		{[]byte{0xe0, 0x00}, TypeDisconnect},
+		{[]byte{0xf0, 0x00}, TypeAuth},
 	}
 
 	for _, test := range testCases {
@@ -60,7 +60,7 @@ func (s *FixedHeaderTestSuite) TestReadPacketType() {
 			var header FixedHeader
 			reader := bufio.NewReader(bytes.NewReader(test.data))
 
-			n, err := header.read(reader)
+			n, err := header.Read(reader)
 			s.Require().NoError(err)
 			s.Assert().Equal(len(test.data), n)
 			s.Assert().Equal(test.packetType, header.PacketType)
@@ -75,7 +75,7 @@ func (s *FixedHeaderTestSuite) TestReadFlags() {
 			data := []byte{byte(i), 0x00}
 			reader := bufio.NewReader(bytes.NewReader(data))
 
-			n, err := header.read(reader)
+			n, err := header.Read(reader)
 			s.Require().NoError(err)
 			s.Assert().Equal(len(data), n)
 			s.Assert().Equal(byte(i), header.Flags)
@@ -99,7 +99,7 @@ func (s *FixedHeaderTestSuite) TestReadRemainingLength() {
 			var header FixedHeader
 			reader := bufio.NewReader(bytes.NewReader(test.data))
 
-			n, err := header.read(reader)
+			n, err := header.Read(reader)
 			s.Require().NoError(err)
 			s.Assert().Equal(len(test.data), n)
 			s.Assert().Equal(test.remaining, header.RemainingLength)
@@ -122,7 +122,7 @@ func (s *FixedHeaderTestSuite) TestReadError() {
 			var header FixedHeader
 			reader := bufio.NewReader(bytes.NewReader(test.data))
 
-			n, err := header.read(reader)
+			n, err := header.Read(reader)
 			s.Require().ErrorIs(err, test.err)
 			s.Assert().Equal(len(test.data), n)
 		})
@@ -134,7 +134,7 @@ func (s *FixedHeaderTestSuite) TestReadMalformedPacket() {
 	data := []byte{0x10, 0xff, 0xff, 0xff, 0x80}
 	reader := bufio.NewReader(bytes.NewReader(data))
 
-	n, err := header.read(reader)
+	n, err := header.Read(reader)
 
 	var code Error
 	s.Require().ErrorIs(err, ErrMalformedVarInteger)
@@ -145,24 +145,24 @@ func (s *FixedHeaderTestSuite) TestReadMalformedPacket() {
 
 func (s *FixedHeaderTestSuite) TestEncodePacketType() {
 	testCases := []struct {
-		packetType PacketType
+		packetType Type
 		data       []byte
 	}{
-		{PacketTypeConnect, []byte{0x10, 0x00}},
-		{PacketTypeConnAck, []byte{0x20, 0x00}},
-		{PacketTypePublish, []byte{0x30, 0x00}},
-		{PacketTypePubAck, []byte{0x40, 0x00}},
-		{PacketTypePubRec, []byte{0x50, 0x00}},
-		{PacketTypePubRel, []byte{0x60, 0x00}},
-		{PacketTypePubComp, []byte{0x70, 0x00}},
-		{PacketTypeSubscribe, []byte{0x80, 0x00}},
-		{PacketTypeSubAck, []byte{0x90, 0x00}},
-		{PacketTypeUnsubscribe, []byte{0xa0, 0x00}},
-		{PacketTypeUnsubAck, []byte{0xb0, 0x00}},
-		{PacketTypePingReq, []byte{0xc0, 0x00}},
-		{PacketTypePingResp, []byte{0xd0, 0x00}},
-		{PacketTypeDisconnect, []byte{0xe0, 0x00}},
-		{PacketTypeAuth, []byte{0xf0, 0x00}},
+		{TypeConnect, []byte{0x10, 0x00}},
+		{TypeConnAck, []byte{0x20, 0x00}},
+		{TypePublish, []byte{0x30, 0x00}},
+		{TypePubAck, []byte{0x40, 0x00}},
+		{TypePubRec, []byte{0x50, 0x00}},
+		{TypePubRel, []byte{0x60, 0x00}},
+		{TypePubComp, []byte{0x70, 0x00}},
+		{TypeSubscribe, []byte{0x80, 0x00}},
+		{TypeSubAck, []byte{0x90, 0x00}},
+		{TypeUnsubscribe, []byte{0xa0, 0x00}},
+		{TypeUnsubAck, []byte{0xb0, 0x00}},
+		{TypePingReq, []byte{0xc0, 0x00}},
+		{TypePingResp, []byte{0xd0, 0x00}},
+		{TypeDisconnect, []byte{0xe0, 0x00}},
+		{TypeAuth, []byte{0xf0, 0x00}},
 	}
 
 	for _, test := range testCases {

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package akira
+package packet
 
 import (
 	"bufio"
@@ -27,24 +27,24 @@ import (
 )
 
 func TestPacketTypeString(t *testing.T) {
-	types := map[PacketType]string{
-		PacketTypeReserved:    "RESERVED",
-		PacketTypeConnect:     "CONNECT",
-		PacketTypeConnAck:     "CONNACK",
-		PacketTypePublish:     "PUBLISH",
-		PacketTypePubAck:      "PUBACK",
-		PacketTypePubRec:      "PUBREC",
-		PacketTypePubRel:      "PUBREL",
-		PacketTypePubComp:     "PUBCOMP",
-		PacketTypeSubscribe:   "SUBSCRIBE",
-		PacketTypeSubAck:      "SUBACK",
-		PacketTypeUnsubscribe: "UNSUBSCRIBE",
-		PacketTypeUnsubAck:    "UNSUBACK",
-		PacketTypePingReq:     "PINGREQ",
-		PacketTypePingResp:    "PINGRESP",
-		PacketTypeDisconnect:  "DISCONNECT",
-		PacketTypeAuth:        "AUTH",
-		PacketTypeInvalid:     "INVALID",
+	types := map[Type]string{
+		TypeReserved:    "RESERVED",
+		TypeConnect:     "CONNECT",
+		TypeConnAck:     "CONNACK",
+		TypePublish:     "PUBLISH",
+		TypePubAck:      "PUBACK",
+		TypePubRec:      "PUBREC",
+		TypePubRel:      "PUBREL",
+		TypePubComp:     "PUBCOMP",
+		TypeSubscribe:   "SUBSCRIBE",
+		TypeSubAck:      "SUBACK",
+		TypeUnsubscribe: "UNSUBSCRIBE",
+		TypeUnsubAck:    "UNSUBACK",
+		TypePingReq:     "PINGREQ",
+		TypePingResp:    "PINGRESP",
+		TypeDisconnect:  "DISCONNECT",
+		TypeAuth:        "AUTH",
+		TypeInvalid:     "INVALID",
 	}
 
 	for pt, n := range types {

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package akira
+package packet
 
 import (
 	"bufio"
@@ -25,18 +25,14 @@ type FixedHeader struct {
 	RemainingLength int `json:"remaining_length"`
 
 	// PacketType indicates the type of packet (e.g. CONNECT, PUBLISH, SUBSCRIBE, etc).
-	PacketType PacketType `json:"packet_type"`
+	PacketType Type `json:"packet_type"`
 
 	// Flags contains the flags specific to each packet type.
 	Flags byte `json:"flags"`
 }
 
-func (h *FixedHeader) size() int {
-	// The size of the remaining length + 1 byte for the control byte.
-	return sizeVarInteger(h.RemainingLength) + 1
-}
-
-func (h *FixedHeader) read(r *bufio.Reader) (n int, err error) {
+// Read reads the fixed header from r and returns the number of bytes read or error.
+func (h *FixedHeader) Read(r *bufio.Reader) (n int, err error) {
 	var b byte
 
 	// Read the control packet type and the flags
@@ -47,7 +43,7 @@ func (h *FixedHeader) read(r *bufio.Reader) (n int, err error) {
 	n++
 
 	// Get the packet type from the 4 most significant bits (MSB).
-	h.PacketType = PacketType(b >> packetTypeBitsShift)
+	h.PacketType = Type(b >> packetTypeBitsShift)
 
 	// Get the flag from the 4 least significant bits (LSB).
 	h.Flags = b & packetFlagsBitsMask
@@ -62,6 +58,11 @@ func (h *FixedHeader) read(r *bufio.Reader) (n int, err error) {
 	n += rLenSize
 
 	return n, nil
+}
+
+func (h *FixedHeader) size() int {
+	// The size of the remaining length + 1 byte for the control byte.
+	return sizeVarInteger(h.RemainingLength) + 1
 }
 
 func (h *FixedHeader) encode(buf []byte) int {

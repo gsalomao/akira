@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package akira
+package packet
 
 const (
 	connectFlagReserved     = 0x01
@@ -36,8 +36,8 @@ const (
 
 var protocolNames = []string{"MQIsdp", "MQTT", "MQTT"}
 
-// PacketConnect represents the CONNECT Packet from MQTT specifications.
-type PacketConnect struct {
+// Connect represents the CONNECT Packet from MQTT specifications.
+type Connect struct {
 	// ClientID represents the client identifier.
 	ClientID []byte `json:"client_id"`
 
@@ -71,15 +71,19 @@ type PacketConnect struct {
 }
 
 // Type returns the packet type.
-func (p *PacketConnect) Type() PacketType {
-	return PacketTypeConnect
+func (p *Connect) Type() Type {
+	return TypeConnect
 }
 
 // Size returns the CONNECT packet size.
-func (p *PacketConnect) Size() int {
-	// Compute the size of the protocol name, +1 byte for the protocol version, +1 byte for the Connect flags,
-	// and +2 bytes for the Keep Alive.
-	size := sizeString(protocolNames[p.Version-MQTT31]) + 1 + 1 + 2
+func (p *Connect) Size() int {
+	// The protocolNames is an array and the protocol version starts with number 3 for MQTT V3.1. Based on that, the
+	// protocol version is decremented by the MQTT V3.1 version number to get a value ranging from 0..2 for MQTT V3.1,
+	// V3.1.1, and V5.0
+	size := sizeString(protocolNames[p.Version-MQTT31])
+
+	// Add +1 byte for the protocol version, +1 byte for the Connect flags, and +2 bytes for the Keep Alive.
+	size += 4
 
 	if p.Version == MQTT50 {
 		n := p.Properties.size()
@@ -108,19 +112,16 @@ func (p *PacketConnect) Size() int {
 		size += sizeBinary(p.Password)
 	}
 
-	header := FixedHeader{
-		PacketType:      PacketTypeConnect,
-		RemainingLength: size,
-	}
-
+	header := FixedHeader{PacketType: TypeConnect, RemainingLength: size}
 	size += header.size()
+
 	return size
 }
 
 // Decode decodes the CONNECT Packet from buf and header. This method returns the number of bytes read
 // from buf and the error, if it fails to read the packet correctly.
-func (p *PacketConnect) Decode(buf []byte, h FixedHeader) (n int, err error) {
-	if h.PacketType != PacketTypeConnect {
+func (p *Connect) Decode(buf []byte, h FixedHeader) (n int, err error) {
+	if h.PacketType != TypeConnect {
 		return 0, ErrMalformedPacketType
 	}
 
@@ -187,7 +188,7 @@ func (p *PacketConnect) Decode(buf []byte, h FixedHeader) (n int, err error) {
 	return n, nil
 }
 
-func (p *PacketConnect) decodeVersion(buf []byte) (int, error) {
+func (p *Connect) decodeVersion(buf []byte) (int, error) {
 	name, n, err := decodeString(buf)
 	if err != nil {
 		return n, ErrMalformedProtocolName
@@ -210,7 +211,7 @@ func (p *PacketConnect) decodeVersion(buf []byte) (int, error) {
 	return n, nil
 }
 
-func (p *PacketConnect) decodeFlags(buf []byte) (int, error) {
+func (p *Connect) decodeFlags(buf []byte) (int, error) {
 	if len(buf) == 0 {
 		return 0, ErrMalformedConnectFlags
 	}
@@ -244,7 +245,7 @@ func (p *PacketConnect) decodeFlags(buf []byte) (int, error) {
 	return n, nil
 }
 
-func (p *PacketConnect) decodeProperties(buf []byte) (int, error) {
+func (p *Connect) decodeProperties(buf []byte) (int, error) {
 	if p.Version != MQTT50 {
 		return 0, nil
 	}
@@ -256,7 +257,7 @@ func (p *PacketConnect) decodeProperties(buf []byte) (int, error) {
 	return n, err
 }
 
-func (p *PacketConnect) decodeClientID(buf []byte) (int, error) {
+func (p *Connect) decodeClientID(buf []byte) (int, error) {
 	id, n, err := decodeString(buf)
 	if err != nil {
 		return n, ErrMalformedClientID
@@ -279,7 +280,7 @@ func (p *PacketConnect) decodeClientID(buf []byte) (int, error) {
 	return n, nil
 }
 
-func (p *PacketConnect) decodeWillProperties(buf []byte) (int, error) {
+func (p *Connect) decodeWillProperties(buf []byte) (int, error) {
 	if !p.Flags.WillFlag() || p.Version != MQTT50 {
 		return 0, nil
 	}
@@ -291,7 +292,7 @@ func (p *PacketConnect) decodeWillProperties(buf []byte) (int, error) {
 	return n, err
 }
 
-func (p *PacketConnect) decodeWill(buf []byte) (int, error) {
+func (p *Connect) decodeWill(buf []byte) (int, error) {
 	if !p.Flags.WillFlag() {
 		return 0, nil
 	}
@@ -318,7 +319,7 @@ func (p *PacketConnect) decodeWill(buf []byte) (int, error) {
 	return n, nil
 }
 
-func (p *PacketConnect) decodeUsername(buf []byte) (int, error) {
+func (p *Connect) decodeUsername(buf []byte) (int, error) {
 	if !p.Flags.Username() {
 		return 0, nil
 	}
@@ -332,7 +333,7 @@ func (p *PacketConnect) decodeUsername(buf []byte) (int, error) {
 	return n, nil
 }
 
-func (p *PacketConnect) decodePassword(buf []byte) (int, error) {
+func (p *Connect) decodePassword(buf []byte) (int, error) {
 	if !p.Flags.Password() {
 		return 0, nil
 	}
@@ -389,7 +390,7 @@ func (f ConnectFlags) Reserved() bool {
 // PropertiesConnect contains the properties of the CONNECT packet.
 type PropertiesConnect struct {
 	// Flags indicates which properties are present.
-	Flags propertyFlags `json:"flags"`
+	Flags PropertyFlags `json:"flags"`
 
 	// UserProperties is a list of user properties.
 	UserProperties []UserProperty `json:"user_properties"`
@@ -422,37 +423,34 @@ type PropertiesConnect struct {
 }
 
 // Has returns whether the property is present or not.
-func (p *PropertiesConnect) Has(prop Property) bool {
-	if p == nil {
-		return false
+func (p *PropertiesConnect) Has(id PropertyID) bool {
+	if p != nil {
+		return p.Flags.Has(id)
 	}
-	return p.Flags.has(prop)
+	return false
 }
 
 // Set sets the property indicating that it's present.
-func (p *PropertiesConnect) Set(prop Property) {
-	if p == nil {
-		return
+func (p *PropertiesConnect) Set(id PropertyID) {
+	if p != nil {
+		p.Flags = p.Flags.Set(id)
 	}
-	p.Flags = p.Flags.set(prop)
 }
 
 func (p *PropertiesConnect) size() int {
-	if p == nil {
-		return 0
-	}
-
 	var size int
 
-	size += sizePropSessionExpiryInterval(p.Flags)
-	size += sizePropReceiveMaximum(p.Flags)
-	size += sizePropMaxPacketSize(p.Flags)
-	size += sizePropTopicAliasMaximum(p.Flags)
-	size += sizePropRequestProblemInfo(p.Flags)
-	size += sizePropRequestResponseInfo(p.Flags)
-	size += sizePropUserProperties(p.Flags, p.UserProperties)
-	size += sizePropAuthenticationMethod(p.Flags, p.AuthenticationMethod)
-	size += sizePropAuthenticationData(p.Flags, p.AuthenticationData)
+	if p != nil {
+		size += sizePropSessionExpiryInterval(p.Flags)
+		size += sizePropReceiveMaximum(p.Flags)
+		size += sizePropMaxPacketSize(p.Flags)
+		size += sizePropTopicAliasMaximum(p.Flags)
+		size += sizePropRequestProblemInfo(p.Flags)
+		size += sizePropRequestResponseInfo(p.Flags)
+		size += sizePropUserProperties(p.Flags, p.UserProperties)
+		size += sizePropAuthenticationMethod(p.Flags, p.AuthenticationMethod)
+		size += sizePropAuthenticationData(p.Flags, p.AuthenticationData)
+	}
 
 	return size
 }
@@ -470,7 +468,7 @@ func (p *PropertiesConnect) decode(buf []byte, remaining int) (n int, err error)
 		n++
 		remaining--
 
-		size, err = p.decodeProperty(Property(b), buf[n:])
+		size, err = p.decodeProperty(PropertyID(b), buf[n:])
 		n += size
 		remaining -= size
 
@@ -482,29 +480,29 @@ func (p *PropertiesConnect) decode(buf []byte, remaining int) (n int, err error)
 	return n, nil
 }
 
-func (p *PropertiesConnect) decodeProperty(prop Property, buf []byte) (n int, err error) {
-	switch prop {
-	case PropertySessionExpiryInterval:
+func (p *PropertiesConnect) decodeProperty(id PropertyID, buf []byte) (n int, err error) {
+	switch id {
+	case PropertyIDSessionExpiryInterval:
 		p.SessionExpiryInterval, n, err = decodePropSessionExpiryInterval(buf, p)
-	case PropertyReceiveMaximum:
+	case PropertyIDReceiveMaximum:
 		p.ReceiveMaximum, n, err = decodePropReceiveMaximum(buf, p)
-	case PropertyMaximumPacketSize:
+	case PropertyIDMaximumPacketSize:
 		p.MaximumPacketSize, n, err = decodePropMaxPacketSize(buf, p)
-	case PropertyTopicAliasMaximum:
+	case PropertyIDTopicAliasMaximum:
 		p.TopicAliasMaximum, n, err = decodePropTopicAliasMaximum(buf, p)
-	case PropertyRequestResponseInfo:
+	case PropertyIDRequestResponseInfo:
 		p.RequestResponseInfo, n, err = decodePropRequestResponseInfo(buf, p)
-	case PropertyRequestProblemInfo:
+	case PropertyIDRequestProblemInfo:
 		p.RequestProblemInfo, n, err = decodePropRequestProblemInfo(buf, p)
-	case PropertyUserProperty:
+	case PropertyIDUserProperty:
 		var user UserProperty
 		user, n, err = decodePropUserProperty(buf, p)
 		if err == nil {
 			p.UserProperties = append(p.UserProperties, user)
 		}
-	case PropertyAuthenticationMethod:
+	case PropertyIDAuthenticationMethod:
 		p.AuthenticationMethod, n, err = decodePropAuthenticationMethod(buf, p)
-	case PropertyAuthenticationData:
+	case PropertyIDAuthenticationData:
 		p.AuthenticationData, n, err = decodePropAuthenticationData(buf, p)
 	default:
 		err = ErrMalformedPropertyInvalid
@@ -517,7 +515,7 @@ func (p *PropertiesConnect) decodeProperty(prop Property, buf []byte) (n int, er
 // which define when to publish the Will message.
 type PropertiesWill struct {
 	// Flags indicates which properties are present.
-	Flags propertyFlags `json:"flags"`
+	Flags PropertyFlags `json:"flags"`
 
 	// UserProperties is a list of user properties.
 	UserProperties []UserProperty `json:"user_properties"`
@@ -543,35 +541,32 @@ type PropertiesWill struct {
 }
 
 // Has returns whether the property is present or not.
-func (p *PropertiesWill) Has(prop Property) bool {
-	if p == nil {
-		return false
+func (p *PropertiesWill) Has(id PropertyID) bool {
+	if p != nil {
+		return p.Flags.Has(id)
 	}
-	return p.Flags.has(prop)
+	return false
 }
 
 // Set sets the property indicating that it's present.
-func (p *PropertiesWill) Set(prop Property) {
-	if p == nil {
-		return
+func (p *PropertiesWill) Set(id PropertyID) {
+	if p != nil {
+		p.Flags = p.Flags.Set(id)
 	}
-	p.Flags = p.Flags.set(prop)
 }
 
 func (p *PropertiesWill) size() int {
-	if p == nil {
-		return 0
-	}
-
 	var size int
 
-	size += sizePropWillDelayInterval(p.Flags)
-	size += sizePropPayloadFormatIndicator(p.Flags)
-	size += sizePropMessageExpiryInterval(p.Flags)
-	size += sizePropContentType(p.Flags, p.ContentType)
-	size += sizePropResponseTopic(p.Flags, p.ResponseTopic)
-	size += sizePropCorrelationData(p.Flags, p.CorrelationData)
-	size += sizePropUserProperties(p.Flags, p.UserProperties)
+	if p != nil {
+		size += sizePropWillDelayInterval(p.Flags)
+		size += sizePropPayloadFormatIndicator(p.Flags)
+		size += sizePropMessageExpiryInterval(p.Flags)
+		size += sizePropContentType(p.Flags, p.ContentType)
+		size += sizePropResponseTopic(p.Flags, p.ResponseTopic)
+		size += sizePropCorrelationData(p.Flags, p.CorrelationData)
+		size += sizePropUserProperties(p.Flags, p.UserProperties)
+	}
 
 	return size
 }
@@ -589,7 +584,7 @@ func (p *PropertiesWill) decode(buf []byte, remaining int) (n int, err error) {
 		n++
 		remaining--
 
-		size, err = p.decodeProperty(Property(b), buf[n:])
+		size, err = p.decodeProperty(PropertyID(b), buf[n:])
 		n += size
 		remaining -= size
 
@@ -601,21 +596,21 @@ func (p *PropertiesWill) decode(buf []byte, remaining int) (n int, err error) {
 	return n, nil
 }
 
-func (p *PropertiesWill) decodeProperty(prop Property, buf []byte) (n int, err error) {
-	switch prop {
-	case PropertyWillDelayInterval:
+func (p *PropertiesWill) decodeProperty(id PropertyID, buf []byte) (n int, err error) {
+	switch id {
+	case PropertyIDWillDelayInterval:
 		p.WillDelayInterval, n, err = decodePropWillDelayInterval(buf, p)
-	case PropertyPayloadFormatIndicator:
+	case PropertyIDPayloadFormatIndicator:
 		p.PayloadFormatIndicator, n, err = decodePropPayloadFormatIndicator(buf, p)
-	case PropertyMessageExpiryInterval:
+	case PropertyIDMessageExpiryInterval:
 		p.MessageExpiryInterval, n, err = decodePropMessageExpiryInterval(buf, p)
-	case PropertyContentType:
+	case PropertyIDContentType:
 		p.ContentType, n, err = decodePropContentType(buf, p)
-	case PropertyResponseTopic:
+	case PropertyIDResponseTopic:
 		p.ResponseTopic, n, err = decodePropResponseTopic(buf, p)
-	case PropertyCorrelationData:
+	case PropertyIDCorrelationData:
 		p.CorrelationData, n, err = decodePropCorrelationData(buf, p)
-	case PropertyUserProperty:
+	case PropertyIDUserProperty:
 		var user UserProperty
 		user, n, err = decodePropUserProperty(buf, p)
 		if err == nil {

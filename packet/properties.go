@@ -12,57 +12,60 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package akira
+package packet
 
 import (
 	"golang.org/x/exp/constraints"
 )
 
-// Represents the MQTT Property.
+// Represents the MQTT property identifiers.
 const (
-	PropertyPayloadFormatIndicator        Property = 0x01
-	PropertyMessageExpiryInterval         Property = 0x02
-	PropertyContentType                   Property = 0x03
-	PropertyResponseTopic                 Property = 0x08
-	PropertyCorrelationData               Property = 0x09
-	PropertySessionExpiryInterval         Property = 0x11
-	PropertyAssignedClientID              Property = 0x12
-	PropertyServerKeepAlive               Property = 0x13
-	PropertyAuthenticationMethod          Property = 0x15
-	PropertyAuthenticationData            Property = 0x16
-	PropertyRequestProblemInfo            Property = 0x17
-	PropertyWillDelayInterval             Property = 0x18
-	PropertyRequestResponseInfo           Property = 0x19
-	PropertyResponseInfo                  Property = 0x1a
-	PropertyServerReference               Property = 0x1c
-	PropertyReasonString                  Property = 0x1f
-	PropertyReceiveMaximum                Property = 0x21
-	PropertyTopicAliasMaximum             Property = 0x22
-	PropertyMaximumQoS                    Property = 0x24
-	PropertyRetainAvailable               Property = 0x25
-	PropertyUserProperty                  Property = 0x26
-	PropertyMaximumPacketSize             Property = 0x27
-	PropertyWildcardSubscriptionAvailable Property = 0x28
-	PropertySubscriptionIDAvailable       Property = 0x29
-	PropertySharedSubscriptionAvailable   Property = 0x2a
+	PropertyIDPayloadFormatIndicator        PropertyID = 0x01
+	PropertyIDMessageExpiryInterval         PropertyID = 0x02
+	PropertyIDContentType                   PropertyID = 0x03
+	PropertyIDResponseTopic                 PropertyID = 0x08
+	PropertyIDCorrelationData               PropertyID = 0x09
+	PropertyIDSessionExpiryInterval         PropertyID = 0x11
+	PropertyIDAssignedClientID              PropertyID = 0x12
+	PropertyIDServerKeepAlive               PropertyID = 0x13
+	PropertyIDAuthenticationMethod          PropertyID = 0x15
+	PropertyIDAuthenticationData            PropertyID = 0x16
+	PropertyIDRequestProblemInfo            PropertyID = 0x17
+	PropertyIDWillDelayInterval             PropertyID = 0x18
+	PropertyIDRequestResponseInfo           PropertyID = 0x19
+	PropertyIDResponseInfo                  PropertyID = 0x1a
+	PropertyIDServerReference               PropertyID = 0x1c
+	PropertyIDReasonString                  PropertyID = 0x1f
+	PropertyIDReceiveMaximum                PropertyID = 0x21
+	PropertyIDTopicAliasMaximum             PropertyID = 0x22
+	PropertyIDMaximumQoS                    PropertyID = 0x24
+	PropertyIDRetainAvailable               PropertyID = 0x25
+	PropertyIDUserProperty                  PropertyID = 0x26
+	PropertyIDMaximumPacketSize             PropertyID = 0x27
+	PropertyIDWildcardSubscriptionAvailable PropertyID = 0x28
+	PropertyIDSubscriptionIDAvailable       PropertyID = 0x29
+	PropertyIDSharedSubscriptionAvailable   PropertyID = 0x2a
 )
 
-// Property represents the MQTT property.
-type Property byte
+// PropertyID represents the MQTT property.
+type PropertyID byte
 
-type propertyFlags uint64
+// PropertyFlags holds the flags for each property.
+type PropertyFlags uint64
 
-func (f propertyFlags) has(p Property) bool {
-	return f&(1<<p) > 0
+// Has returns true if the flag assigned to id is set. Otherwise, it returns false.
+func (f PropertyFlags) Has(id PropertyID) bool {
+	return f&(1<<id) > 0
 }
 
-func (f propertyFlags) set(p Property) propertyFlags {
-	return f | 1<<p
+// Set sets the flag assigned to id.
+func (f PropertyFlags) Set(id PropertyID) PropertyFlags {
+	return f | 1<<id
 }
 
 type properties interface {
-	Has(prop Property) bool
-	Set(prop Property)
+	Has(id PropertyID) bool
+	Set(id PropertyID)
 }
 
 type propertiesDecoder interface {
@@ -104,56 +107,56 @@ type UserProperty struct {
 	Value []byte `json:"value"`
 }
 
-func sizePropSessionExpiryInterval(flags propertyFlags) int {
-	if flags.has(PropertySessionExpiryInterval) {
+func sizePropSessionExpiryInterval(flags PropertyFlags) int {
+	if flags.Has(PropertyIDSessionExpiryInterval) {
 		// Size of the field + 1 byte for the property identifier
 		return 5
 	}
 	return 0
 }
 
-func sizePropReceiveMaximum(flags propertyFlags) int {
-	if flags.has(PropertyReceiveMaximum) {
+func sizePropReceiveMaximum(flags PropertyFlags) int {
+	if flags.Has(PropertyIDReceiveMaximum) {
 		// Size of the field + 1 byte for the property identifier
 		return 3
 	}
 	return 0
 }
 
-func sizePropMaxPacketSize(flags propertyFlags) int {
-	if flags.has(PropertyMaximumPacketSize) {
+func sizePropMaxPacketSize(flags PropertyFlags) int {
+	if flags.Has(PropertyIDMaximumPacketSize) {
 		// Size of the field + 1 byte for the property identifier
 		return 5
 	}
 	return 0
 }
 
-func sizePropTopicAliasMaximum(flags propertyFlags) int {
-	if flags.has(PropertyTopicAliasMaximum) {
+func sizePropTopicAliasMaximum(flags PropertyFlags) int {
+	if flags.Has(PropertyIDTopicAliasMaximum) {
 		// Size of the field + 1 byte for the property identifier
 		return 3
 	}
 	return 0
 }
 
-func sizePropRequestResponseInfo(flags propertyFlags) int {
-	if flags.has(PropertyRequestResponseInfo) {
+func sizePropRequestResponseInfo(flags PropertyFlags) int {
+	if flags.Has(PropertyIDRequestResponseInfo) {
 		// Size of the field + 1 byte for the property identifier
 		return 2
 	}
 	return 0
 }
 
-func sizePropRequestProblemInfo(flags propertyFlags) int {
-	if flags.has(PropertyRequestProblemInfo) {
+func sizePropRequestProblemInfo(flags PropertyFlags) int {
+	if flags.Has(PropertyIDRequestProblemInfo) {
 		// Size of the field + 1 byte for the property identifier
 		return 2
 	}
 	return 0
 }
 
-func sizePropUserProperties(flags propertyFlags, val []UserProperty) int {
-	if flags.has(PropertyUserProperty) {
+func sizePropUserProperties(flags PropertyFlags, val []UserProperty) int {
+	if flags.Has(PropertyIDUserProperty) {
 		var size int
 
 		for _, p := range val {
@@ -168,144 +171,144 @@ func sizePropUserProperties(flags propertyFlags, val []UserProperty) int {
 	return 0
 }
 
-func sizePropAuthenticationMethod(flags propertyFlags, val []byte) int {
-	if flags.has(PropertyAuthenticationMethod) {
+func sizePropAuthenticationMethod(flags PropertyFlags, val []byte) int {
+	if flags.Has(PropertyIDAuthenticationMethod) {
 		// Size of the field + 1 byte for the property identifier
 		return sizeBinary(val) + 1
 	}
 	return 0
 }
 
-func sizePropAuthenticationData(flags propertyFlags, val []byte) int {
-	if flags.has(PropertyAuthenticationData) {
+func sizePropAuthenticationData(flags PropertyFlags, val []byte) int {
+	if flags.Has(PropertyIDAuthenticationData) {
 		// Size of the field + 1 byte for the property identifier
 		return sizeBinary(val) + 1
 	}
 	return 0
 }
 
-func sizePropWillDelayInterval(flags propertyFlags) int {
-	if flags.has(PropertyWillDelayInterval) {
+func sizePropWillDelayInterval(flags PropertyFlags) int {
+	if flags.Has(PropertyIDWillDelayInterval) {
 		// Size of the field + 1 byte for the property identifier
 		return 5
 	}
 	return 0
 }
 
-func sizePropPayloadFormatIndicator(flags propertyFlags) int {
-	if flags.has(PropertyPayloadFormatIndicator) {
+func sizePropPayloadFormatIndicator(flags PropertyFlags) int {
+	if flags.Has(PropertyIDPayloadFormatIndicator) {
 		// Size of the field + 1 byte for the property identifier
 		return 2
 	}
 	return 0
 }
 
-func sizePropMessageExpiryInterval(flags propertyFlags) int {
-	if flags.has(PropertyMessageExpiryInterval) {
+func sizePropMessageExpiryInterval(flags PropertyFlags) int {
+	if flags.Has(PropertyIDMessageExpiryInterval) {
 		// Size of the field + 1 byte for the property identifier
 		return 5
 	}
 	return 0
 }
 
-func sizePropContentType(flags propertyFlags, val []byte) int {
-	if flags.has(PropertyContentType) {
+func sizePropContentType(flags PropertyFlags, val []byte) int {
+	if flags.Has(PropertyIDContentType) {
 		// Size of the field + 1 byte for the property identifier
 		return sizeBinary(val) + 1
 	}
 	return 0
 }
 
-func sizePropResponseTopic(flags propertyFlags, val []byte) int {
-	if flags.has(PropertyResponseTopic) {
+func sizePropResponseTopic(flags PropertyFlags, val []byte) int {
+	if flags.Has(PropertyIDResponseTopic) {
 		// Size of the field + 1 byte for the property identifier
 		return sizeBinary(val) + 1
 	}
 	return 0
 }
 
-func sizePropCorrelationData(flags propertyFlags, val []byte) int {
-	if flags.has(PropertyCorrelationData) {
+func sizePropCorrelationData(flags PropertyFlags, val []byte) int {
+	if flags.Has(PropertyIDCorrelationData) {
 		// Size of the field + 1 byte for the property identifier
 		return sizeBinary(val) + 1
 	}
 	return 0
 }
 
-func sizePropMaxQoS(flags propertyFlags) int {
-	if flags.has(PropertyMaximumQoS) {
+func sizePropMaxQoS(flags PropertyFlags) int {
+	if flags.Has(PropertyIDMaximumQoS) {
 		// Size of the field + 1 byte for the property identifier
 		return 2
 	}
 	return 0
 }
 
-func sizePropRetainAvailable(flags propertyFlags) int {
-	if flags.has(PropertyRetainAvailable) {
+func sizePropRetainAvailable(flags PropertyFlags) int {
+	if flags.Has(PropertyIDRetainAvailable) {
 		// Size of the field + 1 byte for the property identifier
 		return 2
 	}
 	return 0
 }
 
-func sizePropAssignedClientID(flags propertyFlags, id []byte) int {
-	if flags.has(PropertyAssignedClientID) {
+func sizePropAssignedClientID(flags PropertyFlags, id []byte) int {
+	if flags.Has(PropertyIDAssignedClientID) {
 		// Size of the field + 1 byte for the property identifier
 		return sizeBinary(id) + 1
 	}
 	return 0
 }
 
-func sizePropReasonString(flags propertyFlags, reasonString []byte) int {
-	if flags.has(PropertyReasonString) {
+func sizePropReasonString(flags PropertyFlags, reasonString []byte) int {
+	if flags.Has(PropertyIDReasonString) {
 		// Size of the field + 1 byte for the property identifier
 		return sizeBinary(reasonString) + 1
 	}
 	return 0
 }
 
-func sizePropWildcardSubscriptionAvailable(flags propertyFlags) int {
-	if flags.has(PropertyWildcardSubscriptionAvailable) {
+func sizePropWildcardSubscriptionAvailable(flags PropertyFlags) int {
+	if flags.Has(PropertyIDWildcardSubscriptionAvailable) {
 		// Size of the field + 1 byte for the property identifier
 		return 2
 	}
 	return 0
 }
 
-func sizePropSubscriptionIDAvailable(flags propertyFlags) int {
-	if flags.has(PropertySubscriptionIDAvailable) {
+func sizePropSubscriptionIDAvailable(flags PropertyFlags) int {
+	if flags.Has(PropertyIDSubscriptionIDAvailable) {
 		// Size of the field + 1 byte for the property identifier
 		return 2
 	}
 	return 0
 }
 
-func sizePropSharedSubscriptionAvailable(flags propertyFlags) int {
-	if flags.has(PropertySharedSubscriptionAvailable) {
+func sizePropSharedSubscriptionAvailable(flags PropertyFlags) int {
+	if flags.Has(PropertyIDSharedSubscriptionAvailable) {
 		// Size of the field + 1 byte for the property identifier
 		return 2
 	}
 	return 0
 }
 
-func sizePropServerKeepAlive(flags propertyFlags) int {
-	if flags.has(PropertyServerKeepAlive) {
+func sizePropServerKeepAlive(flags PropertyFlags) int {
+	if flags.Has(PropertyIDServerKeepAlive) {
 		// Size of the field + 1 byte for the property identifier
 		return 3
 	}
 	return 0
 }
 
-func sizePropResponseInfo(flags propertyFlags, info []byte) int {
-	if flags.has(PropertyResponseInfo) {
+func sizePropResponseInfo(flags PropertyFlags, info []byte) int {
+	if flags.Has(PropertyIDResponseInfo) {
 		// Size of the field + 1 byte for the property identifier
 		return sizeBinary(info) + 1
 	}
 	return 0
 }
 
-func sizePropServerReference(flags propertyFlags, reference []byte) int {
-	if flags.has(PropertyServerReference) {
+func sizePropServerReference(flags PropertyFlags, reference []byte) int {
+	if flags.Has(PropertyIDServerReference) {
 		// Size of the field + 1 byte for the property identifier
 		return sizeBinary(reference) + 1
 	}
@@ -313,7 +316,7 @@ func sizePropServerReference(flags propertyFlags, reference []byte) int {
 }
 
 func decodePropSessionExpiryInterval(buf []byte, p properties) (v uint32, n int, err error) {
-	if p.Has(PropertySessionExpiryInterval) {
+	if p.Has(PropertyIDSessionExpiryInterval) {
 		return v, n, ErrMalformedPropertySessionExpiryInterval
 	}
 
@@ -322,12 +325,12 @@ func decodePropSessionExpiryInterval(buf []byte, p properties) (v uint32, n int,
 		return v, n, ErrMalformedPropertySessionExpiryInterval
 	}
 
-	p.Set(PropertySessionExpiryInterval)
+	p.Set(PropertyIDSessionExpiryInterval)
 	return v, n, nil
 }
 
 func decodePropReceiveMaximum(buf []byte, p properties) (v uint16, n int, err error) {
-	if p.Has(PropertyReceiveMaximum) {
+	if p.Has(PropertyIDReceiveMaximum) {
 		return v, n, ErrMalformedPropertyReceiveMaximum
 	}
 
@@ -336,12 +339,12 @@ func decodePropReceiveMaximum(buf []byte, p properties) (v uint16, n int, err er
 		return v, n, ErrMalformedPropertyReceiveMaximum
 	}
 
-	p.Set(PropertyReceiveMaximum)
+	p.Set(PropertyIDReceiveMaximum)
 	return v, n, nil
 }
 
 func decodePropMaxPacketSize(buf []byte, p properties) (v uint32, n int, err error) {
-	if p.Has(PropertyMaximumPacketSize) {
+	if p.Has(PropertyIDMaximumPacketSize) {
 		return v, n, ErrMalformedPropertyMaxPacketSize
 	}
 
@@ -350,12 +353,12 @@ func decodePropMaxPacketSize(buf []byte, p properties) (v uint32, n int, err err
 		return v, n, ErrMalformedPropertyMaxPacketSize
 	}
 
-	p.Set(PropertyMaximumPacketSize)
+	p.Set(PropertyIDMaximumPacketSize)
 	return v, n, nil
 }
 
 func decodePropTopicAliasMaximum(buf []byte, p properties) (v uint16, n int, err error) {
-	if p.Has(PropertyTopicAliasMaximum) {
+	if p.Has(PropertyIDTopicAliasMaximum) {
 		return v, n, ErrMalformedPropertyTopicAliasMaximum
 	}
 
@@ -364,12 +367,12 @@ func decodePropTopicAliasMaximum(buf []byte, p properties) (v uint16, n int, err
 		return v, n, ErrMalformedPropertyTopicAliasMaximum
 	}
 
-	p.Set(PropertyTopicAliasMaximum)
+	p.Set(PropertyIDTopicAliasMaximum)
 	return v, n, nil
 }
 
 func decodePropRequestResponseInfo(buf []byte, p properties) (v bool, n int, err error) {
-	if p.Has(PropertyRequestResponseInfo) {
+	if p.Has(PropertyIDRequestResponseInfo) {
 		return v, n, ErrMalformedPropertyRequestResponseInfo
 	}
 
@@ -378,12 +381,12 @@ func decodePropRequestResponseInfo(buf []byte, p properties) (v bool, n int, err
 		return v, n, ErrMalformedPropertyRequestResponseInfo
 	}
 
-	p.Set(PropertyRequestResponseInfo)
+	p.Set(PropertyIDRequestResponseInfo)
 	return v, n, nil
 }
 
 func decodePropRequestProblemInfo(buf []byte, p properties) (v bool, n int, err error) {
-	if p.Has(PropertyRequestProblemInfo) {
+	if p.Has(PropertyIDRequestProblemInfo) {
 		return v, n, ErrMalformedPropertyRequestProblemInfo
 	}
 
@@ -392,7 +395,7 @@ func decodePropRequestProblemInfo(buf []byte, p properties) (v bool, n int, err 
 		return v, n, ErrMalformedPropertyRequestProblemInfo
 	}
 
-	p.Set(PropertyRequestProblemInfo)
+	p.Set(PropertyIDRequestProblemInfo)
 	return v, n, nil
 }
 
@@ -411,12 +414,12 @@ func decodePropUserProperty(buf []byte, p properties) (v UserProperty, n int, er
 	}
 	n += size
 
-	p.Set(PropertyUserProperty)
+	p.Set(PropertyIDUserProperty)
 	return v, n, nil
 }
 
 func decodePropAuthenticationMethod(buf []byte, p properties) (v []byte, n int, err error) {
-	if p.Has(PropertyAuthenticationMethod) {
+	if p.Has(PropertyIDAuthenticationMethod) {
 		return v, n, ErrMalformedPropertyAuthenticationMethod
 	}
 
@@ -425,12 +428,12 @@ func decodePropAuthenticationMethod(buf []byte, p properties) (v []byte, n int, 
 		return v, n, ErrMalformedPropertyAuthenticationMethod
 	}
 
-	p.Set(PropertyAuthenticationMethod)
+	p.Set(PropertyIDAuthenticationMethod)
 	return v, n, nil
 }
 
 func decodePropAuthenticationData(buf []byte, p properties) (v []byte, n int, err error) {
-	if p.Has(PropertyAuthenticationData) {
+	if p.Has(PropertyIDAuthenticationData) {
 		return v, n, ErrMalformedPropertyAuthenticationData
 	}
 
@@ -439,12 +442,12 @@ func decodePropAuthenticationData(buf []byte, p properties) (v []byte, n int, er
 		return v, n, ErrMalformedPropertyAuthenticationData
 	}
 
-	p.Set(PropertyAuthenticationData)
+	p.Set(PropertyIDAuthenticationData)
 	return v, n, nil
 }
 
 func decodePropWillDelayInterval(buf []byte, p properties) (v uint32, n int, err error) {
-	if p.Has(PropertyWillDelayInterval) {
+	if p.Has(PropertyIDWillDelayInterval) {
 		return v, n, ErrMalformedPropertyWillDelayInterval
 	}
 
@@ -453,12 +456,12 @@ func decodePropWillDelayInterval(buf []byte, p properties) (v uint32, n int, err
 		return v, n, ErrMalformedPropertyWillDelayInterval
 	}
 
-	p.Set(PropertyWillDelayInterval)
+	p.Set(PropertyIDWillDelayInterval)
 	return v, n, nil
 }
 
 func decodePropPayloadFormatIndicator(buf []byte, p properties) (v bool, n int, err error) {
-	if p.Has(PropertyPayloadFormatIndicator) {
+	if p.Has(PropertyIDPayloadFormatIndicator) {
 		return v, n, ErrMalformedPropertyPayloadFormatIndicator
 	}
 
@@ -467,12 +470,12 @@ func decodePropPayloadFormatIndicator(buf []byte, p properties) (v bool, n int, 
 		return v, n, ErrMalformedPropertyPayloadFormatIndicator
 	}
 
-	p.Set(PropertyPayloadFormatIndicator)
+	p.Set(PropertyIDPayloadFormatIndicator)
 	return v, n, nil
 }
 
 func decodePropMessageExpiryInterval(buf []byte, p properties) (v uint32, n int, err error) {
-	if p.Has(PropertyMessageExpiryInterval) {
+	if p.Has(PropertyIDMessageExpiryInterval) {
 		return v, n, ErrMalformedPropertyMessageExpiryInterval
 	}
 
@@ -481,12 +484,12 @@ func decodePropMessageExpiryInterval(buf []byte, p properties) (v uint32, n int,
 		return v, n, ErrMalformedPropertyMessageExpiryInterval
 	}
 
-	p.Set(PropertyMessageExpiryInterval)
+	p.Set(PropertyIDMessageExpiryInterval)
 	return v, n, nil
 }
 
 func decodePropContentType(buf []byte, p properties) (v []byte, n int, err error) {
-	if p.Has(PropertyContentType) {
+	if p.Has(PropertyIDContentType) {
 		return v, n, ErrMalformedPropertyContentType
 	}
 
@@ -495,12 +498,12 @@ func decodePropContentType(buf []byte, p properties) (v []byte, n int, err error
 		return v, n, ErrMalformedPropertyContentType
 	}
 
-	p.Set(PropertyContentType)
+	p.Set(PropertyIDContentType)
 	return v, n, nil
 }
 
 func decodePropResponseTopic(buf []byte, p properties) (v []byte, n int, err error) {
-	if p.Has(PropertyResponseTopic) {
+	if p.Has(PropertyIDResponseTopic) {
 		return v, n, ErrMalformedPropertyResponseTopic
 	}
 
@@ -513,12 +516,12 @@ func decodePropResponseTopic(buf []byte, p properties) (v []byte, n int, err err
 		return v, n, ErrMalformedPropertyResponseTopic
 	}
 
-	p.Set(PropertyResponseTopic)
+	p.Set(PropertyIDResponseTopic)
 	return v, n, nil
 }
 
 func decodePropCorrelationData(buf []byte, p properties) (v []byte, n int, err error) {
-	if p.Has(PropertyCorrelationData) {
+	if p.Has(PropertyIDCorrelationData) {
 		return v, n, ErrMalformedPropertyCorrelationData
 	}
 
@@ -527,7 +530,7 @@ func decodePropCorrelationData(buf []byte, p properties) (v []byte, n int, err e
 		return v, n, ErrMalformedPropertyCorrelationData
 	}
 
-	p.Set(PropertyCorrelationData)
+	p.Set(PropertyIDCorrelationData)
 	return v, n, nil
 }
 
@@ -580,13 +583,13 @@ func decodePropBinary(buf []byte, bin *[]byte) (n int, err error) {
 	return n, nil
 }
 
-func encodePropUserProperties(buf []byte, flags propertyFlags, props []UserProperty, err error) (int, error) {
+func encodePropUserProperties(buf []byte, flags PropertyFlags, props []UserProperty, err error) (int, error) {
 	var n int
-	if err == nil && flags.has(PropertyUserProperty) {
+	if err == nil && flags.Has(PropertyIDUserProperty) {
 		for _, p := range props {
 			var size int
 
-			buf[n] = byte(PropertyUserProperty)
+			buf[n] = byte(PropertyIDUserProperty)
 			n++
 
 			size, err = encodeString(buf[n:], p.Key)
@@ -605,11 +608,11 @@ func encodePropUserProperties(buf []byte, flags propertyFlags, props []UserPrope
 	return n, err
 }
 
-func encodePropUint[T constraints.Unsigned](buf []byte, f propertyFlags, p Property, v T) int {
-	if f.has(p) {
+func encodePropUint[T constraints.Unsigned](buf []byte, f PropertyFlags, id PropertyID, v T) int {
+	if f.Has(id) {
 		var n int
 
-		buf[0] = byte(p)
+		buf[0] = byte(id)
 		n = encodeUint(buf[1:], v)
 
 		return n + 1
@@ -617,11 +620,11 @@ func encodePropUint[T constraints.Unsigned](buf []byte, f propertyFlags, p Prope
 	return 0
 }
 
-func encodePropBool(buf []byte, f propertyFlags, p Property, v bool) int {
-	if f.has(p) {
+func encodePropBool(buf []byte, f PropertyFlags, id PropertyID, v bool) int {
+	if f.Has(id) {
 		var n int
 
-		buf[0] = byte(p)
+		buf[0] = byte(id)
 		n = encodeBool(buf[1:], v)
 
 		return n + 1
@@ -629,9 +632,9 @@ func encodePropBool(buf []byte, f propertyFlags, p Property, v bool) int {
 	return 0
 }
 
-func encodePropString(buf []byte, f propertyFlags, p Property, str []byte) (int, error) {
-	if f.has(p) {
-		buf[0] = byte(p)
+func encodePropString(buf []byte, f PropertyFlags, id PropertyID, str []byte) (int, error) {
+	if f.Has(id) {
+		buf[0] = byte(id)
 		n, err := encodeString(buf[1:], str)
 
 		return n + 1, err

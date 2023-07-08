@@ -20,6 +20,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/gsalomao/akira/packet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,39 +34,39 @@ func TestReadPacketSuccess(t *testing.T) {
 		{
 			name: "CONNECT - V3",
 			data: []byte{
-				byte(PacketTypeConnect) << 4, 14, // Fixed header
+				byte(packet.TypeConnect) << 4, 14, // Fixed header
 				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
 				4,      // Protocol version
-				2,      // Packet flags (Clean Session)
+				2,      // Packet flags (Clean session)
 				0, 255, // Keep alive
 				0, 2, 'a', 'b', // Client ID
 			},
-			packet: &PacketConnect{
-				Version:   MQTT311,
+			packet: &packet.Connect{
+				Version:   packet.MQTT311,
 				KeepAlive: 255,
-				Flags:     connectFlagCleanSession,
+				Flags:     packet.ConnectFlags(0x02), // Clean session flag
 				ClientID:  []byte("ab"),
 			},
 		},
 		{
 			name: "CONNECT - V5",
 			data: []byte{
-				byte(PacketTypeConnect) << 4, 20, // Fixed header
+				byte(packet.TypeConnect) << 4, 20, // Fixed header
 				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
 				5,      // Protocol version
-				2,      // Packet flags (Clean Session)
+				2,      // Packet flags (Clean session)
 				0, 255, // Keep alive
 				5,               // Property length
 				17, 0, 0, 0, 30, // Session Expiry Interval
 				0, 2, 'a', 'b', // Client ID
 			},
-			packet: &PacketConnect{
-				Version:   MQTT50,
+			packet: &packet.Connect{
+				Version:   packet.MQTT50,
 				KeepAlive: 255,
-				Flags:     connectFlagCleanSession,
+				Flags:     packet.ConnectFlags(0x02), // Clean session flag
 				ClientID:  []byte("ab"),
-				Properties: &PropertiesConnect{
-					Flags:                 propertyFlags(0).set(PropertySessionExpiryInterval),
+				Properties: &packet.PropertiesConnect{
+					Flags:                 packet.PropertyFlags(0).Set(packet.PropertyIDSessionExpiryInterval),
 					SessionExpiryInterval: 30,
 				},
 			},
@@ -93,22 +94,22 @@ func TestReadPacketError(t *testing.T) {
 		{
 			name: "Invalid packet type",
 			data: []byte{0, 0},
-			err:  ErrMalformedPacketType,
+			err:  packet.ErrMalformedPacketType,
 		},
 		{
 			name: "Invalid packet",
-			data: []byte{byte(PacketTypeConnect) << 4, 0},
-			err:  ErrMalformedProtocolName,
+			data: []byte{byte(packet.TypeConnect) << 4, 0},
+			err:  packet.ErrMalformedProtocolName,
 		},
 		{
 			name: "Missing remaining length",
-			data: []byte{byte(PacketTypeConnect) << 4, 10},
+			data: []byte{byte(packet.TypeConnect) << 4, 10},
 			err:  io.EOF,
 		},
 		{
 			name: "Unexpected packet length",
 			data: []byte{
-				byte(PacketTypeConnect) << 4, 15, // Fixed header
+				byte(packet.TypeConnect) << 4, 15, // Fixed header
 				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
 				4,      // Protocol version
 				2,      // Packet flags (Clean Session)
@@ -116,7 +117,7 @@ func TestReadPacketError(t *testing.T) {
 				0, 2, 'a', 'b', // Client ID
 				0, // Unexpected byte
 			},
-			err: ErrMalformedPacketLength,
+			err: packet.ErrMalformedPacketLength,
 		},
 	}
 
@@ -138,7 +139,7 @@ func BenchmarkReadPacket(b *testing.B) {
 		{
 			name: "CONNECT-V3",
 			data: []byte{
-				byte(PacketTypeConnect) << 4, 14, // Fixed header
+				byte(packet.TypeConnect) << 4, 14, // Fixed header
 				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
 				4,      // Protocol version
 				2,      // Packet flags (Clean Session)
@@ -149,7 +150,7 @@ func BenchmarkReadPacket(b *testing.B) {
 		{
 			name: "CONNECT-V5",
 			data: []byte{
-				byte(PacketTypeConnect) << 4, 15, // Fixed header
+				byte(packet.TypeConnect) << 4, 15, // Fixed header
 				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
 				5,      // Protocol version
 				2,      // Packet flags (Clean Session)

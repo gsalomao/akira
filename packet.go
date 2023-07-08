@@ -18,12 +18,14 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+
+	"github.com/gsalomao/akira/packet"
 )
 
 // Packet is the interface representing all MQTT packets.
 type Packet interface {
 	// Type returns the packet type.
-	Type() PacketType
+	Type() packet.Type
 
 	// Size returns the size of the packet.
 	Size() int
@@ -35,7 +37,7 @@ type PacketDecoder interface {
 
 	// Decode decodes the Packet from buf and header. This method returns the number of bytes read
 	// from buf and the error, if it fails to decode the packet correctly.
-	Decode(buf []byte, header FixedHeader) (n int, err error)
+	Decode(buf []byte, header packet.FixedHeader) (n int, err error)
 }
 
 // PacketEncoder is the interface for all MQTT packets which implement the Encode method.
@@ -50,9 +52,9 @@ type PacketEncoder interface {
 func readPacket(r *bufio.Reader) (Packet, int, error) {
 	var err error
 	var hSize int
-	var header FixedHeader
+	var header packet.FixedHeader
 
-	if hSize, err = header.read(r); err != nil {
+	if hSize, err = header.Read(r); err != nil {
 		return nil, hSize, fmt.Errorf("failed to read packet: %w", err)
 	}
 
@@ -60,10 +62,11 @@ func readPacket(r *bufio.Reader) (Packet, int, error) {
 	var pSize int
 
 	switch header.PacketType {
-	case PacketTypeConnect:
-		p = &PacketConnect{}
+	case packet.TypeConnect:
+		p = &packet.Connect{}
 	default:
-		return nil, hSize, fmt.Errorf("failed to read packet: %w: %v", ErrMalformedPacketType, header.PacketType)
+		return nil, hSize, fmt.Errorf("failed to read packet: %w: %v", packet.ErrMalformedPacketType,
+			header.PacketType)
 	}
 
 	// Allocate the slice which will be the backing data for the packet.
@@ -79,7 +82,7 @@ func readPacket(r *bufio.Reader) (Packet, int, error) {
 		return nil, n, fmt.Errorf("failed to read %s packet: %w", p.Type(), err)
 	}
 	if pSize != header.RemainingLength {
-		return nil, n, fmt.Errorf("failed to read %s packet: %w", p.Type(), ErrMalformedPacketLength)
+		return nil, n, fmt.Errorf("failed to read %s packet: %w", p.Type(), packet.ErrMalformedPacketLength)
 	}
 
 	return p, n, nil

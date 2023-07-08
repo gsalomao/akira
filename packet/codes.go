@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package akira
+package packet
 
 const (
 	// ReasonCodeSuccess indicates that the operation was completed with success.

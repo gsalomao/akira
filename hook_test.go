@@ -18,6 +18,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/gsalomao/akira/packet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
@@ -249,7 +250,7 @@ func (s *HooksTestSuite) TestOnPacketReceiveErrorWithError() {
 
 func (s *HooksTestSuite) TestOnPacketReceivedSuccess() {
 	c := newClient(nil, s.server, nil)
-	p := &PacketConnect{}
+	p := &packet.Connect{}
 
 	err := s.hooks.onPacketReceived(s.server, c, p)
 	s.Require().NoError(err)
@@ -263,7 +264,7 @@ func (s *HooksTestSuite) TestOnPacketReceivedSuccess() {
 
 func (s *HooksTestSuite) TestOnPacketReceivedError() {
 	c := newClient(nil, s.server, nil)
-	p := &PacketConnect{}
+	p := &packet.Connect{}
 	s.hook.On("OnPacketReceived", s.server, c, p).Return(assert.AnError)
 	s.addHook(s.hook)
 

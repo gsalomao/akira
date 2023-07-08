@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package akira
+package packet
 
 import (
 	"errors"
 )
 
-// PacketConnAck represents the CONNACK Packet from MQTT specifications.
-type PacketConnAck struct {
+// ConnAck represents the CONNACK Packet from MQTT specifications.
+type ConnAck struct {
 	// Properties contains the properties of the CONNACK packet.
 	Properties *PropertiesConnAck `json:"properties"`
 
@@ -34,14 +34,14 @@ type PacketConnAck struct {
 }
 
 // Type returns the packet type.
-func (p *PacketConnAck) Type() PacketType {
-	return PacketTypeConnAck
+func (p *ConnAck) Type() Type {
+	return TypeConnAck
 }
 
 // Size returns the CONNACK packet size.
-func (p *PacketConnAck) Size() int {
+func (p *ConnAck) Size() int {
 	size := p.remainingLength()
-	header := FixedHeader{PacketType: PacketTypeConnAck, RemainingLength: size}
+	header := FixedHeader{PacketType: TypeConnAck, RemainingLength: size}
 
 	size += header.size()
 	return size
@@ -49,12 +49,12 @@ func (p *PacketConnAck) Size() int {
 
 // Encode encodes the CONNACK Packet into buf and returns the number of bytes encoded. The buffer must have the
 // length greater than or equals to the packet size, otherwise this method returns an error.
-func (p *PacketConnAck) Encode(buf []byte) (n int, err error) {
+func (p *ConnAck) Encode(buf []byte) (n int, err error) {
 	if len(buf) < p.Size() {
 		return 0, errors.New("buffer too small")
 	}
 
-	header := FixedHeader{PacketType: PacketTypeConnAck, RemainingLength: p.remainingLength()}
+	header := FixedHeader{PacketType: TypeConnAck, RemainingLength: p.remainingLength()}
 	n = header.encode(buf)
 
 	var flags byte
@@ -78,7 +78,7 @@ func (p *PacketConnAck) Encode(buf []byte) (n int, err error) {
 	return n, err
 }
 
-func (p *PacketConnAck) remainingLength() int {
+func (p *ConnAck) remainingLength() int {
 	// Start with 2 bytes for the ConnAck flags and Reason Code
 	remainingLength := 2
 
@@ -94,7 +94,7 @@ func (p *PacketConnAck) remainingLength() int {
 // PropertiesConnAck contains the properties of the CONNACK packet.
 type PropertiesConnAck struct {
 	// Flags indicates which properties are present.
-	Flags propertyFlags `json:"flags"`
+	Flags PropertyFlags `json:"flags"`
 
 	// UserProperties is a list of user properties.
 	UserProperties []UserProperty `json:"user_properties"`
@@ -151,45 +151,42 @@ type PropertiesConnAck struct {
 }
 
 // Has returns whether the property is present or not.
-func (p *PropertiesConnAck) Has(prop Property) bool {
-	if p == nil {
-		return false
+func (p *PropertiesConnAck) Has(id PropertyID) bool {
+	if p != nil {
+		return p.Flags.Has(id)
 	}
-	return p.Flags.has(prop)
+	return false
 }
 
 // Set sets the property indicating that it's present.
-func (p *PropertiesConnAck) Set(prop Property) {
-	if p == nil {
-		return
+func (p *PropertiesConnAck) Set(id PropertyID) {
+	if p != nil {
+		p.Flags = p.Flags.Set(id)
 	}
-	p.Flags = p.Flags.set(prop)
 }
 
 func (p *PropertiesConnAck) size() int {
-	if p == nil {
-		return 0
-	}
-
 	var size int
 
-	size += sizePropSessionExpiryInterval(p.Flags)
-	size += sizePropReceiveMaximum(p.Flags)
-	size += sizePropMaxQoS(p.Flags)
-	size += sizePropRetainAvailable(p.Flags)
-	size += sizePropMaxPacketSize(p.Flags)
-	size += sizePropAssignedClientID(p.Flags, p.AssignedClientID)
-	size += sizePropTopicAliasMaximum(p.Flags)
-	size += sizePropReasonString(p.Flags, p.ReasonString)
-	size += sizePropUserProperties(p.Flags, p.UserProperties)
-	size += sizePropWildcardSubscriptionAvailable(p.Flags)
-	size += sizePropSubscriptionIDAvailable(p.Flags)
-	size += sizePropSharedSubscriptionAvailable(p.Flags)
-	size += sizePropServerKeepAlive(p.Flags)
-	size += sizePropResponseInfo(p.Flags, p.ResponseInfo)
-	size += sizePropServerReference(p.Flags, p.ServerReference)
-	size += sizePropAuthenticationMethod(p.Flags, p.AuthenticationMethod)
-	size += sizePropAuthenticationData(p.Flags, p.AuthenticationData)
+	if p != nil {
+		size += sizePropSessionExpiryInterval(p.Flags)
+		size += sizePropReceiveMaximum(p.Flags)
+		size += sizePropMaxQoS(p.Flags)
+		size += sizePropRetainAvailable(p.Flags)
+		size += sizePropMaxPacketSize(p.Flags)
+		size += sizePropAssignedClientID(p.Flags, p.AssignedClientID)
+		size += sizePropTopicAliasMaximum(p.Flags)
+		size += sizePropReasonString(p.Flags, p.ReasonString)
+		size += sizePropUserProperties(p.Flags, p.UserProperties)
+		size += sizePropWildcardSubscriptionAvailable(p.Flags)
+		size += sizePropSubscriptionIDAvailable(p.Flags)
+		size += sizePropSharedSubscriptionAvailable(p.Flags)
+		size += sizePropServerKeepAlive(p.Flags)
+		size += sizePropResponseInfo(p.Flags, p.ResponseInfo)
+		size += sizePropServerReference(p.Flags, p.ServerReference)
+		size += sizePropAuthenticationMethod(p.Flags, p.AuthenticationMethod)
+		size += sizePropAuthenticationData(p.Flags, p.AuthenticationData)
+	}
 
 	return size
 }
@@ -203,31 +200,31 @@ func (p *PropertiesConnAck) encode(buf []byte) (n int, err error) {
 
 	var size int
 
-	size = encodePropUint(buf[n:], p.Flags, PropertySessionExpiryInterval, p.SessionExpiryInterval)
+	size = encodePropUint(buf[n:], p.Flags, PropertyIDSessionExpiryInterval, p.SessionExpiryInterval)
 	n += size
 
-	size = encodePropUint(buf[n:], p.Flags, PropertyReceiveMaximum, p.ReceiveMaximum)
+	size = encodePropUint(buf[n:], p.Flags, PropertyIDReceiveMaximum, p.ReceiveMaximum)
 	n += size
 
-	size = encodePropUint(buf[n:], p.Flags, PropertyMaximumQoS, p.MaximumQoS)
+	size = encodePropUint(buf[n:], p.Flags, PropertyIDMaximumQoS, p.MaximumQoS)
 	n += size
 
-	size = encodePropBool(buf[n:], p.Flags, PropertyRetainAvailable, p.RetainAvailable)
+	size = encodePropBool(buf[n:], p.Flags, PropertyIDRetainAvailable, p.RetainAvailable)
 	n += size
 
-	size = encodePropUint(buf[n:], p.Flags, PropertyMaximumPacketSize, p.MaximumPacketSize)
+	size = encodePropUint(buf[n:], p.Flags, PropertyIDMaximumPacketSize, p.MaximumPacketSize)
 	n += size
 
-	size, err = encodePropString(buf[n:], p.Flags, PropertyAssignedClientID, p.AssignedClientID)
+	size, err = encodePropString(buf[n:], p.Flags, PropertyIDAssignedClientID, p.AssignedClientID)
 	n += size
 	if err != nil {
 		return n, err
 	}
 
-	size = encodePropUint(buf[n:], p.Flags, PropertyTopicAliasMaximum, p.TopicAliasMaximum)
+	size = encodePropUint(buf[n:], p.Flags, PropertyIDTopicAliasMaximum, p.TopicAliasMaximum)
 	n += size
 
-	size, err = encodePropString(buf[n:], p.Flags, PropertyReasonString, p.ReasonString)
+	size, err = encodePropString(buf[n:], p.Flags, PropertyIDReasonString, p.ReasonString)
 	n += size
 	if err != nil {
 		return n, err
@@ -239,37 +236,37 @@ func (p *PropertiesConnAck) encode(buf []byte) (n int, err error) {
 		return n, err
 	}
 
-	size = encodePropBool(buf[n:], p.Flags, PropertyWildcardSubscriptionAvailable, p.WildcardSubscriptionAvailable)
+	size = encodePropBool(buf[n:], p.Flags, PropertyIDWildcardSubscriptionAvailable, p.WildcardSubscriptionAvailable)
 	n += size
 
-	size = encodePropBool(buf[n:], p.Flags, PropertySubscriptionIDAvailable, p.SubscriptionIDAvailable)
+	size = encodePropBool(buf[n:], p.Flags, PropertyIDSubscriptionIDAvailable, p.SubscriptionIDAvailable)
 	n += size
 
-	size = encodePropBool(buf[n:], p.Flags, PropertySharedSubscriptionAvailable, p.SharedSubscriptionAvailable)
+	size = encodePropBool(buf[n:], p.Flags, PropertyIDSharedSubscriptionAvailable, p.SharedSubscriptionAvailable)
 	n += size
 
-	size = encodePropUint(buf[n:], p.Flags, PropertyServerKeepAlive, p.ServerKeepAlive)
+	size = encodePropUint(buf[n:], p.Flags, PropertyIDServerKeepAlive, p.ServerKeepAlive)
 	n += size
 
-	size, err = encodePropString(buf[n:], p.Flags, PropertyResponseInfo, p.ResponseInfo)
-	n += size
-	if err != nil {
-		return n, err
-	}
-
-	size, err = encodePropString(buf[n:], p.Flags, PropertyServerReference, p.ServerReference)
+	size, err = encodePropString(buf[n:], p.Flags, PropertyIDResponseInfo, p.ResponseInfo)
 	n += size
 	if err != nil {
 		return n, err
 	}
 
-	size, err = encodePropString(buf[n:], p.Flags, PropertyAuthenticationMethod, p.AuthenticationMethod)
+	size, err = encodePropString(buf[n:], p.Flags, PropertyIDServerReference, p.ServerReference)
 	n += size
 	if err != nil {
 		return n, err
 	}
 
-	size, err = encodePropString(buf[n:], p.Flags, PropertyAuthenticationData, p.AuthenticationData)
+	size, err = encodePropString(buf[n:], p.Flags, PropertyIDAuthenticationMethod, p.AuthenticationMethod)
+	n += size
+	if err != nil {
+		return n, err
+	}
+
+	size, err = encodePropString(buf[n:], p.Flags, PropertyIDAuthenticationData, p.AuthenticationData)
 	n += size
 
 	return n, err

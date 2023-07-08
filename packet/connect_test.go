@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package akira
+package packet
 
 import (
 	"fmt"
@@ -21,39 +21,27 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type PacketConnectTestSuite struct {
+type ConnectTestSuite struct {
 	suite.Suite
 }
 
-func (s *PacketConnectTestSuite) TestType() {
-	var p PacketConnect
-	s.Require().Equal(PacketTypeConnect, p.Type())
+func (s *ConnectTestSuite) TestType() {
+	var p Connect
+	s.Require().Equal(TypeConnect, p.Type())
 }
 
-func (s *PacketConnectTestSuite) TestSize() {
+func (s *ConnectTestSuite) TestSize() {
 	testCases := []struct {
 		name   string
-		packet PacketConnect
+		packet Connect
 		size   int
 	}{
+		{"V3.1, client ID", Connect{Version: MQTT31, ClientID: []byte("a")}, 17},
+		{"V3.1.1, client ID and keep alive", Connect{Version: MQTT311, KeepAlive: 30, ClientID: []byte("ab")}, 16},
+		{"V5.0", Connect{Version: MQTT50, KeepAlive: 500, ClientID: []byte("abc")}, 18},
 		{
-			"V3.1, no will, no username, no password",
-			PacketConnect{Version: MQTT31, KeepAlive: 0, ClientID: []byte("a")},
-			17,
-		},
-		{
-			"V3.1.1, no will, no username, no password",
-			PacketConnect{Version: MQTT311, KeepAlive: 30, ClientID: []byte("ab")},
-			16,
-		},
-		{
-			"V5.0, no will, no username, no password, no properties",
-			PacketConnect{Version: MQTT50, KeepAlive: 500, ClientID: []byte("abc")},
-			18,
-		},
-		{
-			"V5.0, no will, no username, no password, empty properties",
-			PacketConnect{
+			"V5.0, empty properties",
+			Connect{
 				Version:        MQTT50,
 				KeepAlive:      500,
 				ClientID:       []byte("abc"),
@@ -63,8 +51,8 @@ func (s *PacketConnectTestSuite) TestSize() {
 			18,
 		},
 		{
-			"V5.0, with will, no username, no password, and empty properties",
-			PacketConnect{
+			"V5.0, with Will, and empty properties",
+			Connect{
 				Version:        MQTT50,
 				ClientID:       []byte("abc"),
 				Flags:          connectFlagWillFlag,
@@ -76,19 +64,19 @@ func (s *PacketConnectTestSuite) TestSize() {
 			25,
 		},
 		{
-			"V5.0, with will, username, password, and properties",
-			PacketConnect{
+			"V5.0, with Will, username, password, and properties",
+			Connect{
 				Version:  MQTT50,
 				ClientID: []byte("abc"),
 				Flags:    ConnectFlags(connectFlagWillFlag | connectFlagUsernameFlag | connectFlagPasswordFlag),
 				Properties: &PropertiesConnect{
-					Flags:                 propertyFlags(0).set(PropertySessionExpiryInterval),
+					Flags:                 PropertyFlags(0).Set(PropertyIDSessionExpiryInterval),
 					SessionExpiryInterval: 30,
 				},
 				WillTopic:   []byte("a"),
 				WillPayload: []byte("b"),
 				WillProperties: &PropertiesWill{
-					Flags:             propertyFlags(0).set(PropertyWillDelayInterval),
+					Flags:             PropertyFlags(0).Set(PropertyIDWillDelayInterval),
 					WillDelayInterval: 60,
 				},
 				Username: []byte("user"),
@@ -106,11 +94,11 @@ func (s *PacketConnectTestSuite) TestSize() {
 	}
 }
 
-func (s *PacketConnectTestSuite) TestDecodeSuccess() {
+func (s *ConnectTestSuite) TestDecodeSuccess() {
 	testCases := []struct {
 		name   string
 		data   []byte
-		packet PacketConnect
+		packet Connect
 	}{
 		{
 			"V3.1",
@@ -121,7 +109,7 @@ func (s *PacketConnectTestSuite) TestDecodeSuccess() {
 				0, 30, // Keep alive
 				0, 1, 'a', // Client ID
 			},
-			PacketConnect{Version: MQTT31, KeepAlive: 30, ClientID: []byte("a")},
+			Connect{Version: MQTT31, KeepAlive: 30, ClientID: []byte("a")},
 		},
 		{
 			"V3.1.1",
@@ -132,7 +120,7 @@ func (s *PacketConnectTestSuite) TestDecodeSuccess() {
 				0, 255, // Keep alive
 				0, 2, 'a', 'b', // Client ID
 			},
-			PacketConnect{Version: MQTT311, KeepAlive: 255, ClientID: []byte("ab")},
+			Connect{Version: MQTT311, KeepAlive: 255, ClientID: []byte("ab")},
 		},
 		{
 			"V3.1.1, clean session",
@@ -143,9 +131,7 @@ func (s *PacketConnectTestSuite) TestDecodeSuccess() {
 				0, 255, // Keep alive
 				0, 2, 'a', 'b', // Client ID
 			},
-			PacketConnect{
-				Version: MQTT311, KeepAlive: 255, Flags: connectFlagCleanSession, ClientID: []byte("ab"),
-			},
+			Connect{Version: MQTT311, KeepAlive: 255, Flags: connectFlagCleanSession, ClientID: []byte("ab")},
 		},
 		{
 			"V3.1.1, clean session + no client ID",
@@ -156,12 +142,12 @@ func (s *PacketConnectTestSuite) TestDecodeSuccess() {
 				0, 255, // Keep alive
 				0, 0, // Client ID
 			},
-			PacketConnect{
+			Connect{
 				Version: MQTT311, KeepAlive: 255, Flags: connectFlagCleanSession, ClientID: []byte{},
 			},
 		},
 		{
-			"V3.1.1, will flags",
+			"V3.1.1, Will flags",
 			[]byte{
 				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
 				4,    // Protocol version
@@ -171,7 +157,7 @@ func (s *PacketConnectTestSuite) TestDecodeSuccess() {
 				0, 1, 'a', // Will Topic
 				0, 1, 'b', // Will Payload
 			},
-			PacketConnect{
+			Connect{
 				Version:   MQTT311,
 				KeepAlive: 256,
 				Flags: ConnectFlags(
@@ -183,7 +169,7 @@ func (s *PacketConnectTestSuite) TestDecodeSuccess() {
 			},
 		},
 		{
-			"V3.1.1, will flags + no will payload",
+			"V3.1.1, Will flags + no will payload",
 			[]byte{
 				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
 				4,    // Protocol version
@@ -193,7 +179,7 @@ func (s *PacketConnectTestSuite) TestDecodeSuccess() {
 				0, 1, 'a', // Will Topic
 				0, 0, // Will Payload
 			},
-			PacketConnect{
+			Connect{
 				Version:   MQTT311,
 				KeepAlive: 256,
 				Flags: ConnectFlags(
@@ -215,7 +201,7 @@ func (s *PacketConnectTestSuite) TestDecodeSuccess() {
 				0, 1, 'a', // Username
 				0, 1, 'b', // Password
 			},
-			PacketConnect{
+			Connect{
 				Version:   MQTT311,
 				KeepAlive: 1,
 				ClientID:  []byte("ab"),
@@ -234,7 +220,7 @@ func (s *PacketConnectTestSuite) TestDecodeSuccess() {
 				0,                   // Properties Length
 				0, 3, 'a', 'b', 'c', // Client ID
 			},
-			PacketConnect{Version: MQTT50, KeepAlive: 65535, ClientID: []byte("abc")},
+			Connect{Version: MQTT50, KeepAlive: 65535, ClientID: []byte("abc")},
 		},
 		{
 			"V5.0, no properties, password",
@@ -247,7 +233,7 @@ func (s *PacketConnectTestSuite) TestDecodeSuccess() {
 				0, 3, 'a', 'b', 'c', // Client ID
 				0, 1, 'd', // Password
 			},
-			PacketConnect{
+			Connect{
 				Version: MQTT50, KeepAlive: 65535, ClientID: []byte("abc"), Flags: connectFlagPasswordFlag,
 				Password: []byte("d"),
 			},
@@ -267,17 +253,17 @@ func (s *PacketConnectTestSuite) TestDecodeSuccess() {
 				0, 1, 'a', // Will Topic
 				0, 1, 'b', // Will Payload
 			},
-			PacketConnect{
+			Connect{
 				Version:   MQTT50,
 				KeepAlive: 65535,
 				Flags:     connectFlagWillFlag,
 				Properties: &PropertiesConnect{
-					Flags:                 propertyFlags(0).set(PropertySessionExpiryInterval),
+					Flags:                 PropertyFlags(0).Set(PropertyIDSessionExpiryInterval),
 					SessionExpiryInterval: 10,
 				},
 				ClientID: []byte("abc"),
 				WillProperties: &PropertiesWill{
-					Flags:             propertyFlags(0).set(PropertyWillDelayInterval),
+					Flags:             PropertyFlags(0).Set(PropertyIDWillDelayInterval),
 					WillDelayInterval: 15,
 				},
 				WillTopic:   []byte("a"),
@@ -288,8 +274,8 @@ func (s *PacketConnectTestSuite) TestDecodeSuccess() {
 
 	for _, test := range testCases {
 		s.Run(test.name, func() {
-			var packet PacketConnect
-			header := FixedHeader{PacketType: PacketTypeConnect, RemainingLength: len(test.data)}
+			var packet Connect
+			header := FixedHeader{PacketType: TypeConnect, RemainingLength: len(test.data)}
 
 			n, err := packet.Decode(test.data, header)
 			s.Require().NoError(err)
@@ -299,7 +285,7 @@ func (s *PacketConnectTestSuite) TestDecodeSuccess() {
 	}
 }
 
-func (s *PacketConnectTestSuite) TestDecodeError() {
+func (s *ConnectTestSuite) TestDecodeError() {
 	testCases := []struct {
 		name string
 		data []byte
@@ -373,8 +359,8 @@ func (s *PacketConnectTestSuite) TestDecodeError() {
 
 	for _, test := range testCases {
 		s.Run(test.name, func() {
-			var packet PacketConnect
-			header := FixedHeader{PacketType: PacketTypeConnect, RemainingLength: len(test.data)}
+			var packet Connect
+			header := FixedHeader{PacketType: TypeConnect, RemainingLength: len(test.data)}
 
 			_, err := packet.Decode(test.data, header)
 			s.Require().ErrorIs(err, test.err)
@@ -383,19 +369,19 @@ func (s *PacketConnectTestSuite) TestDecodeError() {
 	}
 }
 
-func (s *PacketConnectTestSuite) TestDecodeErrorInvalidHeader() {
+func (s *ConnectTestSuite) TestDecodeErrorInvalidHeader() {
 	testCases := []struct {
 		name   string
 		header FixedHeader
 		err    error
 	}{
-		{"Invalid packet type", FixedHeader{PacketType: PacketTypeReserved}, ErrMalformedPacketType},
-		{"Invalid flags", FixedHeader{PacketType: PacketTypeConnect, Flags: 1}, ErrMalformedFlags},
+		{"Invalid packet type", FixedHeader{PacketType: TypeReserved}, ErrMalformedPacketType},
+		{"Invalid flags", FixedHeader{PacketType: TypeConnect, Flags: 1}, ErrMalformedFlags},
 	}
 
 	for _, test := range testCases {
 		s.Run(test.name, func() {
-			var packet PacketConnect
+			var packet Connect
 
 			_, err := packet.Decode(nil, test.header)
 			s.Require().ErrorIs(err, test.err)
@@ -403,17 +389,17 @@ func (s *PacketConnectTestSuite) TestDecodeErrorInvalidHeader() {
 	}
 }
 
-func TestPacketConnectTestSuite(t *testing.T) {
-	suite.Run(t, new(PacketConnectTestSuite))
+func TestConnectTestSuite(t *testing.T) {
+	suite.Run(t, new(ConnectTestSuite))
 }
 
-func BenchmarkPacketConnectSize(b *testing.B) {
+func BenchmarkConnectSize(b *testing.B) {
 	testCases := []struct {
 		name   string
-		packet PacketConnect
+		packet Connect
 	}{
-		{"V3", PacketConnect{Version: MQTT311, KeepAlive: 30, ClientID: []byte("ab")}},
-		{"V5", PacketConnect{Version: MQTT50, KeepAlive: 500, ClientID: []byte("abc")}},
+		{"V3", Connect{Version: MQTT311, KeepAlive: 30, ClientID: []byte("ab")}},
+		{"V5", Connect{Version: MQTT50, KeepAlive: 500, ClientID: []byte("abc")}},
 	}
 
 	for _, test := range testCases {
@@ -425,7 +411,7 @@ func BenchmarkPacketConnectSize(b *testing.B) {
 	}
 }
 
-func BenchmarkPacketConnectDecode(b *testing.B) {
+func BenchmarkConnectDecode(b *testing.B) {
 	testCases := []struct {
 		name string
 		data []byte
@@ -436,11 +422,11 @@ func BenchmarkPacketConnectDecode(b *testing.B) {
 
 	for _, test := range testCases {
 		b.Run(test.name, func(b *testing.B) {
-			header := FixedHeader{PacketType: PacketTypeConnect, RemainingLength: len(test.data)}
+			header := FixedHeader{PacketType: TypeConnect, RemainingLength: len(test.data)}
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				packet := PacketConnect{}
+				packet := Connect{}
 
 				_, err := packet.Decode(test.data, header)
 				if err != nil {
@@ -458,41 +444,41 @@ type PropertiesConnectTestSuite struct {
 func (s *PropertiesConnectTestSuite) TestHas() {
 	testCases := []struct {
 		props  *PropertiesConnect
-		prop   Property
+		id     PropertyID
 		result bool
 	}{
-		{&PropertiesConnect{}, PropertyUserProperty, true},
-		{&PropertiesConnect{}, PropertyAuthenticationMethod, true},
-		{&PropertiesConnect{}, PropertyAuthenticationData, true},
-		{&PropertiesConnect{}, PropertySessionExpiryInterval, true},
-		{&PropertiesConnect{}, PropertyMaximumPacketSize, true},
-		{&PropertiesConnect{}, PropertyReceiveMaximum, true},
-		{&PropertiesConnect{}, PropertyTopicAliasMaximum, true},
-		{&PropertiesConnect{}, PropertyRequestResponseInfo, true},
-		{&PropertiesConnect{}, PropertyRequestProblemInfo, true},
+		{&PropertiesConnect{}, PropertyIDUserProperty, true},
+		{&PropertiesConnect{}, PropertyIDAuthenticationMethod, true},
+		{&PropertiesConnect{}, PropertyIDAuthenticationData, true},
+		{&PropertiesConnect{}, PropertyIDSessionExpiryInterval, true},
+		{&PropertiesConnect{}, PropertyIDMaximumPacketSize, true},
+		{&PropertiesConnect{}, PropertyIDReceiveMaximum, true},
+		{&PropertiesConnect{}, PropertyIDTopicAliasMaximum, true},
+		{&PropertiesConnect{}, PropertyIDRequestResponseInfo, true},
+		{&PropertiesConnect{}, PropertyIDRequestProblemInfo, true},
 		{nil, 0, false},
 	}
 
 	for _, test := range testCases {
-		s.Run(fmt.Sprint(test.prop), func() {
-			test.props.Set(test.prop)
-			s.Require().Equal(test.result, test.props.Has(test.prop))
+		s.Run(fmt.Sprint(test.id), func() {
+			test.props.Set(test.id)
+			s.Require().Equal(test.result, test.props.Has(test.id))
 		})
 	}
 }
 
 func (s *PropertiesConnectTestSuite) TestSize() {
-	var flags propertyFlags
+	var flags PropertyFlags
 
-	flags = flags.set(PropertyUserProperty)
-	flags = flags.set(PropertyAuthenticationMethod)
-	flags = flags.set(PropertyAuthenticationData)
-	flags = flags.set(PropertySessionExpiryInterval)
-	flags = flags.set(PropertyMaximumPacketSize)
-	flags = flags.set(PropertyReceiveMaximum)
-	flags = flags.set(PropertyTopicAliasMaximum)
-	flags = flags.set(PropertyRequestResponseInfo)
-	flags = flags.set(PropertyRequestProblemInfo)
+	flags = flags.Set(PropertyIDUserProperty)
+	flags = flags.Set(PropertyIDAuthenticationMethod)
+	flags = flags.Set(PropertyIDAuthenticationData)
+	flags = flags.Set(PropertyIDSessionExpiryInterval)
+	flags = flags.Set(PropertyIDMaximumPacketSize)
+	flags = flags.Set(PropertyIDReceiveMaximum)
+	flags = flags.Set(PropertyIDTopicAliasMaximum)
+	flags = flags.Set(PropertyIDRequestResponseInfo)
+	flags = flags.Set(PropertyIDRequestProblemInfo)
 
 	props := PropertiesConnect{
 		Flags: flags,
@@ -534,15 +520,15 @@ func (s *PropertiesConnectTestSuite) TestDecodeSuccess() {
 	props, n, err := decodeProperties[PropertiesConnect](data)
 	s.Require().NoError(err)
 	s.Assert().Equal(len(data), n)
-	s.Assert().True(props.Has(PropertySessionExpiryInterval))
-	s.Assert().True(props.Has(PropertyReceiveMaximum))
-	s.Assert().True(props.Has(PropertyMaximumPacketSize))
-	s.Assert().True(props.Has(PropertyTopicAliasMaximum))
-	s.Assert().True(props.Has(PropertyRequestResponseInfo))
-	s.Assert().True(props.Has(PropertyRequestProblemInfo))
-	s.Assert().True(props.Has(PropertyAuthenticationMethod))
-	s.Assert().True(props.Has(PropertyAuthenticationData))
-	s.Assert().True(props.Has(PropertyUserProperty))
+	s.Assert().True(props.Has(PropertyIDSessionExpiryInterval))
+	s.Assert().True(props.Has(PropertyIDReceiveMaximum))
+	s.Assert().True(props.Has(PropertyIDMaximumPacketSize))
+	s.Assert().True(props.Has(PropertyIDTopicAliasMaximum))
+	s.Assert().True(props.Has(PropertyIDRequestResponseInfo))
+	s.Assert().True(props.Has(PropertyIDRequestProblemInfo))
+	s.Assert().True(props.Has(PropertyIDAuthenticationMethod))
+	s.Assert().True(props.Has(PropertyIDAuthenticationData))
+	s.Assert().True(props.Has(PropertyIDUserProperty))
 	s.Assert().Equal(10, int(props.SessionExpiryInterval))
 	s.Assert().Equal(50, int(props.ReceiveMaximum))
 	s.Assert().Equal(200, int(props.MaximumPacketSize))
@@ -621,36 +607,36 @@ type PropertiesWillTestSuite struct {
 func (s *PropertiesWillTestSuite) TestHas() {
 	testCases := []struct {
 		props  *PropertiesWill
-		prop   Property
+		id     PropertyID
 		result bool
 	}{
-		{&PropertiesWill{}, PropertyUserProperty, true},
-		{&PropertiesWill{}, PropertyCorrelationData, true},
-		{&PropertiesWill{}, PropertyContentType, true},
-		{&PropertiesWill{}, PropertyResponseTopic, true},
-		{&PropertiesWill{}, PropertyWillDelayInterval, true},
-		{&PropertiesWill{}, PropertyMessageExpiryInterval, true},
-		{&PropertiesWill{}, PropertyPayloadFormatIndicator, true},
+		{&PropertiesWill{}, PropertyIDUserProperty, true},
+		{&PropertiesWill{}, PropertyIDCorrelationData, true},
+		{&PropertiesWill{}, PropertyIDContentType, true},
+		{&PropertiesWill{}, PropertyIDResponseTopic, true},
+		{&PropertiesWill{}, PropertyIDWillDelayInterval, true},
+		{&PropertiesWill{}, PropertyIDMessageExpiryInterval, true},
+		{&PropertiesWill{}, PropertyIDPayloadFormatIndicator, true},
 		{nil, 0, false},
 	}
 
 	for _, test := range testCases {
-		s.Run(fmt.Sprint(test.prop), func() {
-			test.props.Set(test.prop)
-			s.Require().Equal(test.result, test.props.Has(test.prop))
+		s.Run(fmt.Sprint(test.id), func() {
+			test.props.Set(test.id)
+			s.Require().Equal(test.result, test.props.Has(test.id))
 		})
 	}
 }
 
 func (s *PropertiesWillTestSuite) TestSize() {
-	var flags propertyFlags
-	flags = flags.set(PropertyUserProperty)
-	flags = flags.set(PropertyCorrelationData)
-	flags = flags.set(PropertyContentType)
-	flags = flags.set(PropertyResponseTopic)
-	flags = flags.set(PropertyWillDelayInterval)
-	flags = flags.set(PropertyMessageExpiryInterval)
-	flags = flags.set(PropertyPayloadFormatIndicator)
+	var flags PropertyFlags
+	flags = flags.Set(PropertyIDUserProperty)
+	flags = flags.Set(PropertyIDCorrelationData)
+	flags = flags.Set(PropertyIDContentType)
+	flags = flags.Set(PropertyIDResponseTopic)
+	flags = flags.Set(PropertyIDWillDelayInterval)
+	flags = flags.Set(PropertyIDMessageExpiryInterval)
+	flags = flags.Set(PropertyIDPayloadFormatIndicator)
 
 	props := PropertiesWill{
 		Flags:                  flags,
@@ -690,13 +676,13 @@ func (s *PropertiesWillTestSuite) TestDecodeSuccess() {
 	props, n, err := decodeProperties[PropertiesWill](data)
 	s.Require().NoError(err)
 	s.Assert().Equal(len(data), n)
-	s.Assert().True(props.Has(PropertyWillDelayInterval))
-	s.Assert().True(props.Has(PropertyPayloadFormatIndicator))
-	s.Assert().True(props.Has(PropertyMessageExpiryInterval))
-	s.Assert().True(props.Has(PropertyContentType))
-	s.Assert().True(props.Has(PropertyResponseTopic))
-	s.Assert().True(props.Has(PropertyCorrelationData))
-	s.Assert().True(props.Has(PropertyUserProperty))
+	s.Assert().True(props.Has(PropertyIDWillDelayInterval))
+	s.Assert().True(props.Has(PropertyIDPayloadFormatIndicator))
+	s.Assert().True(props.Has(PropertyIDMessageExpiryInterval))
+	s.Assert().True(props.Has(PropertyIDContentType))
+	s.Assert().True(props.Has(PropertyIDResponseTopic))
+	s.Assert().True(props.Has(PropertyIDCorrelationData))
+	s.Assert().True(props.Has(PropertyIDUserProperty))
 	s.Assert().Equal(15, int(props.WillDelayInterval))
 	s.Assert().True(props.PayloadFormatIndicator)
 	s.Assert().Equal(10, int(props.MessageExpiryInterval))

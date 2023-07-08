@@ -28,20 +28,6 @@ import (
 var ErrInvalidServerState = errors.New("invalid server state")
 
 const (
-	// MQTT31 represents the MQTT version 3.1.
-	MQTT31 MQTTVersion = iota + 3
-
-	// MQTT311 represents the MQTT version 3.1.1.
-	MQTT311
-
-	// MQTT50 represents the MQTT version 5.0.
-	MQTT50
-)
-
-// MQTTVersion represents the MQTT version.
-type MQTTVersion byte
-
-const (
 	// ServerNotStarted indicates that the Server has not started yet.
 	ServerNotStarted ServerState = iota
 
