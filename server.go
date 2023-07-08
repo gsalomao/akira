@@ -330,7 +330,7 @@ func (s *Server) handleClient(c *Client) {
 		}
 	}()
 
-	s.hooks.onConnectionOpened(s, c.connection.listener)
+	s.hooks.onConnectionOpened(s, c.Connection.listener)
 }
 
 func (s *Server) receivePacket(c *Client) (p Packet, err error) {
@@ -341,7 +341,7 @@ func (s *Server) receivePacket(c *Client) (p Packet, err error) {
 	buf := s.readBufPool.Get().(*bufio.Reader)
 	defer s.readBufPool.Put(buf)
 
-	buf.Reset(c.connection.netConn)
+	buf.Reset(c.Connection.netConn)
 	c.refreshDeadline()
 
 	p, _, err = readPacket(buf)
