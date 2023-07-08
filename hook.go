@@ -21,21 +21,21 @@ import (
 )
 
 const (
-	onStartHook hookType = iota
-	onStopHook
-	onServerStartHook
-	onServerStartFailedHook
-	onServerStartedHook
-	onServerStopHook
-	onServerStoppedHook
-	onConnectionOpenHook
-	onConnectionOpenedHook
-	onConnectionCloseHook
-	onConnectionClosedHook
-	onPacketReceiveHook
-	onPacketReceiveErrorHook
-	onPacketReceivedHook
-	numHookTypes
+	hookOnStart hookType = iota
+	hookOnStop
+	hookOnServerStart
+	hookOnServerStartFailed
+	hookOnServerStarted
+	hookOnServerStop
+	hookOnServerStopped
+	hookOnConnectionOpen
+	hookOnConnectionOpened
+	hookOnConnectionClose
+	hookOnConnectionClosed
+	hookOnPacketReceive
+	hookOnPacketReceiveError
+	hookOnPacketReceived
+	numOfHookTypes
 )
 
 // ErrHookAlreadyExists indicates that the Hook already exists based on its name.
@@ -52,113 +52,113 @@ type Hook interface {
 	Name() string
 }
 
-// OnStartHook is the hook interface that wraps the OnStart method. The OnStart method is called by the server to
+// HookOnStart is the hook interface that wraps the OnStart method. The OnStart method is called by the server to
 // start the hook. If this method returns any error, the server considers that the hook failed to start.
-type OnStartHook interface {
+type HookOnStart interface {
 	OnStart(s *Server) error
 }
 
-// OnStopHook is the hook interface that wraps the OnStop method. The OnStop method is called by the server to stop
+// HookOnStop is the hook interface that wraps the OnStop method. The OnStop method is called by the server to stop
 // the hook.
-type OnStopHook interface {
+type HookOnStop interface {
 	OnStop(s *Server)
 }
 
-// OnServerStartHook is the hook interface that wraps the OnServerStart method. The OnServerStart method is called by
+// HookOnServerStart is the hook interface that wraps the OnServerStart method. The OnServerStart method is called by
 // the server when it is starting. When this method is called, the server is in ServerStarting state. If this method
 // returns any error, the start process fails.
-type OnServerStartHook interface {
+type HookOnServerStart interface {
 	OnServerStart(s *Server) error
 }
 
-// OnServerStartFailedHook is the hook interface that wraps the OnServerStartFailed method. The OnServerStartFailed
+// HookOnServerStartFailed is the hook interface that wraps the OnServerStartFailed method. The OnServerStartFailed
 // method is called by the server when it has failed to start.
-type OnServerStartFailedHook interface {
+type HookOnServerStartFailed interface {
 	OnServerStartFailed(s *Server, err error)
 }
 
-// OnServerStartedHook is the hook interface that wraps the OnServerStarted method. The OnServerStarted method is
+// HookOnServerStarted is the hook interface that wraps the OnServerStarted method. The OnServerStarted method is
 // called by the server when it has started with success.
-type OnServerStartedHook interface {
+type HookOnServerStarted interface {
 	OnServerStarted(s *Server)
 }
 
-// OnServerStopHook is the hook interface that wraps the OnServerStop method. The OnServerStop method is called by the
+// HookOnServerStop is the hook interface that wraps the OnServerStop method. The OnServerStop method is called by the
 // server when it is stopping.
-type OnServerStopHook interface {
+type HookOnServerStop interface {
 	OnServerStop(s *Server)
 }
 
-// OnServerStoppedHook is the hook interface that wraps the OnServerStopped method. The OnServerStopped method is
+// HookOnServerStopped is the hook interface that wraps the OnServerStopped method. The OnServerStopped method is
 // called by the server when it has stopped.
-type OnServerStoppedHook interface {
+type HookOnServerStopped interface {
 	OnServerStopped(s *Server)
 }
 
-// OnConnectionOpenHook is the hook interface that wraps the OnConnectionOpen method. The OnConnectionOpen method is
+// HookOnConnectionOpen is the hook interface that wraps the OnConnectionOpen method. The OnConnectionOpen method is
 // called by the server when a new connection is being opened. If this method returns any error, the connection is
 // closed.
-type OnConnectionOpenHook interface {
+type HookOnConnectionOpen interface {
 	OnConnectionOpen(s *Server, l Listener) error
 }
 
-// OnConnectionOpenedHook is the hook interface that wraps the OnConnectionOpened method. The OnConnectionOpened
+// HookOnConnectionOpened is the hook interface that wraps the OnConnectionOpened method. The OnConnectionOpened
 // method is called by the server when a new connection has opened. This method is called after the OnConnectionOpen
 // method.
-type OnConnectionOpenedHook interface {
+type HookOnConnectionOpened interface {
 	OnConnectionOpened(s *Server, l Listener)
 }
 
-// OnClientCloseHook is the hook interface that wraps the OnConnectionClose method. The OnConnectionClose method is
+// HookOnClientClose is the hook interface that wraps the OnConnectionClose method. The OnConnectionClose method is
 // called by the server when the connection is being closed. If the connection is being closed due to any error, the
 // error is passed as parameter.
-type OnClientCloseHook interface {
+type HookOnClientClose interface {
 	OnConnectionClose(s *Server, l Listener, err error)
 }
 
-// OnConnectionClosedHook is the hook interface that wraps the OnConnectionClosed method. The OnConnectionClosed
+// HookOnConnectionClosed is the hook interface that wraps the OnConnectionClosed method. The OnConnectionClosed
 // method is called by the server when the connection has closed. This method is called after the OnConnectionClose
 // method. If the connection was closed due to any error, the error is passed as parameter.
-type OnConnectionClosedHook interface {
+type HookOnConnectionClosed interface {
 	OnConnectionClosed(s *Server, l Listener, err error)
 }
 
-// OnPacketReceiveHook is the hook interface that wraps the OnPacketReceive method. The OnPacketReceive method is
+// HookOnPacketReceive is the hook interface that wraps the OnPacketReceive method. The OnPacketReceive method is
 // called by the server before try to receive any packet. If this method returns an error, the server doesn't try
 // to receive a new packet and the client is closed.
-type OnPacketReceiveHook interface {
+type HookOnPacketReceive interface {
 	OnPacketReceive(s *Server, c *Client) error
 }
 
-// OnPacketReceiveErrorHook is the hook interface that wraps the OnPacketReceiveError method. The OnPacketReceiveError
+// HookOnPacketReceiveError is the hook interface that wraps the OnPacketReceiveError method. The OnPacketReceiveError
 // method is called by the server, with the error as parameter, when it fails to receive a new packet. If this method
 // returns an error, the server closes the client. Otherwise, it tries to receive a new packet again.
-type OnPacketReceiveErrorHook interface {
+type HookOnPacketReceiveError interface {
 	OnPacketReceiveError(s *Server, c *Client, err error) error
 }
 
-// OnPacketReceivedHook is the hook interface that wraps the OnPacketReceived method. The OnPacketReceived method is
+// HookOnPacketReceived is the hook interface that wraps the OnPacketReceived method. The OnPacketReceived method is
 // called by the server when a new packet is received. If this method returns an error, the server discards the
 // received packet.
-type OnPacketReceivedHook interface {
+type HookOnPacketReceived interface {
 	OnPacketReceived(s *Server, c *Client, p Packet) error
 }
 
 var hooksRegistries = map[hookType]func(*hooks, Hook, hookType){
-	onStartHook:              registerHook[OnStartHook],
-	onStopHook:               registerHook[OnStopHook],
-	onServerStartHook:        registerHook[OnServerStartHook],
-	onServerStartFailedHook:  registerHook[OnServerStartFailedHook],
-	onServerStartedHook:      registerHook[OnServerStartedHook],
-	onServerStopHook:         registerHook[OnServerStopHook],
-	onServerStoppedHook:      registerHook[OnServerStoppedHook],
-	onConnectionOpenHook:     registerHook[OnConnectionOpenHook],
-	onConnectionOpenedHook:   registerHook[OnConnectionOpenedHook],
-	onConnectionCloseHook:    registerHook[OnClientCloseHook],
-	onConnectionClosedHook:   registerHook[OnConnectionClosedHook],
-	onPacketReceiveHook:      registerHook[OnPacketReceiveHook],
-	onPacketReceiveErrorHook: registerHook[OnPacketReceiveErrorHook],
-	onPacketReceivedHook:     registerHook[OnPacketReceivedHook],
+	hookOnStart:              registerHook[HookOnStart],
+	hookOnStop:               registerHook[HookOnStop],
+	hookOnServerStart:        registerHook[HookOnServerStart],
+	hookOnServerStartFailed:  registerHook[HookOnServerStartFailed],
+	hookOnServerStarted:      registerHook[HookOnServerStarted],
+	hookOnServerStop:         registerHook[HookOnServerStop],
+	hookOnServerStopped:      registerHook[HookOnServerStopped],
+	hookOnConnectionOpen:     registerHook[HookOnConnectionOpen],
+	hookOnConnectionOpened:   registerHook[HookOnConnectionOpened],
+	hookOnConnectionClose:    registerHook[HookOnClientClose],
+	hookOnConnectionClosed:   registerHook[HookOnConnectionClosed],
+	hookOnPacketReceive:      registerHook[HookOnPacketReceive],
+	hookOnPacketReceiveError: registerHook[HookOnPacketReceiveError],
+	hookOnPacketReceived:     registerHook[HookOnPacketReceived],
 }
 
 func registerHook[T any](h *hooks, hook Hook, t hookType) {
@@ -171,16 +171,16 @@ func registerHook[T any](h *hooks, hook Hook, t hookType) {
 
 type hooks struct {
 	mu          sync.RWMutex
-	hookNames   [numHookTypes]map[string]struct{}
-	hooks       [numHookTypes][]Hook
-	hookPresent [numHookTypes]atomic.Bool
+	hookNames   [numOfHookTypes]map[string]struct{}
+	hooks       [numOfHookTypes][]Hook
+	hookPresent [numOfHookTypes]atomic.Bool
 }
 
 func newHooks() *hooks {
-	var names [numHookTypes]map[string]struct{}
-	var hks [numHookTypes][]Hook
+	var names [numOfHookTypes]map[string]struct{}
+	var hks [numOfHookTypes][]Hook
 
-	for t := hookType(0); t < numHookTypes; t++ {
+	for t := hookType(0); t < numOfHookTypes; t++ {
 		names[t] = make(map[string]struct{})
 		hks[t] = make([]Hook, 0)
 	}
@@ -199,14 +199,14 @@ func (h *hooks) add(hook Hook) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	for t := hookType(0); t < numHookTypes; t++ {
+	for t := hookType(0); t < numOfHookTypes; t++ {
 		_, ok := h.hookNames[t][hook.Name()]
 		if ok {
 			return ErrHookAlreadyExists
 		}
 	}
 
-	for t := hookType(0); t < numHookTypes; t++ {
+	for t := hookType(0); t < numOfHookTypes; t++ {
 		hooksRegistries[t](h, hook, t)
 	}
 
@@ -217,8 +217,8 @@ func (h *hooks) onStart(s *Server) error {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	for _, hook := range h.hooks[onStartHook] {
-		hk := hook.(OnStartHook)
+	for _, hook := range h.hooks[hookOnStart] {
+		hk := hook.(HookOnStart)
 
 		err := hk.OnStart(s)
 		if err != nil {
@@ -233,8 +233,8 @@ func (h *hooks) onStop(s *Server) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	for _, hook := range h.hooks[onStopHook] {
-		hk := hook.(OnStopHook)
+	for _, hook := range h.hooks[hookOnStop] {
+		hk := hook.(HookOnStop)
 		hk.OnStop(s)
 	}
 }
@@ -243,8 +243,8 @@ func (h *hooks) onServerStart(s *Server) error {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	for _, hook := range h.hooks[onServerStartHook] {
-		hk := hook.(OnServerStartHook)
+	for _, hook := range h.hooks[hookOnServerStart] {
+		hk := hook.(HookOnServerStart)
 
 		err := hk.OnServerStart(s)
 		if err != nil {
@@ -259,8 +259,8 @@ func (h *hooks) onServerStartFailed(s *Server, err error) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	for _, hook := range h.hooks[onServerStartFailedHook] {
-		hk := hook.(OnServerStartFailedHook)
+	for _, hook := range h.hooks[hookOnServerStartFailed] {
+		hk := hook.(HookOnServerStartFailed)
 		hk.OnServerStartFailed(s, err)
 	}
 }
@@ -269,8 +269,8 @@ func (h *hooks) onServerStarted(s *Server) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	for _, hook := range h.hooks[onServerStartedHook] {
-		hk := hook.(OnServerStartedHook)
+	for _, hook := range h.hooks[hookOnServerStarted] {
+		hk := hook.(HookOnServerStarted)
 		hk.OnServerStarted(s)
 	}
 }
@@ -279,8 +279,8 @@ func (h *hooks) onServerStop(s *Server) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	for _, hook := range h.hooks[onServerStopHook] {
-		hk := hook.(OnServerStopHook)
+	for _, hook := range h.hooks[hookOnServerStop] {
+		hk := hook.(HookOnServerStop)
 		hk.OnServerStop(s)
 	}
 }
@@ -289,22 +289,22 @@ func (h *hooks) onServerStopped(s *Server) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	for _, hook := range h.hooks[onServerStoppedHook] {
-		hk := hook.(OnServerStoppedHook)
+	for _, hook := range h.hooks[hookOnServerStopped] {
+		hk := hook.(HookOnServerStopped)
 		hk.OnServerStopped(s)
 	}
 }
 
 func (h *hooks) onConnectionOpen(s *Server, l Listener) error {
-	if !h.hasHook(onConnectionOpenHook) {
+	if !h.hasHook(hookOnConnectionOpen) {
 		return nil
 	}
 
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	for _, hook := range h.hooks[onConnectionOpenHook] {
-		hk := hook.(OnConnectionOpenHook)
+	for _, hook := range h.hooks[hookOnConnectionOpen] {
+		hk := hook.(HookOnConnectionOpen)
 
 		err := hk.OnConnectionOpen(s, l)
 		if err != nil {
@@ -316,57 +316,57 @@ func (h *hooks) onConnectionOpen(s *Server, l Listener) error {
 }
 
 func (h *hooks) onConnectionOpened(s *Server, l Listener) {
-	if !h.hasHook(onConnectionOpenedHook) {
+	if !h.hasHook(hookOnConnectionOpened) {
 		return
 	}
 
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	for _, hook := range h.hooks[onConnectionOpenedHook] {
-		hk := hook.(OnConnectionOpenedHook)
+	for _, hook := range h.hooks[hookOnConnectionOpened] {
+		hk := hook.(HookOnConnectionOpened)
 		hk.OnConnectionOpened(s, l)
 	}
 }
 
 func (h *hooks) onConnectionClose(s *Server, l Listener, err error) {
-	if !h.hasHook(onConnectionCloseHook) {
+	if !h.hasHook(hookOnConnectionClose) {
 		return
 	}
 
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	for _, hook := range h.hooks[onConnectionCloseHook] {
-		hk := hook.(OnClientCloseHook)
+	for _, hook := range h.hooks[hookOnConnectionClose] {
+		hk := hook.(HookOnClientClose)
 		hk.OnConnectionClose(s, l, err)
 	}
 }
 
 func (h *hooks) onConnectionClosed(s *Server, l Listener, err error) {
-	if !h.hasHook(onConnectionClosedHook) {
+	if !h.hasHook(hookOnConnectionClosed) {
 		return
 	}
 
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	for _, hook := range h.hooks[onConnectionClosedHook] {
-		hk := hook.(OnConnectionClosedHook)
+	for _, hook := range h.hooks[hookOnConnectionClosed] {
+		hk := hook.(HookOnConnectionClosed)
 		hk.OnConnectionClosed(s, l, err)
 	}
 }
 
 func (h *hooks) onPacketReceive(s *Server, c *Client) error {
-	if !h.hasHook(onPacketReceiveHook) {
+	if !h.hasHook(hookOnPacketReceive) {
 		return nil
 	}
 
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	for _, hook := range h.hooks[onPacketReceiveHook] {
-		hk := hook.(OnPacketReceiveHook)
+	for _, hook := range h.hooks[hookOnPacketReceive] {
+		hk := hook.(HookOnPacketReceive)
 
 		err := hk.OnPacketReceive(s, c)
 		if err != nil {
@@ -378,15 +378,15 @@ func (h *hooks) onPacketReceive(s *Server, c *Client) error {
 }
 
 func (h *hooks) onPacketReceiveError(s *Server, c *Client, err error) error {
-	if !h.hasHook(onPacketReceiveErrorHook) {
+	if !h.hasHook(hookOnPacketReceiveError) {
 		return nil
 	}
 
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	for _, hook := range h.hooks[onPacketReceiveErrorHook] {
-		hk := hook.(OnPacketReceiveErrorHook)
+	for _, hook := range h.hooks[hookOnPacketReceiveError] {
+		hk := hook.(HookOnPacketReceiveError)
 
 		newErr := hk.OnPacketReceiveError(s, c, err)
 		if newErr != nil {
@@ -398,15 +398,15 @@ func (h *hooks) onPacketReceiveError(s *Server, c *Client, err error) error {
 }
 
 func (h *hooks) onPacketReceived(s *Server, c *Client, p Packet) error {
-	if !h.hasHook(onPacketReceivedHook) {
+	if !h.hasHook(hookOnPacketReceived) {
 		return nil
 	}
 
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	for _, hook := range h.hooks[onPacketReceivedHook] {
-		hk := hook.(OnPacketReceivedHook)
+	for _, hook := range h.hooks[hookOnPacketReceived] {
+		hk := hook.(HookOnPacketReceived)
 
 		err := hk.OnPacketReceived(s, c, p)
 		if err != nil {

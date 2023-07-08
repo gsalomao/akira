@@ -124,7 +124,7 @@ func (s *ServerTestSuite) TestNewServerWithHooks() {
 	srv, err := NewServer(&Options{Hooks: h})
 
 	s.Require().NoError(err)
-	_, ok := srv.hooks.hookNames[onStartHook][h[0].Name()]
+	_, ok := srv.hooks.hookNames[hookOnStart][h[0].Name()]
 	s.Require().True(ok)
 }
 

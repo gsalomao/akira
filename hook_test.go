@@ -58,7 +58,7 @@ func (s *HooksTestSuite) TestAddSuccess() {
 	err := s.hooks.add(s.hook)
 	s.Require().NoError(err)
 
-	for ht := hookType(0); ht < numHookTypes; ht++ {
+	for ht := hookType(0); ht < numOfHookTypes; ht++ {
 		_, ok := s.hooks.hookNames[ht][s.hook.Name()]
 		s.Assert().Truef(ok, "Missing hook type %v", ht)
 	}
