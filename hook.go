@@ -127,21 +127,21 @@ type HookOnConnectionClosed interface {
 // called by the server before try to receive any packet. If this method returns an error, the server doesn't try
 // to receive a new packet and the client is closed.
 type HookOnPacketReceive interface {
-	OnPacketReceive(s *Server, c *Client) error
+	OnPacketReceive(c *Client) error
 }
 
 // HookOnPacketReceiveError is the hook interface that wraps the OnPacketReceiveError method. The OnPacketReceiveError
 // method is called by the server, with the error as parameter, when it fails to receive a new packet. If this method
 // returns an error, the server closes the client. Otherwise, it tries to receive a new packet again.
 type HookOnPacketReceiveError interface {
-	OnPacketReceiveError(s *Server, c *Client, err error) error
+	OnPacketReceiveError(c *Client, err error) error
 }
 
 // HookOnPacketReceived is the hook interface that wraps the OnPacketReceived method. The OnPacketReceived method is
 // called by the server when a new packet is received. If this method returns an error, the server discards the
 // received packet.
 type HookOnPacketReceived interface {
-	OnPacketReceived(s *Server, c *Client, p Packet) error
+	OnPacketReceived(c *Client, p Packet) error
 }
 
 var hooksRegistries = map[hookType]func(*hooks, Hook, hookType){
@@ -357,7 +357,7 @@ func (h *hooks) onConnectionClosed(s *Server, l Listener, err error) {
 	}
 }
 
-func (h *hooks) onPacketReceive(s *Server, c *Client) error {
+func (h *hooks) onPacketReceive(c *Client) error {
 	if !h.hasHook(hookOnPacketReceive) {
 		return nil
 	}
@@ -368,7 +368,7 @@ func (h *hooks) onPacketReceive(s *Server, c *Client) error {
 	for _, hook := range h.hooks[hookOnPacketReceive] {
 		hk := hook.(HookOnPacketReceive)
 
-		err := hk.OnPacketReceive(s, c)
+		err := hk.OnPacketReceive(c)
 		if err != nil {
 			return err
 		}
@@ -377,7 +377,7 @@ func (h *hooks) onPacketReceive(s *Server, c *Client) error {
 	return nil
 }
 
-func (h *hooks) onPacketReceiveError(s *Server, c *Client, err error) error {
+func (h *hooks) onPacketReceiveError(c *Client, err error) error {
 	if !h.hasHook(hookOnPacketReceiveError) {
 		return nil
 	}
@@ -388,7 +388,7 @@ func (h *hooks) onPacketReceiveError(s *Server, c *Client, err error) error {
 	for _, hook := range h.hooks[hookOnPacketReceiveError] {
 		hk := hook.(HookOnPacketReceiveError)
 
-		newErr := hk.OnPacketReceiveError(s, c, err)
+		newErr := hk.OnPacketReceiveError(c, err)
 		if newErr != nil {
 			return newErr
 		}
@@ -397,7 +397,7 @@ func (h *hooks) onPacketReceiveError(s *Server, c *Client, err error) error {
 	return nil
 }
 
-func (h *hooks) onPacketReceived(s *Server, c *Client, p Packet) error {
+func (h *hooks) onPacketReceived(c *Client, p Packet) error {
 	if !h.hasHook(hookOnPacketReceived) {
 		return nil
 	}
@@ -408,7 +408,7 @@ func (h *hooks) onPacketReceived(s *Server, c *Client, p Packet) error {
 	for _, hook := range h.hooks[hookOnPacketReceived] {
 		hk := hook.(HookOnPacketReceived)
 
-		err := hk.OnPacketReceived(s, c, p)
+		err := hk.OnPacketReceived(c, p)
 		if err != nil {
 			return err
 		}

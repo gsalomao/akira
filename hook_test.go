@@ -205,46 +205,46 @@ func (s *HooksTestSuite) TestOnConnectionClosedWithError() {
 func (s *HooksTestSuite) TestOnPacketReceiveSuccess() {
 	c := newClient(nil, s.server, nil)
 
-	err := s.hooks.onPacketReceive(s.server, c)
+	err := s.hooks.onPacketReceive(c)
 	s.Require().NoError(err)
 
-	s.hook.On("OnPacketReceive", s.server, c)
+	s.hook.On("OnPacketReceive", c)
 	s.addHook(s.hook)
 
-	err = s.hooks.onPacketReceive(s.server, c)
+	err = s.hooks.onPacketReceive(c)
 	s.Require().NoError(err)
 }
 
 func (s *HooksTestSuite) TestOnPacketReceiveWithError() {
 	c := newClient(nil, s.server, nil)
 
-	s.hook.On("OnPacketReceive", s.server, c).Return(assert.AnError)
+	s.hook.On("OnPacketReceive", c).Return(assert.AnError)
 	s.addHook(s.hook)
 
-	err := s.hooks.onPacketReceive(s.server, c)
+	err := s.hooks.onPacketReceive(c)
 	s.Require().Error(err)
 }
 
 func (s *HooksTestSuite) TestOnPacketReceiveError() {
 	c := newClient(nil, s.server, nil)
 
-	err := s.hooks.onPacketReceiveError(s.server, c, assert.AnError)
+	err := s.hooks.onPacketReceiveError(c, assert.AnError)
 	s.Require().NoError(err)
 
-	s.hook.On("OnPacketReceiveError", s.server, c, assert.AnError)
+	s.hook.On("OnPacketReceiveError", c, assert.AnError)
 	s.addHook(s.hook)
 
-	err = s.hooks.onPacketReceiveError(s.server, c, assert.AnError)
+	err = s.hooks.onPacketReceiveError(c, assert.AnError)
 	s.Require().NoError(err)
 }
 
 func (s *HooksTestSuite) TestOnPacketReceiveErrorWithError() {
 	c := newClient(nil, s.server, nil)
 	err := errors.New("new error")
-	s.hook.On("OnPacketReceiveError", s.server, c, assert.AnError).Return(err)
+	s.hook.On("OnPacketReceiveError", c, assert.AnError).Return(err)
 	s.addHook(s.hook)
 
-	newErr := s.hooks.onPacketReceiveError(s.server, c, assert.AnError)
+	newErr := s.hooks.onPacketReceiveError(c, assert.AnError)
 	s.Require().ErrorIs(newErr, err)
 }
 
@@ -252,23 +252,23 @@ func (s *HooksTestSuite) TestOnPacketReceivedSuccess() {
 	c := newClient(nil, s.server, nil)
 	p := &packet.Connect{}
 
-	err := s.hooks.onPacketReceived(s.server, c, p)
+	err := s.hooks.onPacketReceived(c, p)
 	s.Require().NoError(err)
 
-	s.hook.On("OnPacketReceived", s.server, c, p)
+	s.hook.On("OnPacketReceived", c, p)
 	s.addHook(s.hook)
 
-	err = s.hooks.onPacketReceived(s.server, c, p)
+	err = s.hooks.onPacketReceived(c, p)
 	s.Require().NoError(err)
 }
 
 func (s *HooksTestSuite) TestOnPacketReceivedError() {
 	c := newClient(nil, s.server, nil)
 	p := &packet.Connect{}
-	s.hook.On("OnPacketReceived", s.server, c, p).Return(assert.AnError)
+	s.hook.On("OnPacketReceived", c, p).Return(assert.AnError)
 	s.addHook(s.hook)
 
-	err := s.hooks.onPacketReceived(s.server, c, p)
+	err := s.hooks.onPacketReceived(c, p)
 	s.Require().ErrorIs(err, assert.AnError)
 }
 
@@ -357,7 +357,7 @@ func BenchmarkHooksOnPacketReceive(b *testing.B) {
 		h := newHooks()
 
 		for i := 0; i < b.N; i++ {
-			_ = h.onPacketReceive(nil, nil)
+			_ = h.onPacketReceive(nil)
 		}
 	})
 
@@ -366,7 +366,7 @@ func BenchmarkHooksOnPacketReceive(b *testing.B) {
 		_ = h.add(&hookSpy{})
 
 		for i := 0; i < b.N; i++ {
-			_ = h.onPacketReceive(nil, nil)
+			_ = h.onPacketReceive(nil)
 		}
 	})
 }
@@ -376,7 +376,7 @@ func BenchmarkHooksOnPacketReceived(b *testing.B) {
 		h := newHooks()
 
 		for i := 0; i < b.N; i++ {
-			_ = h.onPacketReceived(nil, nil, nil)
+			_ = h.onPacketReceived(nil, nil)
 		}
 	})
 
@@ -385,7 +385,7 @@ func BenchmarkHooksOnPacketReceived(b *testing.B) {
 		_ = h.add(&hookSpy{})
 
 		for i := 0; i < b.N; i++ {
-			_ = h.onPacketReceived(nil, nil, nil)
+			_ = h.onPacketReceived(nil, nil)
 		}
 	})
 }

@@ -317,7 +317,7 @@ func (s *ServerTestSuite) TestStopClosesClients() {
 	s.hook.On("OnServerStopped", s.server)
 	s.hook.On("OnConnectionOpen", s.server, s.listener)
 	s.hook.On("OnConnectionOpened", s.server, s.listener)
-	s.hook.On("OnPacketReceive", s.server, mock.Anything).Run(func(_ mock.Arguments) { close(ready) })
+	s.hook.On("OnPacketReceive", mock.Anything).Run(func(_ mock.Arguments) { close(ready) })
 	s.hook.On("OnConnectionClose", s.server, s.listener, nil)
 	s.hook.On("OnConnectionClosed", s.server, s.listener, nil)
 	s.startServer()
@@ -413,7 +413,7 @@ func (s *ServerTestSuite) TestHandleConnectionWithHook() {
 	s.hook.On("OnConnectionOpened", s.server, s.listener).Run(func(_ mock.Arguments) {
 		close(connOpened)
 	})
-	s.hook.On("OnPacketReceive", s.server, mock.Anything)
+	s.hook.On("OnPacketReceive", mock.Anything)
 	s.hook.On("OnConnectionClose", s.server, s.listener, mock.MatchedBy(func(e error) bool {
 		return errors.Is(e, io.EOF)
 	}))
@@ -442,7 +442,7 @@ func (s *ServerTestSuite) TestHandleConnectionReadTimeout() {
 	s.hook.On("OnConnectionOpened", s.server, s.listener).Run(func(_ mock.Arguments) {
 		close(connOpened)
 	})
-	s.hook.On("OnPacketReceive", s.server, mock.Anything)
+	s.hook.On("OnPacketReceive", mock.Anything)
 	s.hook.On("OnConnectionClose", s.server, s.listener, mock.MatchedBy(func(err error) bool {
 		return errors.Is(err, os.ErrDeadlineExceeded)
 	}))
@@ -537,8 +537,8 @@ func (s *ServerTestSuite) TestReceivePacketWithHooks() {
 		ClientID:  []byte("ab"),
 	}
 	s.addHook()
-	s.hook.On("OnPacketReceive", s.server, c)
-	s.hook.On("OnPacketReceived", s.server, c, connect)
+	s.hook.On("OnPacketReceive", c)
+	s.hook.On("OnPacketReceived", c, connect)
 
 	var wg sync.WaitGroup
 	defer wg.Wait()
@@ -557,7 +557,7 @@ func (s *ServerTestSuite) TestReceivePacketWithHooks() {
 
 func (s *ServerTestSuite) TestReceivePacketOnPacketReceiveWithError() {
 	s.addHook()
-	s.hook.On("OnPacketReceive", s.server, mock.Anything).Return(assert.AnError)
+	s.hook.On("OnPacketReceive", mock.Anything).Return(assert.AnError)
 	c1, c2 := net.Pipe()
 	defer func() { _ = c1.Close() }()
 	c := newClient(c2, s.server, s.listener)
@@ -577,8 +577,8 @@ func (s *ServerTestSuite) TestReceivePacketOnPacketReceiveError() {
 
 	c := newClient(c2, s.server, s.listener)
 	s.addHook()
-	s.hook.On("OnPacketReceive", s.server, c)
-	s.hook.On("OnPacketReceiveError", s.server, c, mock.MatchedBy(func(err error) bool {
+	s.hook.On("OnPacketReceive", c)
+	s.hook.On("OnPacketReceiveError", c, mock.MatchedBy(func(err error) bool {
 		return errors.Is(err, packet.ErrMalformedProtocolVersion)
 	})).Return(assert.AnError)
 
@@ -640,8 +640,8 @@ func (s *ServerTestSuite) TestReceivePacketOnPacketReceivedWithError() {
 		ClientID:  []byte("ab"),
 	}
 	s.addHook()
-	s.hook.On("OnPacketReceive", s.server, c)
-	s.hook.On("OnPacketReceived", s.server, c, connect).Return(assert.AnError)
+	s.hook.On("OnPacketReceive", c)
+	s.hook.On("OnPacketReceived", c, connect).Return(assert.AnError)
 
 	var wg sync.WaitGroup
 	defer wg.Wait()

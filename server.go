@@ -334,7 +334,7 @@ func (s *Server) handleClient(c *Client) {
 }
 
 func (s *Server) receivePacket(c *Client) (p Packet, err error) {
-	if err = s.hooks.onPacketReceive(s, c); err != nil {
+	if err = s.hooks.onPacketReceive(c); err != nil {
 		return nil, err
 	}
 
@@ -355,11 +355,11 @@ func (s *Server) receivePacket(c *Client) (p Packet, err error) {
 			return nil, err
 		}
 
-		err = s.hooks.onPacketReceiveError(s, c, err)
+		err = s.hooks.onPacketReceiveError(c, err)
 		return nil, err
 	}
 
-	if err = s.hooks.onPacketReceived(s, c, p); err != nil {
+	if err = s.hooks.onPacketReceived(c, p); err != nil {
 		return nil, err
 	}
 

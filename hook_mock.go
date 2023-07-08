@@ -87,24 +87,24 @@ func (h *hookMock) OnConnectionClosed(s *Server, l Listener, err error) {
 	h.Called(s, l, err)
 }
 
-func (h *hookMock) OnPacketReceive(s *Server, c *Client) error {
-	args := h.Called(s, c)
+func (h *hookMock) OnPacketReceive(c *Client) error {
+	args := h.Called(c)
 	if len(args) > 0 {
 		return args.Error(0)
 	}
 	return nil
 }
 
-func (h *hookMock) OnPacketReceiveError(s *Server, c *Client, err error) error {
-	args := h.Called(s, c, err)
+func (h *hookMock) OnPacketReceiveError(c *Client, err error) error {
+	args := h.Called(c, err)
 	if len(args) > 0 {
 		return args.Error(0)
 	}
 	return nil
 }
 
-func (h *hookMock) OnPacketReceived(s *Server, c *Client, p Packet) error {
-	args := h.Called(s, c, p)
+func (h *hookMock) OnPacketReceived(c *Client, p Packet) error {
+	args := h.Called(c, p)
 	if len(args) > 0 {
 		return args.Error(0)
 	}
@@ -130,10 +130,10 @@ func (h *hookSpy) OnConnectionClose(_ *Server, _ Listener, _ error) {
 func (h *hookSpy) OnConnectionClosed(_ *Server, _ Listener, _ error) {
 }
 
-func (h *hookSpy) OnPacketReceive(_ *Server, _ *Client) error {
+func (h *hookSpy) OnPacketReceive(_ *Client) error {
 	return nil
 }
 
-func (h *hookSpy) OnPacketReceived(_ *Server, _ *Client, _ Packet) error {
+func (h *hookSpy) OnPacketReceived(_ *Client, _ Packet) error {
 	return nil
 }
