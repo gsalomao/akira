@@ -18,7 +18,6 @@ import (
 	"bufio"
 	"context"
 	"errors"
-	"io"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -327,7 +326,7 @@ func (s *Server) handleClient(c *Client) {
 
 		for {
 			select {
-			case <-c.packetToSend():
+			case <-c.outboundPacket():
 			case err = <-c.Done():
 				return
 			}
@@ -338,34 +337,11 @@ func (s *Server) handleClient(c *Client) {
 }
 
 func (s *Server) receivePacket(c *Client) (p Packet, err error) {
-	if err = s.hooks.onPacketReceive(c); err != nil {
-		return nil, err
-	}
-
 	buf := s.readBufPool.Get().(*bufio.Reader)
 	defer s.readBufPool.Put(buf)
 
 	buf.Reset(c.Connection.netConn)
 	c.refreshDeadline()
 
-	p, _, err = readPacket(buf)
-	if err != nil {
-		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || c.State() == ClientClosed {
-			return nil, io.EOF
-		}
-
-		var netErr net.Error
-		if errors.As(err, &netErr) && netErr.Timeout() {
-			return nil, err
-		}
-
-		err = s.hooks.onPacketReceiveError(c, err)
-		return nil, err
-	}
-
-	if err = s.hooks.onPacketReceived(c, p); err != nil {
-		return nil, err
-	}
-
-	return p, nil
+	return c.receivePacket(buf)
 }

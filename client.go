@@ -15,6 +15,7 @@
 package akira
 
 import (
+	"bufio"
 	"container/list"
 	"errors"
 	"io"
@@ -176,7 +177,34 @@ func (c *Client) Done() <-chan error {
 	return c.done
 }
 
-func (c *Client) packetToSend() <-chan Packet {
+func (c *Client) receivePacket(r *bufio.Reader) (Packet, error) {
+	if err := c.Server.hooks.onPacketReceive(c); err != nil {
+		return nil, err
+	}
+
+	p, _, err := readPacket(r)
+	if err != nil {
+		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || c.State() == ClientClosed {
+			return nil, err
+		}
+
+		var netErr net.Error
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			return nil, err
+		}
+
+		err = c.Server.hooks.onPacketReceiveError(c, err)
+		return nil, err
+	}
+
+	if err = c.Server.hooks.onPacketReceived(c, p); err != nil {
+		return nil, err
+	}
+
+	return p, err
+}
+
+func (c *Client) outboundPacket() <-chan Packet {
 	return c.Connection.outboundStream
 }
 
