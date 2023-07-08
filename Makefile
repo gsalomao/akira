@@ -28,7 +28,7 @@ BOLD        := \033[0;1m
 .PHONY: all
 all: help
 
-## Setup
+## Project
 .PHONY: init
 init: ## Initialize project
 	$(call print_task,"Installing Git hooks")
@@ -36,15 +36,18 @@ init: ## Initialize project
 	@chmod +x .git/hooks/*
 	$(call print_task_result,"Installing Git hooks","done")
 
+.PHONY: fmt
+fmt: ## Format source code
+	$(call print_task,"Formatting source code")
+	@go fmt ./...
+	$(call print_task_result,"Formatting source code","done")
+
 ## Build
 .PHONY: build
 build: ## Build application
 	$(call print_task,"Building application")
 	@mkdir -p ${BIN_DIR}
-	@for dir in `ls examples`; do \
-		echo "    Building example '$$dir'..."; \
-		go build -o ${BIN_DIR}/$$dir examples/$$dir/main.go; \
-	done
+	@go build -o ${BIN_DIR}/akirad cmd/akirad/main.go
 	$(call print_task_result,"Building application","done")
 
 .PHONE: update
@@ -63,14 +66,14 @@ clean: ## Clean build folder
 
 ## Run
 .PHONY: start
-start: ## Start basic example
-	$(call print_task,"Starting basic example")
-	@$(BIN_DIR)/basic
+start: build ## Start server
+	$(call print_task,"Starting server")
+	@$(BIN_DIR)/akirad
 
 .PHONY: start-profile
-start-profile: ## Start basic example with CPU/Memory profiler
-	$(call print_task,"Starting basic example in profiling mode")
-	@$(BIN_DIR)/basic --profile
+start-profile: build ## Start server with CPU/Memory profiler
+	$(call print_task,"Starting server in profiling mode")
+	@$(BIN_DIR)/akirad --profile
 
 ## Test
 .PHONY: unit
@@ -110,12 +113,6 @@ vet: ## Examine source code
 	$(call print_task,"Examining source code")
 	@go vet ./...
 	$(call print_task_result,"Examining source code","done")
-
-.PHONY: fmt
-fmt: ## Format source code
-	$(call print_task,"Formatting source code")
-	@go fmt ./...
-	$(call print_task_result,"Formatting source code","done")
 
 .PHONY: lint
 lint: ## Lint source code

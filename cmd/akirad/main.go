@@ -16,20 +16,25 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"sync"
+	"syscall"
 
 	"github.com/gsalomao/akira"
 	"github.com/gsalomao/akira/listener"
 )
 
 func main() {
+	var exitCode int
+	defer func() { os.Exit(exitCode) }()
+
 	server, err := akira.NewServer(akira.NewDefaultOptions())
 	if err != nil {
-		log.Fatal("Failed to create server")
+		log.Println("Failed to create server")
+		exitCode = 1
+		return
 	}
 	defer server.Close()
 
@@ -38,16 +43,20 @@ func main() {
 
 	err = server.AddListener(tcp)
 	if err != nil {
-		log.Fatal("Failed to add TCP listener into the server")
+		log.Println("Failed to add TCP listener into the server")
+		exitCode = 1
+		return
 	}
 
 	err = server.AddHook(&loggingHook{})
 	if err != nil {
-		log.Fatal("Failed to add logging hook into the server")
+		log.Println("Failed to add logging hook into the server")
+		exitCode = 1
+		return
 	}
 
 	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Interrupt)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -59,54 +68,55 @@ func main() {
 
 	err = server.Start(context.Background())
 	if err != nil {
-		log.Fatal("Failed to start server")
+		log.Println("Failed to start server")
+		exitCode = 1
+		return
 	}
 
 	wg.Wait()
 	_ = server.Stop(context.Background())
 }
 
-type loggingHook struct {
-}
+type loggingHook struct{}
 
 func (h *loggingHook) Name() string {
 	return "logging"
 }
 
 func (h *loggingHook) OnServerStart(_ *akira.Server) error {
-	fmt.Println("Server starting")
+	log.Println("Server starting")
 	return nil
 }
 
 func (h *loggingHook) OnServerStarted(_ *akira.Server) {
-	fmt.Println("Server started")
+	log.Println("Server started")
 }
 
 func (h *loggingHook) OnServerStartFailed(_ *akira.Server, err error) {
-	fmt.Println("Failed to start server: " + err.Error())
+	log.Println("Failed to start server: " + err.Error())
 }
 
 func (h *loggingHook) OnServerStop(_ *akira.Server) {
-	fmt.Println("Server stopping")
+	log.Println("Server stopping")
 }
 
 func (h *loggingHook) OnServerStopped(_ *akira.Server) {
-	fmt.Println("Server stopped")
+	log.Println("Server stopped")
 }
 
 func (h *loggingHook) OnConnectionOpen(_ *akira.Server, _ akira.Listener) error {
-	fmt.Println("Client open")
+	log.Println("Client open")
 	return nil
 }
 
 func (h *loggingHook) OnConnectionOpened(_ *akira.Server, _ akira.Listener) {
-	fmt.Println("Client opened")
+	log.Println("Client opened")
 }
 
 func (h *loggingHook) OnConnectionClose(_ *akira.Server, _ akira.Listener) {
-	fmt.Println("Client close")
+	log.Println("Client close")
 }
 
 func (h *loggingHook) OnConnectionClosed(_ *akira.Server, _ akira.Listener) {
-	fmt.Println("Client closed")
+	log.Println("Client closed")
 }
