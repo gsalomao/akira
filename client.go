@@ -44,7 +44,7 @@ type ClientState byte
 // Client represents a MQTT client.
 type Client struct {
 	// Connection represents the client's connection.
-	Connection Connection `json:"connection"`
+	Connection *Connection `json:"connection"`
 
 	// Server represents the current server.
 	Server *Server `json:"-"`
@@ -67,6 +67,9 @@ type Connection struct {
 	// KeepAlive is a time interval, measured in seconds, that is permitted to elapse between the point at which
 	// the client finishes transmitting one control packet and the point it starts sending the next.
 	KeepAlive uint16
+
+	// Version represents the MQTT version.
+	Version packet.Version `json:"version"`
 }
 
 // Session represents the MQTT session.
@@ -79,9 +82,6 @@ type Session struct {
 
 	// LastWill represents the MQTT Will Message to be published by the server.
 	LastWill *LastWill `json:"last_will,omitempty"`
-
-	// Version represents the MQTT version.
-	Version packet.Version `json:"version"`
 
 	// Connected indicates that the client associated with the session is connected.
 	Connected bool `json:"connected"`
@@ -133,7 +133,7 @@ type LastWill struct {
 
 func newClient(nc net.Conn, s *Server, l Listener) *Client {
 	c := Client{
-		Connection: Connection{
+		Connection: &Connection{
 			netConn:        nc,
 			outboundStream: make(chan Packet, s.config.OutboundStreamSize),
 			listener:       l,
