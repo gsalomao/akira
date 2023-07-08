@@ -16,6 +16,8 @@ package akira
 
 import (
 	"container/list"
+	"errors"
+	"io"
 	"math"
 	"net"
 	"sync"
@@ -28,6 +30,9 @@ import (
 const (
 	// ClientPending indicates that the network connection is open but the MQTT connection flow is pending.
 	ClientPending ClientState = iota
+
+	// ClientStopped indicates that the client is stopped and not able to receive any packet.
+	ClientStopped
 
 	// ClientClosed indicates that the client is closed and not able to receive or send any packet.
 	ClientClosed
@@ -47,8 +52,9 @@ type Client struct {
 	// Session represents the client's session.
 	Session *Session `json:"session"`
 
-	done      chan struct{}
+	stopOnce  sync.Once
 	closeOnce sync.Once
+	done      chan error
 	state     atomic.Uint32
 }
 
@@ -134,19 +140,27 @@ func newClient(nc net.Conn, s *Server, l Listener) *Client {
 			KeepAlive:      s.config.ConnectTimeout,
 		},
 		Server: s,
-		done:   make(chan struct{}),
+		done:   make(chan error, 1),
 	}
 	return &c
 }
 
-// Close closes the Client.
+// Stop stops the client.
+func (c *Client) Stop(err error) {
+	c.stopOnce.Do(func() {
+		c.done <- err
+		c.state.Store(uint32(ClientStopped))
+		close(c.done)
+	})
+}
+
+// Close closes the client's network connection.
 func (c *Client) Close(err error) {
 	c.closeOnce.Do(func() {
 		c.Server.hooks.onConnectionClose(c.Server, c.Connection.listener, err)
 
 		c.state.Store(uint32(ClientClosed))
 		_ = c.Connection.netConn.Close()
-		close(c.done)
 
 		c.Server.hooks.onConnectionClosed(c.Server, c.Connection.listener, err)
 	})
@@ -157,8 +171,8 @@ func (c *Client) State() ClientState {
 	return ClientState(c.state.Load())
 }
 
-// Done returns a channel which is closed when the Client is closed.
-func (c *Client) Done() <-chan struct{} {
+// Done returns a channel which is closed when the client is stopped.
+func (c *Client) Done() <-chan error {
 	return c.done
 }
 
@@ -194,7 +208,7 @@ func (c *clients) add(client *Client) {
 	c.pending.PushBack(client)
 }
 
-func (c *clients) closeAll() {
+func (c *clients) stopAll() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -205,7 +219,7 @@ func (c *clients) closeAll() {
 			break
 		}
 
-		elem.Value.(*Client).Close(nil)
+		elem.Value.(*Client).Stop(nil)
 		elem = elem.Next()
 	}
 }

@@ -60,12 +60,12 @@ func (s *ClientsTestSuite) TestAddSuccess() {
 	s.Assert().Equal(s.client, s.clients.pending.Front().Value.(*Client))
 }
 
-func (s *ClientsTestSuite) TestCloseAll() {
+func (s *ClientsTestSuite) TestStopAll() {
 	s.clients.add(s.client)
 
-	s.clients.closeAll()
+	s.clients.stopAll()
 	s.Require().Equal(1, s.clients.pending.Len())
-	s.Assert().Equal(ClientClosed, s.client.State())
+	s.Assert().Equal(ClientStopped, s.client.State())
 }
 
 func TestClientsTestSuite(t *testing.T) {

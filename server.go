@@ -232,7 +232,7 @@ func (s *Server) stop() {
 		_ = s.setState(ServerStopping)
 		s.listeners.stopAll()
 		s.stopDaemon()
-		s.clients.closeAll()
+		s.clients.stopAll()
 	})
 }
 
@@ -290,6 +290,7 @@ func (s *Server) handleConnection(l Listener, nc net.Conn) {
 	c := newClient(nc, s, l)
 
 	if err := s.hooks.onConnectionOpen(s, l); err != nil {
+		c.Stop(err)
 		c.Close(err)
 		return
 	}
@@ -306,12 +307,12 @@ func (s *Server) handleClient(c *Client) {
 	// Start the inbound goroutine.
 	go func() {
 		defer s.wg.Done()
-		defer c.Close(nil)
+		defer c.Stop(nil)
 
 		for {
 			_, err := s.receivePacket(c)
 			if err != nil {
-				c.Close(err)
+				c.Stop(err)
 				return
 			}
 		}
@@ -321,10 +322,13 @@ func (s *Server) handleClient(c *Client) {
 	go func() {
 		defer s.wg.Done()
 
+		var err error
+		defer func() { c.Close(err) }()
+
 		for {
 			select {
 			case <-c.packetToSend():
-			case <-c.Done():
+			case err = <-c.Done():
 				return
 			}
 		}
