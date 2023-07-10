@@ -231,7 +231,7 @@ func (s *Server) stop() {
 		_ = s.setState(ServerStopping)
 		s.listeners.stopAll()
 		s.stopDaemon()
-		s.clients.stopAll()
+		s.clients.closeAll()
 	})
 }
 
@@ -289,7 +289,6 @@ func (s *Server) handleConnection(l Listener, nc net.Conn) {
 	c := newClient(nc, s, l)
 
 	if err := s.hooks.onConnectionOpen(s, l); err != nil {
-		c.Stop(err)
 		c.Close(err)
 		return
 	}
@@ -303,21 +302,7 @@ func (s *Server) handleClient(c *Client) {
 	// The server runs 2 goroutines for each client.
 	s.wg.Add(2)
 
-	// Start the inbound goroutine.
-	go func() {
-		defer s.wg.Done()
-		defer c.Stop(nil)
-
-		for {
-			_, err := s.receivePacket(c)
-			if err != nil {
-				c.Stop(err)
-				return
-			}
-		}
-	}()
-
-	// Start the outbound goroutine.
+	// Start the inbound goroutine. The inbound goroutine handles each packet received from client.
 	go func() {
 		defer s.wg.Done()
 
@@ -325,9 +310,21 @@ func (s *Server) handleClient(c *Client) {
 		defer func() { c.Close(err) }()
 
 		for {
+			_, err = s.receivePacket(c)
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	// Start the outbound goroutine. The outbound goroutine sends each packet in the outbound stream to the client.
+	go func() {
+		defer s.wg.Done()
+
+		for {
 			select {
-			case <-c.outboundPacket():
-			case err = <-c.Done():
+			case <-c.Connection.outboundStream:
+			case <-c.Done():
 				return
 			}
 		}

@@ -22,21 +22,17 @@ import (
 	"math"
 	"net"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gsalomao/akira/packet"
 )
 
 const (
-	// ClientPending indicates that the network connection is open but the MQTT connection flow is pending.
-	ClientPending ClientState = iota
+	// ClientStatePending indicates that the network connection is open but the MQTT connection flow is pending.
+	ClientStatePending ClientState = iota
 
-	// ClientStopped indicates that the client is stopped and not able to receive any packet.
-	ClientStopped
-
-	// ClientClosed indicates that the client is closed and not able to receive or send any packet.
-	ClientClosed
+	// ClientStateClosed indicates that the client is closed and not able to receive or send any packet.
+	ClientStateClosed
 )
 
 // ClientState represents the client state.
@@ -44,6 +40,8 @@ type ClientState byte
 
 // Client represents a MQTT client.
 type Client struct {
+	sync.RWMutex
+
 	// Connection represents the client's connection.
 	Connection *Connection `json:"connection"`
 
@@ -51,12 +49,10 @@ type Client struct {
 	Server *Server `json:"-"`
 
 	// Session represents the client's session.
-	Session *Session `json:"session"`
-
-	stopOnce  sync.Once
+	Session   *Session `json:"session"`
+	done      chan struct{}
 	closeOnce sync.Once
-	done      chan error
-	state     atomic.Uint32
+	state     ClientState
 }
 
 // Connection represents the network connection with the client.
@@ -141,27 +137,22 @@ func newClient(nc net.Conn, s *Server, l Listener) *Client {
 			KeepAlive:      s.config.ConnectTimeout,
 		},
 		Server: s,
-		done:   make(chan error, 1),
+		done:   make(chan struct{}),
 	}
 	return &c
 }
 
-// Stop stops the client.
-func (c *Client) Stop(err error) {
-	c.stopOnce.Do(func() {
-		c.done <- err
-		c.state.Store(uint32(ClientStopped))
-		close(c.done)
-	})
-}
-
-// Close closes the client's network connection.
+// Close closes the client. When the client is closed, it's not able to receive or send any other packet.
 func (c *Client) Close(err error) {
 	c.closeOnce.Do(func() {
 		c.Server.hooks.onConnectionClose(c.Server, c.Connection.listener, err)
 
-		c.state.Store(uint32(ClientClosed))
+		c.Lock()
+		defer c.Unlock()
+
+		c.state = ClientStateClosed
 		_ = c.Connection.netConn.Close()
+		close(c.done)
 
 		c.Server.hooks.onConnectionClosed(c.Server, c.Connection.listener, err)
 	})
@@ -169,11 +160,14 @@ func (c *Client) Close(err error) {
 
 // State returns the current client state.
 func (c *Client) State() ClientState {
-	return ClientState(c.state.Load())
+	c.RLock()
+	defer c.RUnlock()
+
+	return c.state
 }
 
-// Done returns a channel which is closed when the client is stopped.
-func (c *Client) Done() <-chan error {
+// Done returns a channel which is closed when the client is closed.
+func (c *Client) Done() <-chan struct{} {
 	return c.done
 }
 
@@ -184,7 +178,7 @@ func (c *Client) receivePacket(r *bufio.Reader) (Packet, error) {
 
 	p, _, err := readPacket(r)
 	if err != nil {
-		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || c.State() == ClientClosed {
+		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || c.State() == ClientStateClosed {
 			return nil, err
 		}
 
@@ -202,10 +196,6 @@ func (c *Client) receivePacket(r *bufio.Reader) (Packet, error) {
 	}
 
 	return p, err
-}
-
-func (c *Client) outboundPacket() <-chan Packet {
-	return c.Connection.outboundStream
 }
 
 func (c *Client) refreshDeadline() {

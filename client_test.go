@@ -40,7 +40,7 @@ func (s *ClientsTestSuite) SetupTest() {
 	s.conn1, s.conn2 = net.Pipe()
 
 	s.client = newClient(s.conn2, s.server, nil)
-	s.Require().Equal(ClientPending, s.client.State())
+	s.Require().Equal(ClientStatePending, s.client.State())
 }
 
 func (s *ClientsTestSuite) TearDownTest() {
@@ -65,7 +65,7 @@ func (s *ClientsTestSuite) TestStopAll() {
 
 	s.clients.stopAll()
 	s.Require().Equal(1, s.clients.pending.Len())
-	s.Assert().Equal(ClientStopped, s.client.State())
+	s.Assert().Equal(ClientStateClosed, s.client.State())
 }
 
 func TestClientsTestSuite(t *testing.T) {
