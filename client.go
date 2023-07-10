@@ -226,7 +226,25 @@ func (c *clients) add(client *Client) {
 	c.pending.PushBack(client)
 }
 
-func (c *clients) stopAll() {
+func (c *clients) remove(client *Client) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	elem := c.pending.Front()
+
+	for {
+		if elem == nil || elem.Value == client {
+			break
+		}
+		elem = elem.Next()
+	}
+
+	if elem != nil {
+		c.pending.Remove(elem)
+	}
+}
+
+func (c *clients) closeAll() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -237,7 +255,10 @@ func (c *clients) stopAll() {
 			break
 		}
 
-		elem.Value.(*Client).Stop(nil)
-		elem = elem.Next()
+		elem.Value.(*Client).Close(nil)
+		next := elem.Next()
+
+		c.pending.Remove(elem)
+		elem = next
 	}
 }

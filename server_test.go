@@ -332,6 +332,7 @@ func (s *ServerTestSuite) TestStopClosesClients() {
 	s.Require().NoError(err)
 	s.Assert().Equal(ServerStopped, s.server.State())
 	s.Assert().False(s.listener.Listening())
+	s.Assert().Zero(s.server.clients.pending.Len())
 }
 
 func (s *ServerTestSuite) TestStopCancelled() {
@@ -400,9 +401,12 @@ func (s *ServerTestSuite) TestHandleConnection() {
 	c1, c2 := net.Pipe()
 
 	s.listener.handle(c2)
+	s.Require().Equal(1, s.server.clients.pending.Len())
+
 	_ = c1.Close()
 	s.stopServer()
 	s.Require().Equal(ServerStopped, s.server.State())
+	s.Assert().Zero(s.server.clients.pending.Len())
 }
 
 func (s *ServerTestSuite) TestHandleConnectionWithHook() {
@@ -461,6 +465,7 @@ func (s *ServerTestSuite) TestHandleConnectionReadTimeout() {
 	s.listener.handle(c2)
 	<-connOpened
 	<-connClosed
+	s.Assert().Zero(s.server.clients.pending.Len())
 }
 
 func (s *ServerTestSuite) TestOnConnectionOpenedError() {

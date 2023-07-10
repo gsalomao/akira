@@ -297,8 +297,6 @@ func (s *Server) handleConnection(l Listener, nc net.Conn) {
 }
 
 func (s *Server) handleClient(c *Client) {
-	s.clients.add(c)
-
 	// The server runs 2 goroutines for each client.
 	s.wg.Add(2)
 
@@ -317,9 +315,16 @@ func (s *Server) handleClient(c *Client) {
 		}
 	}()
 
+	// Add client to the list of clients.
+	s.clients.add(c)
+
 	// Start the outbound goroutine. The outbound goroutine sends each packet in the outbound stream to the client.
 	go func() {
 		defer s.wg.Done()
+
+		// When the outbound goroutine finishes, the client is removed from the list of clients as it isn't able to
+		// send packets to the client anymore.
+		defer s.clients.remove(c)
 
 		for {
 			select {

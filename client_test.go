@@ -60,12 +60,29 @@ func (s *ClientsTestSuite) TestAddSuccess() {
 	s.Assert().Equal(s.client, s.clients.pending.Front().Value.(*Client))
 }
 
-func (s *ClientsTestSuite) TestStopAll() {
+func (s *ClientsTestSuite) TestRemove() {
 	s.clients.add(s.client)
 
-	s.clients.stopAll()
-	s.Require().Equal(1, s.clients.pending.Len())
-	s.Assert().Equal(ClientStateClosed, s.client.State())
+	s.clients.remove(s.client)
+	s.Require().Equal(0, s.clients.pending.Len())
+}
+
+func (s *ClientsTestSuite) TestCloseAll() {
+	cls := []*Client{
+		newClient(s.conn2, s.server, nil),
+		newClient(s.conn2, s.server, nil),
+		newClient(s.conn2, s.server, nil),
+	}
+	for i := range cls {
+		s.clients.add(cls[i])
+	}
+
+	s.clients.closeAll()
+	s.Require().Equal(0, s.clients.pending.Len())
+
+	for i := range cls {
+		s.Assert().Equal(ClientStateClosed, cls[i].State())
+	}
 }
 
 func TestClientsTestSuite(t *testing.T) {
