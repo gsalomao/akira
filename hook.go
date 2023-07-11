@@ -55,12 +55,14 @@ type Hook interface {
 // HookOnStart is the hook interface that wraps the OnStart method. The OnStart method is called by the server to
 // start the hook. If this method returns any error, the server considers that the hook failed to start.
 type HookOnStart interface {
+	Hook
 	OnStart(s *Server) error
 }
 
 // HookOnStop is the hook interface that wraps the OnStop method. The OnStop method is called by the server to stop
 // the hook.
 type HookOnStop interface {
+	Hook
 	OnStop(s *Server)
 }
 
@@ -68,30 +70,35 @@ type HookOnStop interface {
 // the server when it is starting. When this method is called, the server is in ServerStarting state. If this method
 // returns any error, the start process fails.
 type HookOnServerStart interface {
+	Hook
 	OnServerStart(s *Server) error
 }
 
 // HookOnServerStartFailed is the hook interface that wraps the OnServerStartFailed method. The OnServerStartFailed
 // method is called by the server when it has failed to start.
 type HookOnServerStartFailed interface {
+	Hook
 	OnServerStartFailed(s *Server, err error)
 }
 
 // HookOnServerStarted is the hook interface that wraps the OnServerStarted method. The OnServerStarted method is
 // called by the server when it has started with success.
 type HookOnServerStarted interface {
+	Hook
 	OnServerStarted(s *Server)
 }
 
 // HookOnServerStop is the hook interface that wraps the OnServerStop method. The OnServerStop method is called by the
 // server when it is stopping.
 type HookOnServerStop interface {
+	Hook
 	OnServerStop(s *Server)
 }
 
 // HookOnServerStopped is the hook interface that wraps the OnServerStopped method. The OnServerStopped method is
 // called by the server when it has stopped.
 type HookOnServerStopped interface {
+	Hook
 	OnServerStopped(s *Server)
 }
 
@@ -99,6 +106,7 @@ type HookOnServerStopped interface {
 // called by the server when a new connection is being opened. If this method returns any error, the connection is
 // closed.
 type HookOnConnectionOpen interface {
+	Hook
 	OnConnectionOpen(s *Server, l Listener) error
 }
 
@@ -106,6 +114,7 @@ type HookOnConnectionOpen interface {
 // method is called by the server when a new connection has opened. This method is called after the OnConnectionOpen
 // method.
 type HookOnConnectionOpened interface {
+	Hook
 	OnConnectionOpened(s *Server, l Listener)
 }
 
@@ -113,6 +122,7 @@ type HookOnConnectionOpened interface {
 // called by the server when the connection is being closed. If the connection is being closed due to any error, the
 // error is passed as parameter.
 type HookOnClientClose interface {
+	Hook
 	OnConnectionClose(s *Server, l Listener, err error)
 }
 
@@ -120,6 +130,7 @@ type HookOnClientClose interface {
 // method is called by the server when the connection has closed. This method is called after the OnConnectionClose
 // method. If the connection was closed due to any error, the error is passed as parameter.
 type HookOnConnectionClosed interface {
+	Hook
 	OnConnectionClosed(s *Server, l Listener, err error)
 }
 
@@ -127,6 +138,7 @@ type HookOnConnectionClosed interface {
 // called by the server before try to receive any packet. If this method returns an error, the server doesn't try
 // to receive a new packet and the client is closed.
 type HookOnPacketReceive interface {
+	Hook
 	OnPacketReceive(c *Client) error
 }
 
@@ -134,6 +146,7 @@ type HookOnPacketReceive interface {
 // method is called by the server, with the error as parameter, when it fails to receive a new packet. If this method
 // returns an error, the server closes the client. Otherwise, it tries to receive a new packet again.
 type HookOnPacketReceiveError interface {
+	Hook
 	OnPacketReceiveError(c *Client, err error) error
 }
 
@@ -141,6 +154,7 @@ type HookOnPacketReceiveError interface {
 // called by the server when a new packet is received. If this method returns an error, the server discards the
 // received packet.
 type HookOnPacketReceived interface {
+	Hook
 	OnPacketReceived(c *Client, p Packet) error
 }
 
