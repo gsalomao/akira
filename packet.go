@@ -31,21 +31,21 @@ type Packet interface {
 	Size() int
 }
 
-// PacketDecoder is the interface for all MQTT packets which implement the Decode method.
-type PacketDecoder interface {
+// PacketDecodable is the interface for all MQTT packets which can decode itself by implementing the Decode method.
+type PacketDecodable interface {
 	Packet
 
-	// Decode decodes the Packet from buf and header. This method returns the number of bytes read
-	// from buf and the error, if it fails to decode the packet correctly.
+	// Decode decodes itself from buf and header. This method returns the number of bytes read from buf and the error,
+	// if it fails to decode the packet correctly.
 	Decode(buf []byte, header packet.FixedHeader) (n int, err error)
 }
 
-// PacketEncoder is the interface for all MQTT packets which implement the Encode method.
-type PacketEncoder interface {
+// PacketEncodable is the interface for all MQTT packets which can encode itself by implementing the Encode method.
+type PacketEncodable interface {
 	Packet
 
-	// Encode encodes the Packet into buf and returns the number of bytes encoded. The buffer must have the length
-	// greater than or equals to the packet size, otherwise this method returns an error.
+	// Encode encodes itself into buf and returns the number of bytes encoded. The buffer must have the length greater
+	// than or equals to the packet size, otherwise this method returns an error.
 	Encode(buf []byte) (n int, err error)
 }
 
@@ -58,8 +58,7 @@ func readPacket(r *bufio.Reader) (Packet, int, error) {
 		return nil, hSize, fmt.Errorf("failed to read packet: %w", err)
 	}
 
-	var p PacketDecoder
-	var pSize int
+	var p PacketDecodable
 
 	switch header.PacketType {
 	case packet.TypeConnect:
@@ -75,6 +74,8 @@ func readPacket(r *bufio.Reader) (Packet, int, error) {
 	if _, err = io.ReadFull(r, data); err != nil {
 		return nil, hSize, fmt.Errorf("failed to read remaining bytes: %w", err)
 	}
+
+	var pSize int
 
 	pSize, err = p.Decode(data, header)
 	n := hSize + pSize
