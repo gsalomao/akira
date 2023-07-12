@@ -70,8 +70,8 @@ start: build ## Start server
 	$(call print_task,"Starting server")
 	@$(BIN_DIR)/akirad
 
-.PHONY: start-profile
-start-profile: build ## Start server with CPU/Memory profiler
+.PHONY: start/profile
+start/profile: build ## Start server with CPU/Memory profiler
 	$(call print_task,"Starting server in profiling mode")
 	@$(BIN_DIR)/akirad --profile
 
@@ -82,8 +82,8 @@ unit: ## Run unit tests
 	@gotestsum --format testname --packages ./... -- -timeout 10s -race
 	$(call print_task_result,"Running unit tests","done")
 
-.PHONY: unit-dev
-unit-dev: ## Run unit tests in development mode
+.PHONY: unit/dev
+unit/dev: ## Run unit tests in development mode
 	$(call print_task,"Running unit tests in development mode")
 	@gotestsum --format testname --packages ./... --watch -- -timeout 5s -race
 
@@ -99,8 +99,8 @@ coverage: ## Run unit tests with coverage report
 	@go tool cover -func $(COVERAGE_DIR)/coverage.out
 	$(call print_task_result,"Generating coverage report","done")
 
-.PHONY: coverage-html
-coverage-html: coverage ## Open the coverage report in the browser
+.PHONY: coverage/html
+coverage/html: coverage ## Open the coverage report in the browser
 	$(call print_task,"Opening coverage report")
 	@go tool cover -html $(COVERAGE_DIR)/coverage.out
 
@@ -136,7 +136,7 @@ help: ## Show this help
 	@echo ''
 	@echo 'Targets:'
 	@awk 'BEGIN {FS = ":.*?## "} { \
-		if (/^[a-zA-Z0-9_-]+:.*?##.*$$/) { \
+		if (/^[a-zA-Z0-9\/_-]+:.*?##.*$$/) { \
 			printf "    ${YELLOW}%-20s${GREEN}%s${RESET}\n", $$1, $$2} \
 			else if (/^## .*$$/) { \
 				printf "  ${CYAN}%s:${RESET}\n", substr($$1,4)\
