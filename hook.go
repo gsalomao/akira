@@ -118,10 +118,10 @@ type HookOnConnectionOpened interface {
 	OnConnectionOpened(s *Server, l Listener)
 }
 
-// HookOnClientClose is the hook interface that wraps the OnConnectionClose method. The OnConnectionClose method is
+// HookOnConnectionClose is the hook interface that wraps the OnConnectionClose method. The OnConnectionClose method is
 // called by the server when the connection is being closed. If the connection is being closed due to any error, the
 // error is passed as parameter.
-type HookOnClientClose interface {
+type HookOnConnectionClose interface {
 	Hook
 	OnConnectionClose(s *Server, l Listener, err error)
 }
@@ -168,7 +168,7 @@ var hooksRegistries = map[hookType]func(*hooks, Hook, hookType){
 	hookOnServerStopped:      registerHook[HookOnServerStopped],
 	hookOnConnectionOpen:     registerHook[HookOnConnectionOpen],
 	hookOnConnectionOpened:   registerHook[HookOnConnectionOpened],
-	hookOnConnectionClose:    registerHook[HookOnClientClose],
+	hookOnConnectionClose:    registerHook[HookOnConnectionClose],
 	hookOnConnectionClosed:   registerHook[HookOnConnectionClosed],
 	hookOnPacketReceive:      registerHook[HookOnPacketReceive],
 	hookOnPacketReceiveError: registerHook[HookOnPacketReceiveError],
@@ -352,7 +352,7 @@ func (h *hooks) onConnectionClose(s *Server, l Listener, err error) {
 	defer h.mu.RUnlock()
 
 	for _, hook := range h.hooks[hookOnConnectionClose] {
-		hk := hook.(HookOnClientClose)
+		hk := hook.(HookOnConnectionClose)
 		hk.OnConnectionClose(s, l, err)
 	}
 }
