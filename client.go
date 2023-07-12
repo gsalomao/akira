@@ -50,7 +50,7 @@ type Client struct {
 
 	// Session represents the client's session.
 	Session   *Session `json:"session"`
-	done      chan struct{}
+	doneCh    chan struct{}
 	closeOnce sync.Once
 	state     ClientState
 }
@@ -137,7 +137,7 @@ func newClient(nc net.Conn, s *Server, l Listener) *Client {
 			KeepAlive:      s.config.ConnectTimeout,
 		},
 		Server: s,
-		done:   make(chan struct{}),
+		doneCh: make(chan struct{}),
 	}
 	return &c
 }
@@ -152,7 +152,7 @@ func (c *Client) Close(err error) {
 
 		c.state = ClientStateClosed
 		_ = c.Connection.netConn.Close()
-		close(c.done)
+		close(c.doneCh)
 
 		c.Server.hooks.onConnectionClosed(c.Server, c.Connection.listener, err)
 	})
@@ -168,7 +168,7 @@ func (c *Client) State() ClientState {
 
 // Done returns a channel which is closed when the client is closed.
 func (c *Client) Done() <-chan struct{} {
-	return c.done
+	return c.doneCh
 }
 
 func (c *Client) receivePacket(r *bufio.Reader) (Packet, error) {

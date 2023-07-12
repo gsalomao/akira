@@ -56,9 +56,9 @@ func (s *ServerTestSuite) addListener() (akira.Listener, <-chan akira.OnConnecti
 	listener.EXPECT().Listen(mock.Anything).RunAndReturn(func(cb akira.OnConnectionFunc) (<-chan bool, error) {
 		onConnectionStream <- cb
 		close(onConnectionStream)
-		done := make(chan bool)
-		close(done)
-		return done, nil
+		doneCh := make(chan bool)
+		close(doneCh)
+		return doneCh, nil
 	})
 	listener.EXPECT().Stop()
 	err := s.server.AddListener(listener)
@@ -219,9 +219,9 @@ func (s *ServerTestSuite) TestAddListenerWhenServerRunning() {
 	listener := mocks.NewMockListener(s.T())
 	listener.EXPECT().Name().Return("mock")
 	listener.EXPECT().Listen(mock.Anything).RunAndReturn(func(_ akira.OnConnectionFunc) (<-chan bool, error) {
-		done := make(chan bool)
-		close(done)
-		return done, nil
+		doneCh := make(chan bool)
+		close(doneCh)
+		return doneCh, nil
 	})
 	listener.EXPECT().Stop()
 
@@ -309,9 +309,9 @@ func (s *ServerTestSuite) TestStop() {
 	listener := mocks.NewMockListener(s.T())
 	listener.EXPECT().Name().Return("mock")
 	listener.EXPECT().Listen(mock.Anything).RunAndReturn(func(_ akira.OnConnectionFunc) (<-chan bool, error) {
-		done := make(chan bool)
-		close(done)
-		return done, nil
+		doneCh := make(chan bool)
+		close(doneCh)
+		return doneCh, nil
 	})
 	listener.EXPECT().Stop()
 	_ = s.server.AddListener(listener)
@@ -352,10 +352,10 @@ func (s *ServerTestSuite) TestStopClosesAllClients() {
 	listener.EXPECT().Name().Return("mock")
 	listener.EXPECT().Listen(mock.Anything).RunAndReturn(func(cb akira.OnConnectionFunc) (<-chan bool, error) {
 		onConnection = cb
-		done := make(chan bool)
-		close(done)
+		doneCh := make(chan bool)
+		close(doneCh)
 		close(listeningCh)
-		return done, nil
+		return doneCh, nil
 	})
 	listener.EXPECT().Stop()
 	_ = s.server.AddListener(listener)

@@ -94,13 +94,13 @@ func (s *TCPListenerTestSuite) TestListenOnConnection() {
 	defer func() { _ = l.Close() }()
 
 	var nc net.Conn
-	done := make(chan struct{})
+	doneCh := make(chan struct{})
 
 	listening, _ := l.Listen(func(lsn akira.Listener, c net.Conn) {
 		s.Require().Equal(l, lsn)
 		s.Require().NotNil(c)
 		nc = c
-		close(done)
+		close(doneCh)
 	})
 	<-listening
 
@@ -109,7 +109,7 @@ func (s *TCPListenerTestSuite) TestListenOnConnection() {
 	s.Require().NoError(err)
 	defer func() { _ = c.Close() }()
 
-	<-done
+	<-doneCh
 	s.Require().NotNil(nc)
 }
 

@@ -187,16 +187,16 @@ func (s *Server) Stop(ctx context.Context) error {
 
 	s.stop()
 
-	stopped := make(chan struct{})
+	stoppedCh := make(chan struct{})
 	go func() {
 		s.wg.Wait()
-		close(stopped)
+		close(stoppedCh)
 	}()
 
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-stopped:
+	case <-stoppedCh:
 		_ = s.setState(ServerStopped)
 		return nil
 	}
@@ -270,16 +270,16 @@ func (s *Server) setState(state ServerState) error {
 }
 
 func (s *Server) startDaemon(ctx context.Context) {
-	ready := make(chan struct{})
+	readyCh := make(chan struct{})
 
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		close(ready)
+		close(readyCh)
 		<-ctx.Done()
 	}()
 
-	<-ready
+	<-readyCh
 }
 
 func (s *Server) stopDaemon() {
