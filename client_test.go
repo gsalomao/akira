@@ -67,6 +67,22 @@ func (s *ClientsTestSuite) TestRemove() {
 	s.Require().Equal(0, s.clients.pending.Len())
 }
 
+func (s *ClientsTestSuite) TestRemoveMultipleClients() {
+	cls := []*Client{
+		newClient(s.conn2, s.server, nil),
+		newClient(s.conn2, s.server, nil),
+		newClient(s.conn2, s.server, nil),
+	}
+	for i := range cls {
+		s.clients.add(cls[i])
+	}
+
+	for i := range cls {
+		s.clients.remove(cls[len(cls)-i-1])
+	}
+	s.Require().Equal(0, s.clients.pending.Len())
+}
+
 func (s *ClientsTestSuite) TestCloseAll() {
 	cls := []*Client{
 		newClient(s.conn2, s.server, nil),
