@@ -393,7 +393,7 @@ func (h *hooks) onPacketReceive(c *Client) error {
 
 func (h *hooks) onPacketReceiveError(c *Client, err error) error {
 	if !h.hasHook(hookOnPacketReceiveError) {
-		return nil
+		return err
 	}
 
 	h.mu.RLock()

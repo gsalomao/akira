@@ -48,47 +48,31 @@ type Listener interface {
 }
 
 type listeners struct {
-	sync.RWMutex
+	mutex    sync.RWMutex
 	internal map[string]Listener
 	wg       sync.WaitGroup
 }
 
 func newListeners() *listeners {
-	l := listeners{
-		internal: map[string]Listener{},
-	}
+	l := listeners{internal: map[string]Listener{}}
 	return &l
 }
 
-func (l *listeners) add(lsn Listener) {
-	l.Lock()
-	defer l.Unlock()
+func (l *listeners) add(lsn Listener) error {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
+	if _, ok := l.internal[lsn.Name()]; ok {
+		return ErrListenerAlreadyExists
+	}
+
 	l.internal[lsn.Name()] = lsn
-}
-
-func (l *listeners) get(name string) (lsn Listener, ok bool) {
-	l.RLock()
-	defer l.RUnlock()
-	lsn, ok = l.internal[name]
-	return lsn, ok
-}
-
-func (l *listeners) delete(name string) {
-	l.Lock()
-	defer l.Unlock()
-	delete(l.internal, name)
-}
-
-func (l *listeners) len() int {
-	l.RLock()
-	defer l.RUnlock()
-
-	return len(l.internal)
+	return nil
 }
 
 func (l *listeners) listen(lsn Listener, f OnConnectionFunc) error {
-	l.RLock()
-	defer l.RUnlock()
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
 
 	listening, err := lsn.Listen(f)
 	if err != nil {
@@ -109,8 +93,8 @@ func (l *listeners) listen(lsn Listener, f OnConnectionFunc) error {
 }
 
 func (l *listeners) listenAll(f OnConnectionFunc) error {
-	l.RLock()
-	defer l.RUnlock()
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
 
 	for _, lsn := range l.internal {
 		err := l.listen(lsn, f)
@@ -123,14 +107,12 @@ func (l *listeners) listenAll(f OnConnectionFunc) error {
 }
 
 func (l *listeners) stopAll() {
-	l.RLock()
-	defer l.RUnlock()
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
 
 	for _, lsn := range l.internal {
 		lsn.Stop()
 	}
-}
 
-func (l *listeners) wait() {
 	l.wg.Wait()
 }

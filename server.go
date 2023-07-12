@@ -110,12 +110,6 @@ func NewServer(opts *Options) (s *Server, err error) {
 // method.
 // If there's a Listener with the same name already managed by the Server, the ErrListenerAlreadyExists is returned.
 func (s *Server) AddListener(l Listener) error {
-	if _, ok := s.listeners.get(l.Name()); ok {
-		return ErrListenerAlreadyExists
-	}
-
-	s.listeners.add(l)
-
 	if s.State() == ServerRunning {
 		err := s.listeners.listen(l, s.handleConnection)
 		if err != nil {
@@ -123,7 +117,14 @@ func (s *Server) AddListener(l Listener) error {
 		}
 	}
 
-	return nil
+	err := s.listeners.add(l)
+	if err != nil {
+		if s.State() == ServerRunning {
+			l.Stop()
+		}
+	}
+
+	return err
 }
 
 // AddHook adds the provided Hook into the list of hooks managed by the Server.

@@ -12,17 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package akira
+package akira_test
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net"
 	"os"
-	"sync"
 	"testing"
 
+	"github.com/gsalomao/akira"
+	"github.com/gsalomao/akira/internal/mocks"
 	"github.com/gsalomao/akira/packet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -31,462 +31,518 @@ import (
 
 type ServerTestSuite struct {
 	suite.Suite
-	server   *Server
-	listener *listenerMock
-	hook     *hookMock
+	server *akira.Server
 }
 
 func (s *ServerTestSuite) SetupTest() {
 	var err error
 
-	s.server, err = NewServer(NewDefaultOptions())
-	s.Require().NoError(err)
+	options := akira.NewDefaultOptions()
+	options.Config.ConnectTimeout = 1
 
-	s.listener = newListenerMock("mock", ":1883")
-	s.hook = nil
-	_ = s.server.AddListener(s.listener)
+	s.server, err = akira.NewServer(options)
+	s.Require().NoError(err)
 }
 
 func (s *ServerTestSuite) TearDownTest() {
 	s.server.Close()
-	if s.hook != nil {
-		s.hook.AssertExpectations(s.T())
-	}
 }
 
-func (s *ServerTestSuite) addHook() {
-	s.hook = newHookMock()
+func (s *ServerTestSuite) addListener() (akira.Listener, <-chan akira.OnConnectionFunc) {
+	onConnectionStream := make(chan akira.OnConnectionFunc, 1)
 
-	err := s.server.AddHook(s.hook)
+	listener := mocks.NewMockListener(s.T())
+	listener.EXPECT().Name().Return("mock")
+	listener.EXPECT().Listen(mock.Anything).RunAndReturn(func(cb akira.OnConnectionFunc) (<-chan bool, error) {
+		onConnectionStream <- cb
+		close(onConnectionStream)
+		done := make(chan bool)
+		close(done)
+		return done, nil
+	})
+	listener.EXPECT().Stop()
+	err := s.server.AddListener(listener)
 	s.Require().NoError(err)
 
-	err = s.server.AddHook(&hookSpy{})
-	s.Require().NoError(err)
-}
-
-func (s *ServerTestSuite) startServer() {
-	if s.hook != nil {
-		s.hook.On("OnServerStart", s.server)
-		s.hook.On("OnStart", s.server)
-		s.hook.On("OnServerStarted", s.server)
-	}
-
-	err := s.server.Start(context.Background())
-	s.Require().NoError(err)
-}
-
-func (s *ServerTestSuite) stopServer() {
-	if s.hook != nil {
-		s.hook.On("OnServerStop", s.server)
-		s.hook.On("OnStop", s.server)
-		s.hook.On("OnServerStopped", s.server)
-	}
-
-	err := s.server.Stop(context.Background())
-	s.Require().NoError(err)
+	return listener, onConnectionStream
 }
 
 func (s *ServerTestSuite) TestNewServer() {
-	srv, err := NewServer(nil)
-
+	srv, err := akira.NewServer(nil)
 	s.Require().NoError(err)
-	s.Assert().Equal(ServerNotStarted, srv.State())
+	s.Assert().Equal(akira.ServerNotStarted, srv.State())
 }
 
-func (s *ServerTestSuite) TestNewServerDefaultConfig() {
-	srv, err := NewServer(&Options{})
-
+func (s *ServerTestSuite) TestNewServerWithDefaultConfig() {
+	srv, err := akira.NewServer(&akira.Options{})
 	s.Require().NoError(err)
-	s.Assert().Equal(NewDefaultConfig(), &srv.config)
+	s.Assert().Equal(akira.ServerNotStarted, srv.State())
 }
 
 func (s *ServerTestSuite) TestNewServerWithListeners() {
-	l := []Listener{newListenerMock("mock", ":1883")}
-	srv, err := NewServer(&Options{Listeners: l})
+	listener := mocks.NewMockListener(s.T())
+	listener.EXPECT().Name().Return("mock")
 
+	srv, err := akira.NewServer(&akira.Options{Listeners: []akira.Listener{listener}})
 	s.Require().NoError(err)
-	_, ok := srv.listeners.get(l[0].Name())
-	s.Require().True(ok)
+	s.Assert().Equal(akira.ServerNotStarted, srv.State())
 }
 
-func (s *ServerTestSuite) TestNewServerWithListenersError() {
-	_, err := NewServer(&Options{
-		Listeners: []Listener{
-			newListenerMock("mock", ":1883"),
-			newListenerMock("mock", ":1884"),
-		},
-	})
+func (s *ServerTestSuite) TestNewServerWithDuplicatedListenersReturnsError() {
+	listener := mocks.NewMockListener(s.T())
+	listener.EXPECT().Name().Return("mock")
 
+	srv, err := akira.NewServer(&akira.Options{Listeners: []akira.Listener{listener, listener}})
 	s.Require().Error(err)
+	s.Require().Nil(srv)
 }
 
 func (s *ServerTestSuite) TestNewServerWithHooks() {
-	h := []Hook{newHookMock()}
-	srv, err := NewServer(&Options{Hooks: h})
+	hook := mocks.NewMockHookOnServerStart(s.T())
+	hook.EXPECT().Name().Return("mock")
 
+	srv, err := akira.NewServer(&akira.Options{Hooks: []akira.Hook{hook}})
 	s.Require().NoError(err)
-	_, ok := srv.hooks.hookNames[hookOnStart][h[0].Name()]
-	s.Require().True(ok)
+	s.Assert().Equal(akira.ServerNotStarted, srv.State())
 }
 
-func (s *ServerTestSuite) TestNewServerWithHooksError() {
-	_, err := NewServer(&Options{
-		Hooks: []Hook{
-			newHookMock(),
-			newHookMock(),
-		},
+func (s *ServerTestSuite) TestNewServerWithDuplicatedHooksReturnsError() {
+	hook := mocks.NewMockHookOnServerStart(s.T())
+	hook.EXPECT().Name().Return("mock")
+
+	srv, err := akira.NewServer(&akira.Options{Hooks: []akira.Hook{hook, hook}})
+	s.Require().Error(err)
+	s.Require().Nil(srv)
+}
+
+func (s *ServerTestSuite) TestAddHook() {
+	hook := mocks.NewMockHook(s.T())
+	hook.EXPECT().Name().Return("hook")
+
+	err := s.server.AddHook(hook)
+	s.Require().NoError(err)
+}
+
+func (s *ServerTestSuite) TestStart() {
+	err := s.server.Start(context.Background())
+	s.Require().NoError(err)
+	s.Assert().Equal(akira.ServerRunning, s.server.State())
+}
+
+func (s *ServerTestSuite) TestStartWithHooks() {
+	onServerStart := mocks.NewMockHookOnServerStart(s.T())
+	onServerStart.EXPECT().Name().Return("onServerStart")
+	onServerStart.EXPECT().OnServerStart(s.server).Return(nil)
+	_ = s.server.AddHook(onServerStart)
+
+	onStart := mocks.NewMockHookOnStart(s.T())
+	onStart.EXPECT().Name().Return("onStart")
+	onStart.EXPECT().OnStart(s.server).Return(nil)
+	_ = s.server.AddHook(onStart)
+
+	onServerStarted := mocks.NewMockHookOnServerStarted(s.T())
+	onServerStarted.EXPECT().Name().Return("onServerStarted")
+	onServerStarted.EXPECT().OnServerStarted(s.server)
+	_ = s.server.AddHook(onServerStarted)
+
+	onServerStop := mocks.NewMockHookOnServerStop(s.T())
+	onServerStop.EXPECT().Name().Return("onServerStop")
+	onServerStop.EXPECT().OnServerStop(s.server)
+	_ = s.server.AddHook(onServerStop)
+
+	onStop := mocks.NewMockHookOnStop(s.T())
+	onStop.EXPECT().Name().Return("onStop")
+	onStop.EXPECT().OnStop(s.server)
+	_ = s.server.AddHook(onStop)
+
+	onServerStopped := mocks.NewMockHookOnServerStopped(s.T())
+	onServerStopped.EXPECT().Name().Return("onServerStopped")
+	onServerStopped.EXPECT().OnServerStopped(s.server)
+	_ = s.server.AddHook(onServerStopped)
+
+	err := s.server.Start(context.Background())
+	s.Require().NoError(err)
+	s.Assert().Equal(akira.ServerRunning, s.server.State())
+}
+
+func (s *ServerTestSuite) TestStartWithOnServerStartReturningError() {
+	onServerStart := mocks.NewMockHookOnServerStart(s.T())
+	onServerStart.EXPECT().Name().Return("onServerStart")
+	onServerStart.EXPECT().OnServerStart(s.server).Return(assert.AnError)
+	_ = s.server.AddHook(onServerStart)
+
+	onServerStartFailed := mocks.NewMockHookOnServerStartFailed(s.T())
+	onServerStartFailed.EXPECT().Name().Return("onServerStartFailed")
+	onServerStartFailed.EXPECT().OnServerStartFailed(s.server, assert.AnError)
+	_ = s.server.AddHook(onServerStartFailed)
+
+	err := s.server.Start(context.Background())
+	s.Require().ErrorIs(err, assert.AnError)
+	s.Assert().Equal(akira.ServerFailed, s.server.State())
+}
+
+func (s *ServerTestSuite) TestStartWithOnStartReturningError() {
+	onStart := mocks.NewMockHookOnStart(s.T())
+	onStart.EXPECT().Name().Return("onStart")
+	onStart.EXPECT().OnStart(s.server).Return(assert.AnError)
+	_ = s.server.AddHook(onStart)
+
+	onServerStartFailed := mocks.NewMockHookOnServerStartFailed(s.T())
+	onServerStartFailed.EXPECT().Name().Return("onServerStartFailed")
+	onServerStartFailed.EXPECT().OnServerStartFailed(s.server, assert.AnError)
+	_ = s.server.AddHook(onServerStartFailed)
+
+	err := s.server.Start(context.Background())
+	s.Require().ErrorIs(err, assert.AnError)
+	s.Assert().Equal(akira.ServerFailed, s.server.State())
+}
+
+func (s *ServerTestSuite) TestStartWhenServerClosedReturnsError() {
+	_ = s.server.Start(context.Background())
+	s.server.Close()
+	s.Require().Equal(akira.ServerClosed, s.server.State())
+
+	err := s.server.Start(context.Background())
+	s.Require().Error(err, akira.ErrInvalidServerState)
+}
+
+func (s *ServerTestSuite) TestAddListener() {
+	listener := mocks.NewMockListener(s.T())
+	listener.EXPECT().Name().Return("new-mock")
+
+	err := s.server.AddListener(listener)
+	s.Require().NoError(err)
+}
+
+func (s *ServerTestSuite) TestAddListenerWhenServerRunning() {
+	_ = s.server.Start(context.Background())
+	listener := mocks.NewMockListener(s.T())
+	listener.EXPECT().Name().Return("mock")
+	listener.EXPECT().Listen(mock.Anything).RunAndReturn(func(_ akira.OnConnectionFunc) (<-chan bool, error) {
+		done := make(chan bool)
+		close(done)
+		return done, nil
 	})
+	listener.EXPECT().Stop()
 
-	s.Require().Error(err)
-}
-
-func (s *ServerTestSuite) TestAddListenerSuccess() {
-	l := newListenerMock("mock2", ":1883")
-
-	err := s.server.AddListener(l)
+	err := s.server.AddListener(listener)
 	s.Require().NoError(err)
-
-	_, ok := s.server.listeners.get(l.Name())
-	s.Require().True(ok)
 }
 
-func (s *ServerTestSuite) TestAddListenerError() {
-	l := newListenerMock("mock", ":1883")
+func (s *ServerTestSuite) TestAddDuplicatedListenerReturnsError() {
+	listener1 := mocks.NewMockListener(s.T())
+	listener1.EXPECT().Name().Return("mock")
+	_ = s.server.AddListener(listener1)
 
-	err := s.server.AddListener(l)
-	s.Require().ErrorIs(err, ErrListenerAlreadyExists)
+	listener2 := mocks.NewMockListener(s.T())
+	listener2.EXPECT().Name().Return("mock")
+
+	err := s.server.AddListener(listener2)
+	s.Require().ErrorIs(err, akira.ErrListenerAlreadyExists)
 }
 
-func (s *ServerTestSuite) TestAddListenerServerRunning() {
+func (s *ServerTestSuite) TestAddDuplicatedListenerWhenServerRunningStopsListener() {
+	listener1 := mocks.NewMockListener(s.T())
+	listener1.EXPECT().Name().Return("mock")
+	listener1.EXPECT().Listen(mock.Anything).RunAndReturn(func(_ akira.OnConnectionFunc) (<-chan bool, error) {
+		doneCh := make(chan bool)
+		close(doneCh)
+		return doneCh, nil
+	})
+	listener1.EXPECT().Stop()
+	_ = s.server.AddListener(listener1)
 	_ = s.server.Start(context.Background())
-	l := newListenerMock("mock2", ":1883")
 
-	err := s.server.AddListener(l)
-	s.Require().NoError(err)
-	s.Require().True(l.Listening())
+	listener2 := mocks.NewMockListener(s.T())
+	listener2.EXPECT().Listen(mock.Anything).RunAndReturn(func(_ akira.OnConnectionFunc) (<-chan bool, error) {
+		doneCh := make(chan bool)
+		close(doneCh)
+		return doneCh, nil
+	})
+	listener2.EXPECT().Name().Return("mock")
+	listener2.EXPECT().Stop()
+
+	err := s.server.AddListener(listener2)
+	s.Require().ErrorIs(err, akira.ErrListenerAlreadyExists)
 }
 
-func (s *ServerTestSuite) TestAddListenerServerRunningError() {
+func (s *ServerTestSuite) TestAddListenerWithListenErrorWhenServerRunning() {
 	_ = s.server.Start(context.Background())
-	l := newListenerMock("mock2", "abc")
+	listener := mocks.NewMockListener(s.T())
+	listener.EXPECT().Listen(mock.Anything).Return(nil, assert.AnError)
 
-	err := s.server.AddListener(l)
-	s.Require().Error(err)
-	s.Require().False(l.Listening())
+	err := s.server.AddListener(listener)
+	s.Require().ErrorIs(err, assert.AnError)
 }
 
-func (s *ServerTestSuite) TestAddHookSuccess() {
-	srv, _ := NewServer(NewDefaultOptions())
-	hook := newHookMock()
+func (s *ServerTestSuite) TestStartWhenListenerFailsToListenReturnsError() {
+	listener := mocks.NewMockListener(s.T())
+	listener.EXPECT().Name().Return("mock")
+	listener.EXPECT().Listen(mock.Anything).Return(nil, assert.AnError)
+	_ = s.server.AddListener(listener)
 
-	err := srv.AddHook(hook)
-	s.Require().NoError(err)
-	hook.AssertExpectations(s.T())
+	err := s.server.Start(context.Background())
+	s.Require().ErrorIs(err, assert.AnError)
+	s.Assert().Equal(akira.ServerFailed, s.server.State())
 }
 
 func (s *ServerTestSuite) TestAddHookCallsOnStartWhenServerRunning() {
-	srv, _ := NewServer(NewDefaultOptions())
-	_ = srv.Start(context.Background())
-	hook := newHookMock()
-	hook.On("OnStart", srv)
-
-	err := srv.AddHook(hook)
-	s.Assert().NoError(err)
-	hook.AssertExpectations(s.T())
-}
-
-func (s *ServerTestSuite) TestAddHookError() {
-	s.addHook()
-	hook := newHookMock()
+	_ = s.server.Start(context.Background())
+	hook := mocks.NewMockHookOnStart(s.T())
+	hook.EXPECT().Name().Return("hook")
+	hook.EXPECT().OnStart(s.server).Return(nil)
 
 	err := s.server.AddHook(hook)
-	s.Assert().Error(err)
+	s.Require().NoError(err)
 }
 
-func (s *ServerTestSuite) TestAddHookOnStartError() {
-	s.startServer()
-	hook := newHookMock()
-	hook.On("OnStart", s.server).Return(assert.AnError)
+func (s *ServerTestSuite) TestAddHookWithOnStartReturningError() {
+	_ = s.server.Start(context.Background())
+	hook := mocks.NewMockHookOnStart(s.T())
+	hook.EXPECT().OnStart(s.server).Return(assert.AnError)
 
 	err := s.server.AddHook(hook)
-	s.Assert().Error(err)
-	hook.AssertExpectations(s.T())
-}
-
-func (s *ServerTestSuite) TestStartSuccess() {
-	err := s.server.Start(context.Background())
-	s.Require().NoError(err)
-	s.Assert().Equal(ServerRunning, s.server.State())
-	s.Assert().True(s.listener.Listening())
-}
-
-func (s *ServerTestSuite) TestStartWithoutListeners() {
-	srv, _ := NewServer(NewDefaultOptions())
-
-	err := srv.Start(context.Background())
-	s.Require().NoError(err)
-	s.Assert().Equal(ServerRunning, srv.State())
-}
-
-func (s *ServerTestSuite) TestStartWithHook() {
-	s.addHook()
-	s.hook.On("OnServerStart", s.server)
-	s.hook.On("OnStart", s.server)
-	s.hook.On("OnServerStarted", s.server)
-	s.hook.On("OnServerStop", s.server)
-	s.hook.On("OnStop", s.server)
-	s.hook.On("OnServerStopped", s.server)
-
-	err := s.server.Start(context.Background())
-	s.Require().NoError(err)
-	s.Assert().Equal(ServerRunning, s.server.State())
-}
-
-func (s *ServerTestSuite) TestStartWhenClosedError() {
-	s.addHook()
-	s.startServer()
-	s.stopServer()
-	s.server.Close()
-	s.Require().Equal(ServerClosed, s.server.State())
-
-	err := s.server.Start(context.Background())
-	s.Require().Error(err, ErrInvalidServerState)
-}
-
-func (s *ServerTestSuite) TestStartOnServerStartError() {
-	s.addHook()
-	s.hook.On("OnServerStart", s.server).Return(assert.AnError)
-	s.hook.On("OnServerStartFailed", s.server, assert.AnError)
-
-	err := s.server.Start(context.Background())
-	s.Require().Error(err)
-	s.Assert().Equal(ServerFailed, s.server.State())
-}
-
-func (s *ServerTestSuite) TestStartOnStartError() {
-	s.addHook()
-	s.hook.On("OnServerStart", s.server)
-	s.hook.On("OnStart", s.server).Return(assert.AnError)
-	s.hook.On("OnServerStartFailed", s.server, assert.AnError)
-
-	err := s.server.Start(context.Background())
-	s.Require().Error(err)
-	s.Assert().Equal(ServerFailed, s.server.State())
-}
-
-func (s *ServerTestSuite) TestStartListenerListenError() {
-	s.addHook()
-	s.hook.On("OnServerStart", s.server)
-	s.hook.On("OnStart", s.server)
-	s.hook.On("OnServerStartFailed", s.server, mock.Anything)
-	l := newListenerMock("mock2", "abc")
-	_ = s.server.AddListener(l)
-
-	err := s.server.Start(context.Background())
-	s.Require().Error(err)
-	s.Assert().Equal(ServerFailed, s.server.State())
+	s.Require().ErrorIs(err, assert.AnError)
 }
 
 func (s *ServerTestSuite) TestStop() {
-	s.startServer()
+	listener := mocks.NewMockListener(s.T())
+	listener.EXPECT().Name().Return("mock")
+	listener.EXPECT().Listen(mock.Anything).RunAndReturn(func(_ akira.OnConnectionFunc) (<-chan bool, error) {
+		done := make(chan bool)
+		close(done)
+		return done, nil
+	})
+	listener.EXPECT().Stop()
+	_ = s.server.AddListener(listener)
+	_ = s.server.Start(context.Background())
 
 	err := s.server.Stop(context.Background())
 	s.Require().NoError(err)
-	s.Assert().Equal(ServerStopped, s.server.State())
-	s.Assert().False(s.listener.Listening())
+	s.Assert().Equal(akira.ServerStopped, s.server.State())
 }
 
-func (s *ServerTestSuite) TestStopWithHook() {
-	s.addHook()
-	s.hook.On("OnServerStop", s.server)
-	s.hook.On("OnStop", s.server)
-	s.hook.On("OnServerStopped", s.server)
-	s.startServer()
+func (s *ServerTestSuite) TestStopWithHooks() {
+	onServerStop := mocks.NewMockHookOnServerStop(s.T())
+	onServerStop.EXPECT().Name().Return("onServerStop")
+	onServerStop.EXPECT().OnServerStop(s.server)
+	_ = s.server.AddHook(onServerStop)
+
+	onStop := mocks.NewMockHookOnStop(s.T())
+	onStop.EXPECT().Name().Return("onStop")
+	onStop.EXPECT().OnStop(s.server)
+	_ = s.server.AddHook(onStop)
+
+	onServerStopped := mocks.NewMockHookOnServerStopped(s.T())
+	onServerStopped.EXPECT().Name().Return("onServerStopped")
+	onServerStopped.EXPECT().OnServerStopped(s.server)
+	_ = s.server.AddHook(onServerStopped)
+	_ = s.server.Start(context.Background())
 
 	err := s.server.Stop(context.Background())
 	s.Require().NoError(err)
-	s.Assert().Equal(ServerStopped, s.server.State())
-	s.Assert().False(s.listener.Listening())
+	s.Assert().Equal(akira.ServerStopped, s.server.State())
 }
 
-func (s *ServerTestSuite) TestStopClosesClients() {
-	ready := make(chan struct{})
-	s.addHook()
-	s.hook.On("OnServerStop", s.server)
-	s.hook.On("OnStop", s.server)
-	s.hook.On("OnServerStopped", s.server)
-	s.hook.On("OnConnectionOpen", s.server, s.listener)
-	s.hook.On("OnConnectionOpened", s.server, s.listener)
-	s.hook.On("OnPacketReceive", mock.Anything).Run(func(_ mock.Arguments) { close(ready) })
-	s.hook.On("OnConnectionClose", s.server, s.listener, nil)
-	s.hook.On("OnConnectionClosed", s.server, s.listener, nil)
-	s.startServer()
+func (s *ServerTestSuite) TestStopClosesAllClients() {
+	var onConnection akira.OnConnectionFunc
+	listeningCh := make(chan struct{})
 
-	c1, c2 := net.Pipe()
-	defer func() { _ = c1.Close() }()
+	listener := mocks.NewMockListener(s.T())
+	listener.EXPECT().Name().Return("mock")
+	listener.EXPECT().Listen(mock.Anything).RunAndReturn(func(cb akira.OnConnectionFunc) (<-chan bool, error) {
+		onConnection = cb
+		done := make(chan bool)
+		close(done)
+		close(listeningCh)
+		return done, nil
+	})
+	listener.EXPECT().Stop()
+	_ = s.server.AddListener(listener)
 
-	s.listener.handle(c2)
-	<-ready
+	receivingCh := make(chan struct{})
+	onPacketReceive := mocks.NewMockHookOnPacketReceive(s.T())
+	onPacketReceive.EXPECT().Name().Return("onPacketReceive")
+	onPacketReceive.EXPECT().OnPacketReceive(mock.Anything).RunAndReturn(func(_ *akira.Client) error {
+		close(receivingCh)
+		return nil
+	})
+	_ = s.server.AddHook(onPacketReceive)
+	_ = s.server.Start(context.Background())
+
+	conn1, conn2 := net.Pipe()
+	defer func() { _ = conn1.Close() }()
+
+	<-listeningCh
+	onConnection(listener, conn2)
+	<-receivingCh
 
 	err := s.server.Stop(context.Background())
 	s.Require().NoError(err)
-	s.Assert().Equal(ServerStopped, s.server.State())
-	s.Assert().False(s.listener.Listening())
-	s.Assert().Zero(s.server.clients.pending.Len())
+	s.Assert().Equal(akira.ServerStopped, s.server.State())
 }
 
-func (s *ServerTestSuite) TestStopCancelled() {
-	s.startServer()
+func (s *ServerTestSuite) TestStopReturnsErrorWhenCancelled() {
+	_ = s.server.Start(context.Background())
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	err := s.server.Stop(ctx)
 	s.Require().Error(err)
+	s.Assert().Equal(akira.ServerStopping, s.server.State())
 }
 
-func (s *ServerTestSuite) TestStopWhenNotStartedSuccess() {
-	s.addHook()
-
+func (s *ServerTestSuite) TestStopWhenServerNotRunning() {
 	err := s.server.Stop(context.Background())
 	s.Require().NoError(err)
 }
 
-func (s *ServerTestSuite) TestStopWhenStoppedSuccess() {
-	s.addHook()
-	s.startServer()
-	s.stopServer()
-
-	err := s.server.Stop(context.Background())
-	s.Require().NoError(err)
-}
-
-func (s *ServerTestSuite) TestCloseWhenStopping() {
-	s.startServer()
+func (s *ServerTestSuite) TestCloseWhenServerStopping() {
+	_ = s.server.Start(context.Background())
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	_ = s.server.Stop(ctx)
 
 	s.server.Close()
-	s.Require().Equal(ServerClosed, s.server.State())
+	s.Require().Equal(akira.ServerClosed, s.server.State())
 }
 
-func (s *ServerTestSuite) TestCloseWhenStopped() {
-	s.startServer()
+func (s *ServerTestSuite) TestCloseWhenServerStopped() {
+	_ = s.server.Start(context.Background())
 	_ = s.server.Stop(context.Background())
 
 	s.server.Close()
-	s.Require().Equal(ServerClosed, s.server.State())
+	s.Require().Equal(akira.ServerClosed, s.server.State())
 }
 
-func (s *ServerTestSuite) TestCloseWhenRunning() {
-	s.addHook()
-	s.startServer()
-	s.hook.On("OnServerStop", s.server)
-	s.hook.On("OnStop", s.server)
-	s.hook.On("OnServerStopped", s.server)
+func (s *ServerTestSuite) TestCloseWhenServerRunning() {
+	_ = s.server.Start(context.Background())
 
 	s.server.Close()
-	s.Require().Equal(ServerClosed, s.server.State())
+	s.Require().Equal(akira.ServerClosed, s.server.State())
 }
 
-func (s *ServerTestSuite) TestCloseWhenNotStartedNoAction() {
-	s.addHook()
-
+func (s *ServerTestSuite) TestCloseWhenServerNotStarted() {
 	s.server.Close()
-	s.Require().Equal(ServerClosed, s.server.State())
+	s.Require().Equal(akira.ServerClosed, s.server.State())
 }
 
 func (s *ServerTestSuite) TestHandleConnection() {
-	s.startServer()
-	c1, c2 := net.Pipe()
+	listener, onConnectionStream := s.addListener()
 
-	s.listener.handle(c2)
-	s.Require().Equal(1, s.server.clients.pending.Len())
+	onConnOpen := mocks.NewMockHookOnConnectionOpen(s.T())
+	onConnOpen.EXPECT().Name().Return("onConnOpen")
+	onConnOpen.EXPECT().OnConnectionOpen(s.server, listener).Return(nil)
+	_ = s.server.AddHook(onConnOpen)
 
-	_ = c1.Close()
-	s.stopServer()
-	s.Require().Equal(ServerStopped, s.server.State())
-	s.Assert().Zero(s.server.clients.pending.Len())
+	connOpenedCh := make(chan struct{})
+	onConnOpened := mocks.NewMockHookOnConnectionOpened(s.T())
+	onConnOpened.EXPECT().Name().Return("onConnOpened")
+	onConnOpened.EXPECT().OnConnectionOpened(s.server, listener).Run(func(_ *akira.Server, _ akira.Listener) {
+		close(connOpenedCh)
+	})
+	_ = s.server.AddHook(onConnOpened)
+
+	onPacketRcv := mocks.NewMockHookOnPacketReceive(s.T())
+	onPacketRcv.EXPECT().Name().Return("onPacketRcv")
+	onPacketRcv.EXPECT().OnPacketReceive(mock.Anything).Return(nil)
+	_ = s.server.AddHook(onPacketRcv)
+
+	onConnClose := mocks.NewMockHookOnConnectionClose(s.T())
+	onConnClose.EXPECT().Name().Return("onConnClose")
+	onConnClose.EXPECT().OnConnectionClose(s.server, listener, mock.Anything).
+		Run(func(_ *akira.Server, _ akira.Listener, err error) { s.Assert().ErrorIs(err, io.EOF) })
+	_ = s.server.AddHook(onConnClose)
+
+	connClosedCh := make(chan struct{})
+	onConnClosed := mocks.NewMockHookOnConnectionClosed(s.T())
+	onConnClosed.EXPECT().Name().Return("onConnClosed")
+	onConnClosed.EXPECT().OnConnectionClosed(s.server, listener, mock.Anything).
+		Run(func(_ *akira.Server, _ akira.Listener, err error) {
+			s.Assert().ErrorIs(err, io.EOF)
+			close(connClosedCh)
+		})
+	_ = s.server.AddHook(onConnClosed)
+	_ = s.server.Start(context.Background())
+
+	conn1, conn2 := net.Pipe()
+	onConnection := <-onConnectionStream
+	onConnection(listener, conn2)
+	<-connOpenedCh
+
+	_ = conn1.Close()
+	<-connClosedCh
 }
 
-func (s *ServerTestSuite) TestHandleConnectionWithHook() {
-	connOpened := make(chan struct{})
-	connClosed := make(chan struct{})
-	s.addHook()
-	s.hook.On("OnConnectionOpen", s.server, s.listener)
-	s.hook.On("OnConnectionOpened", s.server, s.listener).Run(func(_ mock.Arguments) {
-		close(connOpened)
-	})
-	s.hook.On("OnPacketReceive", mock.Anything)
-	s.hook.On("OnConnectionClose", s.server, s.listener, mock.MatchedBy(func(e error) bool {
-		return errors.Is(e, io.EOF)
-	}))
-	s.hook.On("OnConnectionClosed", s.server, s.listener, mock.MatchedBy(func(e error) bool {
-		return errors.Is(e, io.EOF)
-	})).Run(func(_ mock.Arguments) {
-		close(connClosed)
-	})
-	s.startServer()
-	defer s.stopServer()
+func (s *ServerTestSuite) TestHandleConnectionWithReadTimeout() {
+	listener, onConnectionStream := s.addListener()
 
-	c1, c2 := net.Pipe()
+	connClosedCh := make(chan struct{})
+	onConnClosed := mocks.NewMockHookOnConnectionClosed(s.T())
+	onConnClosed.EXPECT().Name().Return("onConnClosed")
+	onConnClosed.EXPECT().OnConnectionClosed(s.server, listener, mock.Anything).
+		Run(func(_ *akira.Server, _ akira.Listener, err error) {
+			s.Assert().ErrorIs(err, os.ErrDeadlineExceeded)
+			close(connClosedCh)
+		})
+	_ = s.server.AddHook(onConnClosed)
+	_ = s.server.Start(context.Background())
 
-	s.listener.handle(c2)
-	<-connOpened
+	conn1, conn2 := net.Pipe()
+	defer func() { _ = conn1.Close() }()
 
-	_ = c1.Close()
-	<-connClosed
+	onConnection := <-onConnectionStream
+	onConnection(listener, conn2)
+	<-connClosedCh
 }
 
-func (s *ServerTestSuite) TestHandleConnectionReadTimeout() {
-	connOpened := make(chan struct{})
-	connClosed := make(chan struct{})
-	s.addHook()
-	s.hook.On("OnConnectionOpen", s.server, s.listener)
-	s.hook.On("OnConnectionOpened", s.server, s.listener).Run(func(_ mock.Arguments) {
-		close(connOpened)
-	})
-	s.hook.On("OnPacketReceive", mock.Anything)
-	s.hook.On("OnConnectionClose", s.server, s.listener, mock.MatchedBy(func(err error) bool {
-		return errors.Is(err, os.ErrDeadlineExceeded)
-	}))
-	s.hook.On("OnConnectionClosed", s.server, s.listener, mock.MatchedBy(func(err error) bool {
-		return errors.Is(err, os.ErrDeadlineExceeded)
-	})).Run(func(_ mock.Arguments) {
-		close(connClosed)
-	})
-	s.server.config.ConnectTimeout = 1
-	s.startServer()
-	defer s.stopServer()
+func (s *ServerTestSuite) TestHandleConnectionWithOnConnectionOpenReturningError() {
+	listener, onConnectionStream := s.addListener()
 
-	c1, c2 := net.Pipe()
-	defer func() { _ = c1.Close() }()
+	onConnOpen := mocks.NewMockHookOnConnectionOpen(s.T())
+	onConnOpen.EXPECT().Name().Return("onConnOpen")
+	onConnOpen.EXPECT().OnConnectionOpen(s.server, listener).Return(assert.AnError)
+	_ = s.server.AddHook(onConnOpen)
 
-	s.listener.handle(c2)
-	<-connOpened
-	<-connClosed
-	s.Assert().Zero(s.server.clients.pending.Len())
+	connClosedCh := make(chan struct{})
+	onConnClosed := mocks.NewMockHookOnConnectionClosed(s.T())
+	onConnClosed.EXPECT().Name().Return("onConnClosed")
+	onConnClosed.EXPECT().OnConnectionClosed(s.server, listener, assert.AnError).
+		Run(func(_ *akira.Server, _ akira.Listener, _ error) { close(connClosedCh) })
+	_ = s.server.AddHook(onConnClosed)
+	_ = s.server.Start(context.Background())
+
+	conn1, conn2 := net.Pipe()
+	defer func() { _ = conn1.Close() }()
+
+	onConnection := <-onConnectionStream
+	onConnection(listener, conn2)
+	<-connClosedCh
 }
 
-func (s *ServerTestSuite) TestOnConnectionOpenedError() {
-	connClosed := make(chan struct{})
-	s.addHook()
-	s.hook.On("OnConnectionOpen", s.server, s.listener).Return(assert.AnError)
-	s.hook.On("OnConnectionClose", s.server, s.listener, assert.AnError)
-	s.hook.On("OnConnectionClosed", s.server, s.listener, assert.AnError).Run(func(_ mock.Arguments) {
-		close(connClosed)
-	})
-	s.startServer()
-	defer s.stopServer()
+func (s *ServerTestSuite) TestHandlePacketConnect() {
+	var connect *packet.Connect
+	listener, onConnectionStream := s.addListener()
+	receivedCh := make(chan struct{})
 
-	c1, c2 := net.Pipe()
-	defer func() { _ = c1.Close() }()
+	onPacketReceived := mocks.NewMockHookOnPacketReceived(s.T())
+	onPacketReceived.EXPECT().Name().Return("onPacketReceived")
+	onPacketReceived.EXPECT().OnPacketReceived(mock.Anything, mock.Anything).
+		RunAndReturn(func(_ *akira.Client, p akira.Packet) error {
+			s.Require().Equal(packet.TypeConnect, p.Type())
+			connect = p.(*packet.Connect)
+			close(receivedCh)
+			return nil
+		})
+	_ = s.server.AddHook(onPacketReceived)
+	_ = s.server.Start(context.Background())
 
-	s.listener.handle(c2)
-	<-connClosed
-}
+	conn1, conn2 := net.Pipe()
+	defer func() { _ = conn1.Close() }()
 
-func (s *ServerTestSuite) TestReceivePacket() {
+	onConnection := <-onConnectionStream
+	onConnection(listener, conn2)
+
 	msg := []byte{
 		byte(packet.TypeConnect) << 4, 14, // Fixed header
 		0, 4, 'M', 'Q', 'T', 'T', // Protocol name
@@ -495,137 +551,165 @@ func (s *ServerTestSuite) TestReceivePacket() {
 		0, 255, // Keep alive
 		0, 2, 'a', 'b', // Client ID
 	}
-	c1, c2 := net.Pipe()
-	defer func() { _ = c1.Close() }()
+	_, _ = conn1.Write(msg)
+	<-receivedCh
 
-	c := newClient(c2, s.server, s.listener)
-
-	var wg sync.WaitGroup
-	defer wg.Wait()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		_, _ = c1.Write(msg)
-	}()
-
-	p, err := s.server.receivePacket(c)
-	s.Require().NoError(err)
-	s.Require().NotNil(p)
-
-	connect := &packet.Connect{
+	expected := &packet.Connect{
 		Version:   packet.MQTT311,
 		KeepAlive: 255,
 		Flags:     packet.ConnectFlags(0x02), // Clean session flag
 		ClientID:  []byte("ab"),
 	}
-	s.Assert().Equal(connect, p)
+	s.Assert().Equal(expected, connect)
 }
 
-func (s *ServerTestSuite) TestReceivePacketWithHooks() {
-	msg := []byte{
-		byte(packet.TypeConnect) << 4, 14, // Fixed header
-		0, 4, 'M', 'Q', 'T', 'T', // Protocol name
-		4,      // Protocol version
-		2,      // Packet flags (Clean session)
-		0, 255, // Keep alive
-		0, 2, 'a', 'b', // Client ID
-	}
-	c1, c2 := net.Pipe()
-	defer func() { _ = c1.Close() }()
+func (s *ServerTestSuite) TestCloseConnectionWhenReceiveInvalidPacket() {
+	listener, onConnectionStream := s.addListener()
 
-	c := newClient(c2, s.server, s.listener)
-	connect := &packet.Connect{
-		Version:   packet.MQTT311,
-		KeepAlive: 255,
-		Flags:     packet.ConnectFlags(0x02), // Clean session flag
-		ClientID:  []byte("ab"),
-	}
-	s.addHook()
-	s.hook.On("OnPacketReceive", c)
-	s.hook.On("OnPacketReceived", c, connect)
+	connClosedCh := make(chan struct{})
+	onConnClosed := mocks.NewMockHookOnConnectionClosed(s.T())
+	onConnClosed.EXPECT().Name().Return("onConnClosed")
+	onConnClosed.EXPECT().OnConnectionClosed(s.server, listener, mock.Anything).
+		Run(func(_ *akira.Server, _ akira.Listener, _ error) { close(connClosedCh) })
+	_ = s.server.AddHook(onConnClosed)
+	_ = s.server.Start(context.Background())
 
-	var wg sync.WaitGroup
-	defer wg.Wait()
+	conn1, conn2 := net.Pipe()
+	defer func() { _ = conn1.Close() }()
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		_, _ = c1.Write(msg)
-	}()
+	onConnection := <-onConnectionStream
+	onConnection(listener, conn2)
 
-	p, err := s.server.receivePacket(c)
-	s.Require().NoError(err)
-	s.Require().NotNil(p)
-	s.Assert().Equal(connect, p)
-}
-
-func (s *ServerTestSuite) TestReceivePacketOnPacketReceiveWithError() {
-	s.addHook()
-	s.hook.On("OnPacketReceive", mock.Anything).Return(assert.AnError)
-	c1, c2 := net.Pipe()
-	defer func() { _ = c1.Close() }()
-	c := newClient(c2, s.server, s.listener)
-
-	_, err := s.server.receivePacket(c)
-	s.Require().ErrorIs(err, assert.AnError)
-}
-
-func (s *ServerTestSuite) TestReceivePacketOnPacketReceiveError() {
 	msg := []byte{
 		byte(packet.TypeConnect) << 4, 7, // Fixed header
 		0, 4, 'M', 'Q', 'T', 'T', // Protocol name
 		0, // Protocol version
 	}
-	c1, c2 := net.Pipe()
-	defer func() { _ = c1.Close() }()
-
-	c := newClient(c2, s.server, s.listener)
-	s.addHook()
-	s.hook.On("OnPacketReceive", c)
-	s.hook.On("OnPacketReceiveError", c, mock.MatchedBy(func(err error) bool {
-		return errors.Is(err, packet.ErrMalformedProtocolVersion)
-	})).Return(assert.AnError)
-
-	var wg sync.WaitGroup
-	defer wg.Wait()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		_, _ = c1.Write(msg)
-	}()
-
-	p, err := s.server.receivePacket(c)
-	s.Require().ErrorIs(err, assert.AnError)
-	s.Require().Nil(p)
+	_, _ = conn1.Write(msg)
+	<-connClosedCh
 }
 
-func (s *ServerTestSuite) TestReceivePacketOnPacketReceiveErrorNoError() {
+func (s *ServerTestSuite) TestCloseConnectionIfOnPacketReceiveErrorReturnsError() {
+	listener, onConnectionStream := s.addListener()
+
+	onPacketRcvError := mocks.NewMockHookOnPacketReceiveError(s.T())
+	onPacketRcvError.EXPECT().Name().Return("onPacketRcvError")
+	onPacketRcvError.EXPECT().OnPacketReceiveError(mock.Anything, mock.Anything).Return(assert.AnError)
+	_ = s.server.AddHook(onPacketRcvError)
+
+	connClosedCh := make(chan struct{})
+	onConnClosed := mocks.NewMockHookOnConnectionClosed(s.T())
+	onConnClosed.EXPECT().Name().Return("onConnClosed")
+	onConnClosed.EXPECT().OnConnectionClosed(s.server, listener, assert.AnError).
+		Run(func(_ *akira.Server, _ akira.Listener, _ error) { close(connClosedCh) })
+	_ = s.server.AddHook(onConnClosed)
+	_ = s.server.Start(context.Background())
+
+	conn1, conn2 := net.Pipe()
+	defer func() { _ = conn1.Close() }()
+
+	onConnection := <-onConnectionStream
+	onConnection(listener, conn2)
+
 	msg := []byte{
 		byte(packet.TypeConnect) << 4, 7, // Fixed header
 		0, 4, 'M', 'Q', 'T', 'T', // Protocol name
 		0, // Protocol version
 	}
-	c1, c2 := net.Pipe()
-	defer func() { _ = c1.Close() }()
-
-	c := newClient(c2, s.server, s.listener)
-	var wg sync.WaitGroup
-	defer wg.Wait()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		_, _ = c1.Write(msg)
-	}()
-
-	p, err := s.server.receivePacket(c)
-	s.Require().NoError(err)
-	s.Require().Nil(p)
+	_, _ = conn1.Write(msg)
+	<-connClosedCh
 }
 
-func (s *ServerTestSuite) TestReceivePacketOnPacketReceivedWithError() {
+func (s *ServerTestSuite) TestKeepReceivingWhenOnPacketReceiveErrorDoesNotReturnError() {
+	listener, onConnectionStream := s.addListener()
+
+	onPacketRcv := mocks.NewMockHookOnPacketReceive(s.T())
+	onPacketRcv.EXPECT().Name().Return("onPacketRcv")
+	onPacketRcv.EXPECT().OnPacketReceive(mock.Anything).Return(nil).Twice()
+	_ = s.server.AddHook(onPacketRcv)
+
+	receivedCh := make(chan struct{})
+	onPacketRcvError := mocks.NewMockHookOnPacketReceiveError(s.T())
+	onPacketRcvError.EXPECT().Name().Return("onPacketRcvError")
+	onPacketRcvError.EXPECT().OnPacketReceiveError(mock.Anything, mock.Anything).
+		RunAndReturn(func(_ *akira.Client, _ error) error {
+			close(receivedCh)
+			return nil
+		})
+	_ = s.server.AddHook(onPacketRcvError)
+
+	connClosedCh := make(chan struct{})
+	onConnClosed := mocks.NewMockHookOnConnectionClosed(s.T())
+	onConnClosed.EXPECT().Name().Return("onConnClosed")
+	onConnClosed.EXPECT().OnConnectionClosed(s.server, listener, mock.Anything).
+		Run(func(_ *akira.Server, _ akira.Listener, _ error) { close(connClosedCh) })
+	_ = s.server.AddHook(onConnClosed)
+	_ = s.server.Start(context.Background())
+
+	conn1, conn2 := net.Pipe()
+
+	onConnection := <-onConnectionStream
+	onConnection(listener, conn2)
+
+	msg := []byte{
+		byte(packet.TypeConnect) << 4, 7, // Fixed header
+		0, 4, 'M', 'Q', 'T', 'T', // Protocol name
+		0, // Protocol version
+	}
+	_, _ = conn1.Write(msg)
+	<-receivedCh
+
+	_ = conn1.Close()
+	<-connClosedCh
+}
+
+func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketReceiveReturnsError() {
+	listener, onConnectionStream := s.addListener()
+
+	onPacketRcv := mocks.NewMockHookOnPacketReceive(s.T())
+	onPacketRcv.EXPECT().Name().Return("onPacketRcv")
+	onPacketRcv.EXPECT().OnPacketReceive(mock.Anything).Return(assert.AnError)
+	_ = s.server.AddHook(onPacketRcv)
+
+	connClosedCh := make(chan struct{})
+	onConnClosed := mocks.NewMockHookOnConnectionClosed(s.T())
+	onConnClosed.EXPECT().Name().Return("onConnClosed")
+	onConnClosed.EXPECT().OnConnectionClosed(s.server, listener, assert.AnError).
+		Run(func(_ *akira.Server, _ akira.Listener, err error) { close(connClosedCh) })
+	_ = s.server.AddHook(onConnClosed)
+	_ = s.server.Start(context.Background())
+
+	conn1, conn2 := net.Pipe()
+	defer func() { _ = conn1.Close() }()
+
+	onConnection := <-onConnectionStream
+	onConnection(listener, conn2)
+	<-connClosedCh
+}
+
+func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketReceivedReturnsError() {
+	listener, onConnectionStream := s.addListener()
+
+	onPacketReceived := mocks.NewMockHookOnPacketReceived(s.T())
+	onPacketReceived.EXPECT().Name().Return("onPacketReceived")
+	onPacketReceived.EXPECT().OnPacketReceived(mock.Anything, mock.Anything).
+		RunAndReturn(func(_ *akira.Client, _ akira.Packet) error { return assert.AnError })
+	_ = s.server.AddHook(onPacketReceived)
+
+	connClosedCh := make(chan struct{})
+	onConnClosed := mocks.NewMockHookOnConnectionClosed(s.T())
+	onConnClosed.EXPECT().Name().Return("onConnClosed")
+	onConnClosed.EXPECT().OnConnectionClosed(s.server, listener, assert.AnError).
+		Run(func(_ *akira.Server, _ akira.Listener, err error) { close(connClosedCh) })
+	_ = s.server.AddHook(onConnClosed)
+	_ = s.server.Start(context.Background())
+
+	conn1, conn2 := net.Pipe()
+	defer func() { _ = conn1.Close() }()
+
+	onConnection := <-onConnectionStream
+	onConnection(listener, conn2)
+
 	msg := []byte{
 		byte(packet.TypeConnect) << 4, 14, // Fixed header
 		0, 4, 'M', 'Q', 'T', 'T', // Protocol name
@@ -634,166 +718,10 @@ func (s *ServerTestSuite) TestReceivePacketOnPacketReceivedWithError() {
 		0, 255, // Keep alive
 		0, 2, 'a', 'b', // Client ID
 	}
-	c1, c2 := net.Pipe()
-	defer func() { _ = c1.Close() }()
-
-	c := newClient(c2, s.server, s.listener)
-	connect := &packet.Connect{
-		Version:   packet.MQTT311,
-		KeepAlive: 255,
-		Flags:     packet.ConnectFlags(0x02), // Clean session flag
-		ClientID:  []byte("ab"),
-	}
-	s.addHook()
-	s.hook.On("OnPacketReceive", c)
-	s.hook.On("OnPacketReceived", c, connect).Return(assert.AnError)
-
-	var wg sync.WaitGroup
-	defer wg.Wait()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		_, _ = c1.Write(msg)
-	}()
-
-	p, err := s.server.receivePacket(c)
-	s.Require().ErrorIs(err, assert.AnError)
-	s.Require().Nil(p)
+	_, _ = conn1.Write(msg)
+	<-connClosedCh
 }
 
 func TestServerTestSuite(t *testing.T) {
 	suite.Run(t, new(ServerTestSuite))
-}
-
-func BenchmarkReceivePacket(b *testing.B) {
-	testCases := []struct {
-		name string
-		data []byte
-	}{
-		{
-			name: "CONNECT-V3",
-			data: []byte{
-				byte(packet.TypeConnect) << 4, 14, // Fixed header
-				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
-				4,      // Protocol version
-				2,      // Packet flags (Clean Session)
-				0, 255, // Keep alive
-				0, 2, 'a', 'b', // Client ID
-			},
-		},
-		{
-			name: "CONNECT-V5",
-			data: []byte{
-				byte(packet.TypeConnect) << 4, 15, // Fixed header
-				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
-				5,      // Protocol version
-				2,      // Packet flags (Clean Session)
-				0, 255, // Keep alive
-				0,              // Property length
-				0, 2, 'a', 'b', // Client ID
-			},
-		},
-	}
-
-	for _, test := range testCases {
-		b.Run(test.name, func(b *testing.B) {
-			b.Run("No Hooks", func(b *testing.B) {
-				server, err := NewServer(NewDefaultOptions())
-				if err != nil {
-					b.Fatal(err)
-				}
-				defer server.Close()
-
-				benchmarkServerReceivePacket(b, server, test.data)
-			})
-
-			b.Run("With Hooks", func(b *testing.B) {
-				server, err := NewServer(NewDefaultOptions())
-				if err != nil {
-					b.Fatal(err)
-				}
-				defer server.Close()
-
-				err = server.AddHook(&hookSpy{})
-				if err != nil {
-					b.Fatal(err)
-				}
-
-				benchmarkServerReceivePacket(b, server, test.data)
-			})
-		})
-	}
-}
-
-func benchmarkServerReceivePacket(b *testing.B, server *Server, data []byte) {
-	b.Helper()
-
-	l := newListenerMock("mock", ":1883")
-	err := server.AddListener(l)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	var sConn net.Conn
-	var sErr error
-
-	ctx, cancel := context.WithCancel(context.Background())
-	lsn, _ := net.Listen("tcp", "127.0.0.1:1883")
-	defer func() { _ = lsn.Close() }()
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	go func() {
-		defer wg.Done()
-		cancel()
-		sConn, sErr = lsn.Accept()
-	}()
-
-	<-ctx.Done()
-	cConn, cErr := net.Dial("tcp", ":1883")
-	if cErr != nil {
-		b.Fatal(cErr)
-	}
-
-	wg.Wait()
-	if sErr != nil {
-		b.Fatal(sErr)
-	}
-	defer func() { _ = sConn.Close() }()
-
-	c := newClient(sConn, server, l)
-
-	ctx, cancel = context.WithCancel(context.Background())
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		cancel()
-
-		for {
-			_, sErr = server.receivePacket(c)
-			if sErr != nil {
-				break
-			}
-		}
-	}()
-
-	<-ctx.Done()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		_, cErr = cConn.Write(data)
-		if cErr != nil {
-			b.Fatal(cErr)
-		}
-	}
-
-	_ = cConn.Close()
-	wg.Wait()
-
-	if sErr != nil && !errors.Is(sErr, io.EOF) {
-		b.Fatal(sErr)
-	}
 }
