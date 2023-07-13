@@ -117,14 +117,8 @@ func (s *Server) AddListener(l Listener) error {
 		}
 	}
 
-	err := s.listeners.add(l)
-	if err != nil {
-		if s.State() == ServerRunning {
-			l.Stop()
-		}
-	}
-
-	return err
+	s.listeners.add(l)
+	return nil
 }
 
 // AddHook adds the provided Hook into the list of hooks managed by the Server.

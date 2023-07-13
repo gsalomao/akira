@@ -15,13 +15,9 @@
 package akira
 
 import (
-	"errors"
 	"net"
 	"sync"
 )
-
-// ErrListenerAlreadyExists indicates that the Listener already exists based on its name.
-var ErrListenerAlreadyExists = errors.New("listener already exists")
 
 // OnConnectionFunc is the function which the Listener must call when a new connection has been opened.
 type OnConnectionFunc func(Listener, net.Conn)
@@ -29,10 +25,6 @@ type OnConnectionFunc func(Listener, net.Conn)
 // Listener is an interface which all network listeners must implement. A network listener is responsible for listen
 // for network connections and notify any incoming connection.
 type Listener interface {
-	// Name returns the name of the listener. The Server supports only one listener for each name. If a listener is
-	// added into the server with the same name of another listener, the ErrListenerAlreadyExists is returned.
-	Name() string
-
 	// Listen starts the listener. The listener calls the OnConnectionFunc for any received incoming connection.
 	// This function does not block the caller and returns a channel, which an event is sent when the listener is
 	// ready for accept incoming connection, and closed when the listener has stopped.
@@ -49,25 +41,20 @@ type Listener interface {
 
 type listeners struct {
 	mutex    sync.RWMutex
-	internal map[string]Listener
+	internal []Listener
 	wg       sync.WaitGroup
 }
 
 func newListeners() *listeners {
-	l := listeners{internal: map[string]Listener{}}
+	l := listeners{internal: make([]Listener, 0)}
 	return &l
 }
 
-func (l *listeners) add(lsn Listener) error {
+func (l *listeners) add(lsn Listener) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
-	if _, ok := l.internal[lsn.Name()]; ok {
-		return ErrListenerAlreadyExists
-	}
-
-	l.internal[lsn.Name()] = lsn
-	return nil
+	l.internal = append(l.internal, lsn)
 }
 
 func (l *listeners) listen(lsn Listener, f OnConnectionFunc) error {
