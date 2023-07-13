@@ -287,56 +287,37 @@ func (s *Server) stopDaemon() {
 }
 
 func (s *Server) handleConnection(l Listener, nc net.Conn) {
-	c := newClient(nc, s, l)
+	client := newClient(nc, s, l)
 
 	if err := s.hooks.onConnectionOpen(s, l); err != nil {
-		c.Close(err)
+		client.Close(err)
 		return
 	}
 
-	s.handleClient(c)
-}
+	s.clients.add(client)
+	s.wg.Add(1)
 
-func (s *Server) handleClient(c *Client) {
-	// The server runs 2 goroutines for each client.
-	s.wg.Add(2)
-
-	// Start the inbound goroutine. The inbound goroutine handles each packet received from client.
 	go func() {
 		defer s.wg.Done()
+		defer s.clients.remove(client)
 
 		var err error
-		defer func() { c.Close(err) }()
+		defer func() { client.Close(err) }()
 
 		for {
-			_, err = s.receivePacket(c)
+			var pkt Packet
+
+			pkt, err = s.receivePacket(client)
 			if err != nil {
 				return
 			}
-		}
-	}()
-
-	// Add client to the list of clients.
-	s.clients.add(c)
-
-	// Start the outbound goroutine. The outbound goroutine sends each packet in the outbound stream to the client.
-	go func() {
-		defer s.wg.Done()
-
-		// When the outbound goroutine finishes, the client is removed from the list of clients as it isn't able to
-		// send packets to the client anymore.
-		defer s.clients.remove(c)
-
-		for {
-			select {
-			case <-c.Connection.outboundStream:
-			case <-c.Done():
-				return
+			if pkt == nil {
+				continue
 			}
 		}
 	}()
 
-	s.hooks.onConnectionOpened(s, c.Connection.listener)
+	s.hooks.onConnectionOpened(s, client.Connection.listener)
 }
 
 func (s *Server) receivePacket(c *Client) (p Packet, err error) {
