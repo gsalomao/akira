@@ -56,31 +56,37 @@ func (s *ClientsTestSuite) TestNewClients() {
 
 func (s *ClientsTestSuite) TestAddSuccess() {
 	s.clients.add(s.client)
-	s.Require().Equal(1, s.clients.pending.Len())
-	s.Assert().Equal(s.client, s.clients.pending.Front().Value.(*Client))
+	s.Require().Len(s.clients.pending, 1)
+	s.Assert().Equal(s.client, s.clients.pending[0])
 }
 
 func (s *ClientsTestSuite) TestRemove() {
-	s.clients.add(s.client)
+	client1 := newClient(s.conn2, s.server, nil)
+	client2 := newClient(s.conn2, s.server, nil)
+	client3 := newClient(s.conn2, s.server, nil)
+	s.clients.add(client1)
+	s.clients.add(client2)
+	s.clients.add(client3)
 
-	s.clients.remove(s.client)
-	s.Require().Equal(0, s.clients.pending.Len())
+	s.clients.remove(client2)
+	s.Require().Len(s.clients.pending, 2)
+
+	s.clients.remove(client1)
+	s.Require().Len(s.clients.pending, 1)
+
+	s.clients.remove(client3)
+	s.Require().Empty(s.clients.pending)
 }
 
-func (s *ClientsTestSuite) TestRemoveMultipleClients() {
-	cls := []*Client{
-		newClient(s.conn2, s.server, nil),
-		newClient(s.conn2, s.server, nil),
-		newClient(s.conn2, s.server, nil),
-	}
-	for i := range cls {
-		s.clients.add(cls[i])
-	}
+func (s *ClientsTestSuite) TestRemoveUnknownClient() {
+	s.clients.add(s.client)
+	client := newClient(s.conn2, s.server, nil)
 
-	for i := range cls {
-		s.clients.remove(cls[len(cls)-i-1])
-	}
-	s.Require().Equal(0, s.clients.pending.Len())
+	s.clients.remove(client)
+	s.Require().Len(s.clients.pending, 1)
+
+	s.clients.remove(s.client)
+	s.Require().Empty(s.clients.pending)
 }
 
 func (s *ClientsTestSuite) TestCloseAll() {
@@ -94,7 +100,7 @@ func (s *ClientsTestSuite) TestCloseAll() {
 	}
 
 	s.clients.closeAll()
-	s.Require().Equal(0, s.clients.pending.Len())
+	s.Require().Empty(s.clients.pending)
 
 	for i := range cls {
 		s.Assert().Equal(ClientStateClosed, cls[i].State())

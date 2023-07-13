@@ -16,7 +16,6 @@ package akira
 
 import (
 	"bufio"
-	"container/list"
 	"errors"
 	"io"
 	"math"
@@ -201,55 +200,51 @@ func (c *Client) refreshDeadline() {
 }
 
 type clients struct {
-	mu      sync.RWMutex
-	pending list.List
+	mutex   sync.RWMutex
+	pending []*Client
 }
 
 func newClients() *clients {
-	c := clients{}
+	c := clients{pending: make([]*Client, 0)}
 	return &c
 }
 
 func (c *clients) add(client *Client) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
-	c.pending.PushBack(client)
+	c.pending = append(c.pending, client)
 }
 
 func (c *clients) remove(client *Client) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
-	elem := c.pending.Front()
-
-	for {
-		if elem == nil || elem.Value == client {
-			break
-		}
-		elem = elem.Next()
-	}
-
-	if elem != nil {
-		c.pending.Remove(elem)
-	}
+	c.removeLocked(client)
 }
 
 func (c *clients) closeAll() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
-	elem := c.pending.Front()
+	for _, client := range c.pending {
+		client.Close(nil)
+		c.removeLocked(client)
+	}
+}
 
-	for {
-		if elem == nil {
+func (c *clients) removeLocked(client *Client) {
+	var i int
+	size := len(c.pending)
+
+	for ; i < size; i++ {
+		if c.pending[i] == client {
 			break
 		}
+	}
 
-		elem.Value.(*Client).Close(nil)
-		next := elem.Next()
-
-		c.pending.Remove(elem)
-		elem = next
+	if i < size {
+		c.pending[i] = c.pending[size-1]
+		c.pending = c.pending[:size-1]
 	}
 }
