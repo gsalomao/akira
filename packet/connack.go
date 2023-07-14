@@ -58,7 +58,7 @@ func (p *ConnAck) Encode(buf []byte) (n int, err error) {
 	n = header.encode(buf)
 
 	var flags byte
-	if p.SessionPresent {
+	if p.SessionPresent && p.Code == ReasonCodeSuccess && p.Version != MQTT31 {
 		flags = 1
 	}
 

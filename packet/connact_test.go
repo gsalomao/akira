@@ -61,19 +61,44 @@ func (s *ConnAckTestSuite) TestSize() {
 	}
 }
 
-func (s *ConnAckTestSuite) TestEncodeSuccess() {
+func (s *ConnAckTestSuite) TestEncode() {
 	testCases := []struct {
 		name   string
 		packet ConnAck
 		data   []byte
 	}{
 		{
-			name:   "V3.1",
+			name:   "V3.1, accepted",
+			packet: ConnAck{Version: MQTT31, Code: ReasonCodeConnectionAccepted},
+			data:   []byte{0x20, 2, 0, 0},
+		},
+		{
+			name:   "V3.1, accepted and ignore session present",
 			packet: ConnAck{Version: MQTT31, SessionPresent: true, Code: ReasonCodeConnectionAccepted},
+			data:   []byte{0x20, 2, 0, 0},
+		},
+		{
+			name:   "V3.1, rejected",
+			packet: ConnAck{Version: MQTT31, Code: ReasonCodeIdentifierRejected},
+			data:   []byte{0x20, 2, 0, 2},
+		},
+		{
+			name:   "V3.1.1, accepted",
+			packet: ConnAck{Version: MQTT311, Code: ReasonCodeConnectionAccepted},
+			data:   []byte{0x20, 2, 0, 0},
+		},
+		{
+			name:   "V3.1.1, accepted with session present",
+			packet: ConnAck{Version: MQTT311, SessionPresent: true, Code: ReasonCodeConnectionAccepted},
 			data:   []byte{0x20, 2, 1, 0},
 		},
 		{
-			name:   "V3.1.1",
+			name:   "V3.1.1, rejected",
+			packet: ConnAck{Version: MQTT311, Code: ReasonCodeIdentifierRejected},
+			data:   []byte{0x20, 2, 0, 2},
+		},
+		{
+			name:   "V3.1.1, rejected and ignore session present",
 			packet: ConnAck{Version: MQTT311, Code: ReasonCodeIdentifierRejected},
 			data:   []byte{0x20, 2, 0, 2},
 		},
