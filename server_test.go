@@ -95,7 +95,7 @@ func (s *ServerTestSuite) TestNewServerWithDuplicatedListeners() {
 }
 
 func (s *ServerTestSuite) TestNewServerWithHooks() {
-	hook := mocks.NewMockHookOnServerStart(s.T())
+	hook := mocks.NewMockOnServerStartHook(s.T())
 	hook.EXPECT().Name().Return("mock")
 
 	srv, err := akira.NewServer(&akira.Options{Hooks: []akira.Hook{hook}})
@@ -104,7 +104,7 @@ func (s *ServerTestSuite) TestNewServerWithHooks() {
 }
 
 func (s *ServerTestSuite) TestNewServerWithDuplicatedHooksReturnsError() {
-	hook := mocks.NewMockHookOnServerStart(s.T())
+	hook := mocks.NewMockOnServerStartHook(s.T())
 	hook.EXPECT().Name().Return("mock")
 
 	srv, err := akira.NewServer(&akira.Options{Hooks: []akira.Hook{hook, hook}})
@@ -127,32 +127,32 @@ func (s *ServerTestSuite) TestStart() {
 }
 
 func (s *ServerTestSuite) TestStartWithHooks() {
-	onServerStart := mocks.NewMockHookOnServerStart(s.T())
+	onServerStart := mocks.NewMockOnServerStartHook(s.T())
 	onServerStart.EXPECT().Name().Return("onServerStart")
 	onServerStart.EXPECT().OnServerStart(s.server).Return(nil)
 	_ = s.server.AddHook(onServerStart)
 
-	onStart := mocks.NewMockHookOnStart(s.T())
+	onStart := mocks.NewMockOnStartHook(s.T())
 	onStart.EXPECT().Name().Return("onStart")
 	onStart.EXPECT().OnStart(s.server).Return(nil)
 	_ = s.server.AddHook(onStart)
 
-	onServerStarted := mocks.NewMockHookOnServerStarted(s.T())
+	onServerStarted := mocks.NewMockOnServerStartedHook(s.T())
 	onServerStarted.EXPECT().Name().Return("onServerStarted")
 	onServerStarted.EXPECT().OnServerStarted(s.server)
 	_ = s.server.AddHook(onServerStarted)
 
-	onServerStop := mocks.NewMockHookOnServerStop(s.T())
+	onServerStop := mocks.NewMockOnServerStopHook(s.T())
 	onServerStop.EXPECT().Name().Return("onServerStop")
 	onServerStop.EXPECT().OnServerStop(s.server)
 	_ = s.server.AddHook(onServerStop)
 
-	onStop := mocks.NewMockHookOnStop(s.T())
+	onStop := mocks.NewMockOnStopHook(s.T())
 	onStop.EXPECT().Name().Return("onStop")
 	onStop.EXPECT().OnStop(s.server)
 	_ = s.server.AddHook(onStop)
 
-	onServerStopped := mocks.NewMockHookOnServerStopped(s.T())
+	onServerStopped := mocks.NewMockOnServerStoppedHook(s.T())
 	onServerStopped.EXPECT().Name().Return("onServerStopped")
 	onServerStopped.EXPECT().OnServerStopped(s.server)
 	_ = s.server.AddHook(onServerStopped)
@@ -163,12 +163,12 @@ func (s *ServerTestSuite) TestStartWithHooks() {
 }
 
 func (s *ServerTestSuite) TestStartWithOnServerStartReturningError() {
-	onServerStart := mocks.NewMockHookOnServerStart(s.T())
+	onServerStart := mocks.NewMockOnServerStartHook(s.T())
 	onServerStart.EXPECT().Name().Return("onServerStart")
 	onServerStart.EXPECT().OnServerStart(s.server).Return(assert.AnError)
 	_ = s.server.AddHook(onServerStart)
 
-	onServerStartFailed := mocks.NewMockHookOnServerStartFailed(s.T())
+	onServerStartFailed := mocks.NewMockOnServerStartFailedHook(s.T())
 	onServerStartFailed.EXPECT().Name().Return("onServerStartFailed")
 	onServerStartFailed.EXPECT().OnServerStartFailed(s.server, assert.AnError)
 	_ = s.server.AddHook(onServerStartFailed)
@@ -179,12 +179,12 @@ func (s *ServerTestSuite) TestStartWithOnServerStartReturningError() {
 }
 
 func (s *ServerTestSuite) TestStartWithOnStartReturningError() {
-	onStart := mocks.NewMockHookOnStart(s.T())
+	onStart := mocks.NewMockOnStartHook(s.T())
 	onStart.EXPECT().Name().Return("onStart")
 	onStart.EXPECT().OnStart(s.server).Return(assert.AnError)
 	_ = s.server.AddHook(onStart)
 
-	onServerStartFailed := mocks.NewMockHookOnServerStartFailed(s.T())
+	onServerStartFailed := mocks.NewMockOnServerStartFailedHook(s.T())
 	onServerStartFailed.EXPECT().Name().Return("onServerStartFailed")
 	onServerStartFailed.EXPECT().OnServerStartFailed(s.server, assert.AnError)
 	_ = s.server.AddHook(onServerStartFailed)
@@ -254,7 +254,7 @@ func (s *ServerTestSuite) TestStartWithListenerFailingToListen() {
 
 func (s *ServerTestSuite) TestAddHookCallsOnStartWhenServerRunning() {
 	_ = s.server.Start(context.Background())
-	hook := mocks.NewMockHookOnStart(s.T())
+	hook := mocks.NewMockOnStartHook(s.T())
 	hook.EXPECT().Name().Return("hook")
 	hook.EXPECT().OnStart(s.server).Return(nil)
 
@@ -264,7 +264,7 @@ func (s *ServerTestSuite) TestAddHookCallsOnStartWhenServerRunning() {
 
 func (s *ServerTestSuite) TestAddHookWithOnStartReturningError() {
 	_ = s.server.Start(context.Background())
-	hook := mocks.NewMockHookOnStart(s.T())
+	hook := mocks.NewMockOnStartHook(s.T())
 	hook.EXPECT().OnStart(s.server).Return(assert.AnError)
 
 	err := s.server.AddHook(hook)
@@ -288,17 +288,17 @@ func (s *ServerTestSuite) TestStop() {
 }
 
 func (s *ServerTestSuite) TestStopWithHooks() {
-	onServerStop := mocks.NewMockHookOnServerStop(s.T())
+	onServerStop := mocks.NewMockOnServerStopHook(s.T())
 	onServerStop.EXPECT().Name().Return("onServerStop")
 	onServerStop.EXPECT().OnServerStop(s.server)
 	_ = s.server.AddHook(onServerStop)
 
-	onStop := mocks.NewMockHookOnStop(s.T())
+	onStop := mocks.NewMockOnStopHook(s.T())
 	onStop.EXPECT().Name().Return("onStop")
 	onStop.EXPECT().OnStop(s.server)
 	_ = s.server.AddHook(onStop)
 
-	onServerStopped := mocks.NewMockHookOnServerStopped(s.T())
+	onServerStopped := mocks.NewMockOnServerStoppedHook(s.T())
 	onServerStopped.EXPECT().Name().Return("onServerStopped")
 	onServerStopped.EXPECT().OnServerStopped(s.server)
 	_ = s.server.AddHook(onServerStopped)
@@ -325,7 +325,7 @@ func (s *ServerTestSuite) TestStopClosesAllClients() {
 	_ = s.server.AddListener(listener)
 
 	receivingCh := make(chan struct{})
-	onPacketReceive := mocks.NewMockHookOnPacketReceive(s.T())
+	onPacketReceive := mocks.NewMockOnPacketReceiveHook(s.T())
 	onPacketReceive.EXPECT().Name().Return("onPacketReceive")
 	onPacketReceive.EXPECT().OnPacketReceive(mock.Anything).RunAndReturn(func(_ *akira.Client) error {
 		close(receivingCh)
@@ -394,32 +394,32 @@ func (s *ServerTestSuite) TestCloseWhenServerNotStarted() {
 func (s *ServerTestSuite) TestHandleConnection() {
 	listener, onConnectionStream := s.addListener()
 
-	onConnOpen := mocks.NewMockHookOnConnectionOpen(s.T())
+	onConnOpen := mocks.NewMockOnConnectionOpenHook(s.T())
 	onConnOpen.EXPECT().Name().Return("onConnOpen")
 	onConnOpen.EXPECT().OnConnectionOpen(s.server, listener).Return(nil)
 	_ = s.server.AddHook(onConnOpen)
 
 	connOpenedCh := make(chan struct{})
-	onConnOpened := mocks.NewMockHookOnConnectionOpened(s.T())
+	onConnOpened := mocks.NewMockOnConnectionOpenedHook(s.T())
 	onConnOpened.EXPECT().Name().Return("onConnOpened")
 	onConnOpened.EXPECT().OnConnectionOpened(s.server, listener).Run(func(_ *akira.Server, _ akira.Listener) {
 		close(connOpenedCh)
 	})
 	_ = s.server.AddHook(onConnOpened)
 
-	onPacketRcv := mocks.NewMockHookOnPacketReceive(s.T())
+	onPacketRcv := mocks.NewMockOnPacketReceiveHook(s.T())
 	onPacketRcv.EXPECT().Name().Return("onPacketRcv")
 	onPacketRcv.EXPECT().OnPacketReceive(mock.Anything).Return(nil)
 	_ = s.server.AddHook(onPacketRcv)
 
-	onConnClose := mocks.NewMockHookOnConnectionClose(s.T())
+	onConnClose := mocks.NewMockOnConnectionCloseHook(s.T())
 	onConnClose.EXPECT().Name().Return("onConnClose")
 	onConnClose.EXPECT().OnConnectionClose(s.server, listener, mock.Anything).
 		Run(func(_ *akira.Server, _ akira.Listener, err error) { s.Assert().ErrorIs(err, io.EOF) })
 	_ = s.server.AddHook(onConnClose)
 
 	connClosedCh := make(chan struct{})
-	onConnClosed := mocks.NewMockHookOnConnectionClosed(s.T())
+	onConnClosed := mocks.NewMockOnConnectionClosedHook(s.T())
 	onConnClosed.EXPECT().Name().Return("onConnClosed")
 	onConnClosed.EXPECT().OnConnectionClosed(s.server, listener, mock.Anything).
 		Run(func(_ *akira.Server, _ akira.Listener, err error) {
@@ -442,7 +442,7 @@ func (s *ServerTestSuite) TestHandleConnectionWithReadTimeout() {
 	listener, onConnectionStream := s.addListener()
 
 	connClosedCh := make(chan struct{})
-	onConnClosed := mocks.NewMockHookOnConnectionClosed(s.T())
+	onConnClosed := mocks.NewMockOnConnectionClosedHook(s.T())
 	onConnClosed.EXPECT().Name().Return("onConnClosed")
 	onConnClosed.EXPECT().OnConnectionClosed(s.server, listener, mock.Anything).
 		Run(func(_ *akira.Server, _ akira.Listener, err error) {
@@ -463,13 +463,13 @@ func (s *ServerTestSuite) TestHandleConnectionWithReadTimeout() {
 func (s *ServerTestSuite) TestHandleConnectionWithOnConnectionOpenReturningError() {
 	listener, onConnectionStream := s.addListener()
 
-	onConnOpen := mocks.NewMockHookOnConnectionOpen(s.T())
+	onConnOpen := mocks.NewMockOnConnectionOpenHook(s.T())
 	onConnOpen.EXPECT().Name().Return("onConnOpen")
 	onConnOpen.EXPECT().OnConnectionOpen(s.server, listener).Return(assert.AnError)
 	_ = s.server.AddHook(onConnOpen)
 
 	connClosedCh := make(chan struct{})
-	onConnClosed := mocks.NewMockHookOnConnectionClosed(s.T())
+	onConnClosed := mocks.NewMockOnConnectionClosedHook(s.T())
 	onConnClosed.EXPECT().Name().Return("onConnClosed")
 	onConnClosed.EXPECT().OnConnectionClosed(s.server, listener, assert.AnError).
 		Run(func(_ *akira.Server, _ akira.Listener, _ error) { close(connClosedCh) })
@@ -489,7 +489,7 @@ func (s *ServerTestSuite) TestHandlePacketConnect() {
 	listener, onConnectionStream := s.addListener()
 	receivedCh := make(chan struct{})
 
-	onPacketReceived := mocks.NewMockHookOnPacketReceived(s.T())
+	onPacketReceived := mocks.NewMockOnPacketReceivedHook(s.T())
 	onPacketReceived.EXPECT().Name().Return("onPacketReceived")
 	onPacketReceived.EXPECT().OnPacketReceived(mock.Anything, mock.Anything).
 		RunAndReturn(func(_ *akira.Client, p akira.Packet) error {
@@ -531,7 +531,7 @@ func (s *ServerTestSuite) TestCloseConnectionWhenReceiveInvalidPacket() {
 	listener, onConnectionStream := s.addListener()
 
 	connClosedCh := make(chan struct{})
-	onConnClosed := mocks.NewMockHookOnConnectionClosed(s.T())
+	onConnClosed := mocks.NewMockOnConnectionClosedHook(s.T())
 	onConnClosed.EXPECT().Name().Return("onConnClosed")
 	onConnClosed.EXPECT().OnConnectionClosed(s.server, listener, mock.Anything).
 		Run(func(_ *akira.Server, _ akira.Listener, _ error) { close(connClosedCh) })
@@ -556,13 +556,13 @@ func (s *ServerTestSuite) TestCloseConnectionWhenReceiveInvalidPacket() {
 func (s *ServerTestSuite) TestCloseConnectionIfOnPacketReceiveErrorReturnsError() {
 	listener, onConnectionStream := s.addListener()
 
-	onPacketRcvError := mocks.NewMockHookOnPacketReceiveError(s.T())
+	onPacketRcvError := mocks.NewMockOnPacketReceiveErrorHook(s.T())
 	onPacketRcvError.EXPECT().Name().Return("onPacketRcvError")
 	onPacketRcvError.EXPECT().OnPacketReceiveError(mock.Anything, mock.Anything).Return(assert.AnError)
 	_ = s.server.AddHook(onPacketRcvError)
 
 	connClosedCh := make(chan struct{})
-	onConnClosed := mocks.NewMockHookOnConnectionClosed(s.T())
+	onConnClosed := mocks.NewMockOnConnectionClosedHook(s.T())
 	onConnClosed.EXPECT().Name().Return("onConnClosed")
 	onConnClosed.EXPECT().OnConnectionClosed(s.server, listener, assert.AnError).
 		Run(func(_ *akira.Server, _ akira.Listener, _ error) { close(connClosedCh) })
@@ -587,13 +587,13 @@ func (s *ServerTestSuite) TestCloseConnectionIfOnPacketReceiveErrorReturnsError(
 func (s *ServerTestSuite) TestKeepReceivingWhenOnPacketReceiveErrorDoesNotReturnError() {
 	listener, onConnectionStream := s.addListener()
 
-	onPacketRcv := mocks.NewMockHookOnPacketReceive(s.T())
+	onPacketRcv := mocks.NewMockOnPacketReceiveHook(s.T())
 	onPacketRcv.EXPECT().Name().Return("onPacketRcv")
 	onPacketRcv.EXPECT().OnPacketReceive(mock.Anything).Return(nil).Twice()
 	_ = s.server.AddHook(onPacketRcv)
 
 	receivedCh := make(chan struct{})
-	onPacketRcvError := mocks.NewMockHookOnPacketReceiveError(s.T())
+	onPacketRcvError := mocks.NewMockOnPacketReceiveErrorHook(s.T())
 	onPacketRcvError.EXPECT().Name().Return("onPacketRcvError")
 	onPacketRcvError.EXPECT().OnPacketReceiveError(mock.Anything, mock.Anything).
 		RunAndReturn(func(_ *akira.Client, _ error) error {
@@ -603,7 +603,7 @@ func (s *ServerTestSuite) TestKeepReceivingWhenOnPacketReceiveErrorDoesNotReturn
 	_ = s.server.AddHook(onPacketRcvError)
 
 	connClosedCh := make(chan struct{})
-	onConnClosed := mocks.NewMockHookOnConnectionClosed(s.T())
+	onConnClosed := mocks.NewMockOnConnectionClosedHook(s.T())
 	onConnClosed.EXPECT().Name().Return("onConnClosed")
 	onConnClosed.EXPECT().OnConnectionClosed(s.server, listener, mock.Anything).
 		Run(func(_ *akira.Server, _ akira.Listener, _ error) { close(connClosedCh) })
@@ -630,13 +630,13 @@ func (s *ServerTestSuite) TestKeepReceivingWhenOnPacketReceiveErrorDoesNotReturn
 func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketReceiveReturnsError() {
 	listener, onConnectionStream := s.addListener()
 
-	onPacketRcv := mocks.NewMockHookOnPacketReceive(s.T())
+	onPacketRcv := mocks.NewMockOnPacketReceiveHook(s.T())
 	onPacketRcv.EXPECT().Name().Return("onPacketRcv")
 	onPacketRcv.EXPECT().OnPacketReceive(mock.Anything).Return(assert.AnError)
 	_ = s.server.AddHook(onPacketRcv)
 
 	connClosedCh := make(chan struct{})
-	onConnClosed := mocks.NewMockHookOnConnectionClosed(s.T())
+	onConnClosed := mocks.NewMockOnConnectionClosedHook(s.T())
 	onConnClosed.EXPECT().Name().Return("onConnClosed")
 	onConnClosed.EXPECT().OnConnectionClosed(s.server, listener, assert.AnError).
 		Run(func(_ *akira.Server, _ akira.Listener, err error) { close(connClosedCh) })
@@ -654,14 +654,14 @@ func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketReceiveReturnsError() {
 func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketReceivedReturnsError() {
 	listener, onConnectionStream := s.addListener()
 
-	onPacketReceived := mocks.NewMockHookOnPacketReceived(s.T())
+	onPacketReceived := mocks.NewMockOnPacketReceivedHook(s.T())
 	onPacketReceived.EXPECT().Name().Return("onPacketReceived")
 	onPacketReceived.EXPECT().OnPacketReceived(mock.Anything, mock.Anything).
 		RunAndReturn(func(_ *akira.Client, _ akira.Packet) error { return assert.AnError })
 	_ = s.server.AddHook(onPacketReceived)
 
 	connClosedCh := make(chan struct{})
-	onConnClosed := mocks.NewMockHookOnConnectionClosed(s.T())
+	onConnClosed := mocks.NewMockOnConnectionClosedHook(s.T())
 	onConnClosed.EXPECT().Name().Return("onConnClosed")
 	onConnClosed.EXPECT().OnConnectionClosed(s.server, listener, assert.AnError).
 		Run(func(_ *akira.Server, _ akira.Listener, err error) { close(connClosedCh) })
