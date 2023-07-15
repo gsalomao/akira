@@ -17,7 +17,7 @@ package packet
 import "fmt"
 
 // ErrV3ClientIDRejected indicates that the CONNECT packet was rejected due to the client ID.
-var ErrV3ClientIDRejected = Error{Code: ReasonCodeIdentifierRejected, Reason: "client id rejected"}
+var ErrV3ClientIDRejected = Error{Code: ReasonCodeV3IdentifierRejected, Reason: "client id rejected"}
 
 // MQTT malformed packet error.
 var (
@@ -174,5 +174,5 @@ type Error struct {
 
 // Error returns a human-friendly message.
 func (e Error) Error() string {
-	return fmt.Sprintf("%s: %s (code=0x%.2x)", e.Code.String(), e.Reason, byte(e.Code))
+	return fmt.Sprintf("%s (code=0x%.2x)", e.Reason, byte(e.Code))
 }
