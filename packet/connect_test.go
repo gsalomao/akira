@@ -323,19 +323,6 @@ func (s *ConnectTestSuite) TestDecodeError() {
 			ErrV3ClientIDRejected,
 		},
 		{
-			"Zero-byte Client ID without Clean Session flag (V3.1.1)",
-			[]byte{0, 4, 'M', 'Q', 'T', 'T', 4, 0, 0, 10, 0, 0},
-			ErrV3ClientIDRejected,
-		},
-		{
-			"Client ID more than 23 bytes (V3.1)",
-			[]byte{
-				0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 0, 0, 10, 0, 24, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65,
-				65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65,
-			},
-			ErrV3ClientIDRejected,
-		},
-		{
 			"Missing Will property length",
 			[]byte{0, 4, 'M', 'Q', 'T', 'T', 5, 4, 0, 10, 0, 0, 0},
 			ErrMalformedPropertyLength,

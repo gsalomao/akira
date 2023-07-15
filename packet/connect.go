@@ -267,13 +267,6 @@ func (p *Connect) decodeClientID(buf []byte) (int, error) {
 		if p.Version == MQTT31 {
 			return n, ErrV3ClientIDRejected
 		}
-		if p.Version == MQTT311 && !p.Flags.CleanSession() {
-			return n, ErrV3ClientIDRejected
-		}
-	}
-
-	if len(id) > 23 && p.Version == MQTT31 {
-		return n, ErrV3ClientIDRejected
 	}
 
 	p.ClientID = id
