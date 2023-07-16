@@ -59,13 +59,17 @@ func (f PropertyFlags) Set(id PropertyID) PropertyFlags {
 	return f | 1<<id
 }
 
-type properties interface {
+// Properties is the interface which all MQTT properties must implement.
+type Properties interface {
+	// Has returns whether the property is present or not.
 	Has(id PropertyID) bool
+
+	// Set sets the property indicating that it's present.
 	Set(id PropertyID)
 }
 
 type propertiesDecoder interface {
-	properties
+	Properties
 	decode(buf []byte, remaining int) (n int, err error)
 }
 
