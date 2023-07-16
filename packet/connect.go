@@ -54,10 +54,10 @@ type Connect struct {
 	Password []byte `json:"password"`
 
 	// Properties contains the properties of the CONNECT packet.
-	Properties *PropertiesConnect `json:"properties"`
+	Properties *ConnectProperties `json:"properties"`
 
 	// WillProperties contains the Will properties.
-	WillProperties *PropertiesWill `json:"will_properties"`
+	WillProperties *WillProperties `json:"will_properties"`
 
 	// KeepAlive is a time interval, measured in seconds, that is permitted to elapse between the point at which
 	// the client finishes transmitting one control packet and the point it starts sending the next.
@@ -253,7 +253,7 @@ func (p *Connect) decodeProperties(buf []byte) (int, error) {
 	var n int
 	var err error
 
-	p.Properties, n, err = decodeProperties[PropertiesConnect](buf)
+	p.Properties, n, err = decodeProperties[ConnectProperties](buf)
 	return n, err
 }
 
@@ -281,7 +281,7 @@ func (p *Connect) decodeWillProperties(buf []byte) (int, error) {
 	var n int
 	var err error
 
-	p.WillProperties, n, err = decodeProperties[PropertiesWill](buf)
+	p.WillProperties, n, err = decodeProperties[WillProperties](buf)
 	return n, err
 }
 
@@ -380,8 +380,8 @@ func (f ConnectFlags) Reserved() bool {
 	return (f & connectFlagReserved >> connectFlagShiftReserved) > 0
 }
 
-// PropertiesConnect contains the properties of the CONNECT packet.
-type PropertiesConnect struct {
+// ConnectProperties contains the properties of the CONNECT packet.
+type ConnectProperties struct {
 	// Flags indicates which properties are present.
 	Flags PropertyFlags `json:"flags"`
 
@@ -416,7 +416,7 @@ type PropertiesConnect struct {
 }
 
 // Has returns whether the property is present or not.
-func (p *PropertiesConnect) Has(id PropertyID) bool {
+func (p *ConnectProperties) Has(id PropertyID) bool {
 	if p != nil {
 		return p.Flags.Has(id)
 	}
@@ -424,13 +424,13 @@ func (p *PropertiesConnect) Has(id PropertyID) bool {
 }
 
 // Set sets the property indicating that it's present.
-func (p *PropertiesConnect) Set(id PropertyID) {
+func (p *ConnectProperties) Set(id PropertyID) {
 	if p != nil {
 		p.Flags = p.Flags.Set(id)
 	}
 }
 
-func (p *PropertiesConnect) size() int {
+func (p *ConnectProperties) size() int {
 	var size int
 
 	if p != nil {
@@ -448,7 +448,7 @@ func (p *PropertiesConnect) size() int {
 	return size
 }
 
-func (p *PropertiesConnect) decode(buf []byte, remaining int) (n int, err error) {
+func (p *ConnectProperties) decode(buf []byte, remaining int) (n int, err error) {
 	for remaining > 0 {
 		var b byte
 		var size int
@@ -473,29 +473,29 @@ func (p *PropertiesConnect) decode(buf []byte, remaining int) (n int, err error)
 	return n, nil
 }
 
-func (p *PropertiesConnect) decodeProperty(id PropertyID, buf []byte) (n int, err error) {
+func (p *ConnectProperties) decodeProperty(id PropertyID, buf []byte) (n int, err error) {
 	switch id {
-	case PropertyIDSessionExpiryInterval:
+	case PropertySessionExpiryInterval:
 		p.SessionExpiryInterval, n, err = decodePropSessionExpiryInterval(buf, p)
-	case PropertyIDReceiveMaximum:
+	case PropertyReceiveMaximum:
 		p.ReceiveMaximum, n, err = decodePropReceiveMaximum(buf, p)
-	case PropertyIDMaximumPacketSize:
+	case PropertyMaximumPacketSize:
 		p.MaximumPacketSize, n, err = decodePropMaxPacketSize(buf, p)
-	case PropertyIDTopicAliasMaximum:
+	case PropertyTopicAliasMaximum:
 		p.TopicAliasMaximum, n, err = decodePropTopicAliasMaximum(buf, p)
-	case PropertyIDRequestResponseInfo:
+	case PropertyRequestResponseInfo:
 		p.RequestResponseInfo, n, err = decodePropRequestResponseInfo(buf, p)
-	case PropertyIDRequestProblemInfo:
+	case PropertyRequestProblemInfo:
 		p.RequestProblemInfo, n, err = decodePropRequestProblemInfo(buf, p)
-	case PropertyIDUserProperty:
+	case PropertyUserProperty:
 		var user UserProperty
 		user, n, err = decodePropUserProperty(buf, p)
 		if err == nil {
 			p.UserProperties = append(p.UserProperties, user)
 		}
-	case PropertyIDAuthenticationMethod:
+	case PropertyAuthenticationMethod:
 		p.AuthenticationMethod, n, err = decodePropAuthenticationMethod(buf, p)
-	case PropertyIDAuthenticationData:
+	case PropertyAuthenticationData:
 		p.AuthenticationData, n, err = decodePropAuthenticationData(buf, p)
 	default:
 		err = ErrMalformedPropertyInvalid
@@ -504,9 +504,9 @@ func (p *PropertiesConnect) decodeProperty(id PropertyID, buf []byte) (n int, er
 	return n, err
 }
 
-// PropertiesWill defines the properties to be sent with the Will message when it is published, and properties
+// WillProperties defines the properties to be sent with the Will message when it is published, and properties
 // which define when to publish the Will message.
-type PropertiesWill struct {
+type WillProperties struct {
 	// Flags indicates which properties are present.
 	Flags PropertyFlags `json:"flags"`
 
@@ -534,7 +534,7 @@ type PropertiesWill struct {
 }
 
 // Has returns whether the property is present or not.
-func (p *PropertiesWill) Has(id PropertyID) bool {
+func (p *WillProperties) Has(id PropertyID) bool {
 	if p != nil {
 		return p.Flags.Has(id)
 	}
@@ -542,13 +542,13 @@ func (p *PropertiesWill) Has(id PropertyID) bool {
 }
 
 // Set sets the property indicating that it's present.
-func (p *PropertiesWill) Set(id PropertyID) {
+func (p *WillProperties) Set(id PropertyID) {
 	if p != nil {
 		p.Flags = p.Flags.Set(id)
 	}
 }
 
-func (p *PropertiesWill) size() int {
+func (p *WillProperties) size() int {
 	var size int
 
 	if p != nil {
@@ -564,7 +564,7 @@ func (p *PropertiesWill) size() int {
 	return size
 }
 
-func (p *PropertiesWill) decode(buf []byte, remaining int) (n int, err error) {
+func (p *WillProperties) decode(buf []byte, remaining int) (n int, err error) {
 	for remaining > 0 {
 		var b byte
 		var size int
@@ -589,21 +589,21 @@ func (p *PropertiesWill) decode(buf []byte, remaining int) (n int, err error) {
 	return n, nil
 }
 
-func (p *PropertiesWill) decodeProperty(id PropertyID, buf []byte) (n int, err error) {
+func (p *WillProperties) decodeProperty(id PropertyID, buf []byte) (n int, err error) {
 	switch id {
-	case PropertyIDWillDelayInterval:
+	case PropertyWillDelayInterval:
 		p.WillDelayInterval, n, err = decodePropWillDelayInterval(buf, p)
-	case PropertyIDPayloadFormatIndicator:
+	case PropertyPayloadFormatIndicator:
 		p.PayloadFormatIndicator, n, err = decodePropPayloadFormatIndicator(buf, p)
-	case PropertyIDMessageExpiryInterval:
+	case PropertyMessageExpiryInterval:
 		p.MessageExpiryInterval, n, err = decodePropMessageExpiryInterval(buf, p)
-	case PropertyIDContentType:
+	case PropertyContentType:
 		p.ContentType, n, err = decodePropContentType(buf, p)
-	case PropertyIDResponseTopic:
+	case PropertyResponseTopic:
 		p.ResponseTopic, n, err = decodePropResponseTopic(buf, p)
-	case PropertyIDCorrelationData:
+	case PropertyCorrelationData:
 		p.CorrelationData, n, err = decodePropCorrelationData(buf, p)
-	case PropertyIDUserProperty:
+	case PropertyUserProperty:
 		var user UserProperty
 		user, n, err = decodePropUserProperty(buf, p)
 		if err == nil {

@@ -27,7 +27,7 @@ type PropertiesTestSuite struct {
 func (s *PropertiesTestSuite) TestDecodePropertiesNoProperties() {
 	data := []byte{0}
 
-	p, n, err := decodeProperties[PropertiesConnect](data)
+	p, n, err := decodeProperties[ConnectProperties](data)
 	s.Require().NoError(err)
 	s.Assert().Nil(p)
 	s.Assert().Equal(1, n)
@@ -36,7 +36,7 @@ func (s *PropertiesTestSuite) TestDecodePropertiesNoProperties() {
 func (s *PropertiesTestSuite) TestDecodePropertiesErrorPropertyLength() {
 	data := []byte{0xFF, 0xFF, 0xFF, 0xFF}
 
-	_, _, err := decodeProperties[PropertiesConnect](data)
+	_, _, err := decodeProperties[ConnectProperties](data)
 	s.Require().Error(err)
 }
 

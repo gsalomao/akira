@@ -117,7 +117,7 @@ type LastWill struct {
 	Payload []byte `json:"payload"`
 
 	// Properties represents the properties of the Will Message.
-	Properties *packet.PropertiesWill `json:"properties,omitempty"`
+	Properties *packet.WillProperties `json:"properties,omitempty"`
 
 	// QoS represents the QoS level to be used when publishing the Will Message.
 	QoS packet.QoS `json:"qos"`

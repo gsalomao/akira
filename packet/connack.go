@@ -21,7 +21,7 @@ import (
 // ConnAck represents the CONNACK Packet from MQTT specifications.
 type ConnAck struct {
 	// Properties contains the properties of the CONNACK packet.
-	Properties *PropertiesConnAck `json:"properties"`
+	Properties *ConnAckProperties `json:"properties"`
 
 	// Version represents the MQTT version.
 	Version Version `json:"version"`
@@ -91,8 +91,8 @@ func (p *ConnAck) remainingLength() int {
 	return remainingLength
 }
 
-// PropertiesConnAck contains the properties of the CONNACK packet.
-type PropertiesConnAck struct {
+// ConnAckProperties contains the properties of the CONNACK packet.
+type ConnAckProperties struct {
 	// Flags indicates which properties are present.
 	Flags PropertyFlags `json:"flags"`
 
@@ -151,7 +151,7 @@ type PropertiesConnAck struct {
 }
 
 // Has returns whether the property is present or not.
-func (p *PropertiesConnAck) Has(id PropertyID) bool {
+func (p *ConnAckProperties) Has(id PropertyID) bool {
 	if p != nil {
 		return p.Flags.Has(id)
 	}
@@ -159,13 +159,13 @@ func (p *PropertiesConnAck) Has(id PropertyID) bool {
 }
 
 // Set sets the property indicating that it's present.
-func (p *PropertiesConnAck) Set(id PropertyID) {
+func (p *ConnAckProperties) Set(id PropertyID) {
 	if p != nil {
 		p.Flags = p.Flags.Set(id)
 	}
 }
 
-func (p *PropertiesConnAck) size() int {
+func (p *ConnAckProperties) size() int {
 	var size int
 
 	if p != nil {
@@ -191,7 +191,7 @@ func (p *PropertiesConnAck) size() int {
 	return size
 }
 
-func (p *PropertiesConnAck) encode(buf []byte) (n int, err error) {
+func (p *ConnAckProperties) encode(buf []byte) (n int, err error) {
 	n = encodeVarInteger(buf, p.size())
 
 	if p == nil {
@@ -200,31 +200,31 @@ func (p *PropertiesConnAck) encode(buf []byte) (n int, err error) {
 
 	var size int
 
-	size = encodePropUint(buf[n:], p.Flags, PropertyIDSessionExpiryInterval, p.SessionExpiryInterval)
+	size = encodePropUint(buf[n:], p.Flags, PropertySessionExpiryInterval, p.SessionExpiryInterval)
 	n += size
 
-	size = encodePropUint(buf[n:], p.Flags, PropertyIDReceiveMaximum, p.ReceiveMaximum)
+	size = encodePropUint(buf[n:], p.Flags, PropertyReceiveMaximum, p.ReceiveMaximum)
 	n += size
 
-	size = encodePropUint(buf[n:], p.Flags, PropertyIDMaximumQoS, p.MaximumQoS)
+	size = encodePropUint(buf[n:], p.Flags, PropertyMaximumQoS, p.MaximumQoS)
 	n += size
 
-	size = encodePropBool(buf[n:], p.Flags, PropertyIDRetainAvailable, p.RetainAvailable)
+	size = encodePropBool(buf[n:], p.Flags, PropertyRetainAvailable, p.RetainAvailable)
 	n += size
 
-	size = encodePropUint(buf[n:], p.Flags, PropertyIDMaximumPacketSize, p.MaximumPacketSize)
+	size = encodePropUint(buf[n:], p.Flags, PropertyMaximumPacketSize, p.MaximumPacketSize)
 	n += size
 
-	size, err = encodePropString(buf[n:], p.Flags, PropertyIDAssignedClientID, p.AssignedClientID)
+	size, err = encodePropString(buf[n:], p.Flags, PropertyAssignedClientID, p.AssignedClientID)
 	n += size
 	if err != nil {
 		return n, err
 	}
 
-	size = encodePropUint(buf[n:], p.Flags, PropertyIDTopicAliasMaximum, p.TopicAliasMaximum)
+	size = encodePropUint(buf[n:], p.Flags, PropertyTopicAliasMaximum, p.TopicAliasMaximum)
 	n += size
 
-	size, err = encodePropString(buf[n:], p.Flags, PropertyIDReasonString, p.ReasonString)
+	size, err = encodePropString(buf[n:], p.Flags, PropertyReasonString, p.ReasonString)
 	n += size
 	if err != nil {
 		return n, err
@@ -236,37 +236,37 @@ func (p *PropertiesConnAck) encode(buf []byte) (n int, err error) {
 		return n, err
 	}
 
-	size = encodePropBool(buf[n:], p.Flags, PropertyIDWildcardSubscriptionAvailable, p.WildcardSubscriptionAvailable)
+	size = encodePropBool(buf[n:], p.Flags, PropertyWildcardSubscriptionAvailable, p.WildcardSubscriptionAvailable)
 	n += size
 
-	size = encodePropBool(buf[n:], p.Flags, PropertyIDSubscriptionIDAvailable, p.SubscriptionIDAvailable)
+	size = encodePropBool(buf[n:], p.Flags, PropertySubscriptionIDAvailable, p.SubscriptionIDAvailable)
 	n += size
 
-	size = encodePropBool(buf[n:], p.Flags, PropertyIDSharedSubscriptionAvailable, p.SharedSubscriptionAvailable)
+	size = encodePropBool(buf[n:], p.Flags, PropertySharedSubscriptionAvailable, p.SharedSubscriptionAvailable)
 	n += size
 
-	size = encodePropUint(buf[n:], p.Flags, PropertyIDServerKeepAlive, p.ServerKeepAlive)
+	size = encodePropUint(buf[n:], p.Flags, PropertyServerKeepAlive, p.ServerKeepAlive)
 	n += size
 
-	size, err = encodePropString(buf[n:], p.Flags, PropertyIDResponseInfo, p.ResponseInfo)
-	n += size
-	if err != nil {
-		return n, err
-	}
-
-	size, err = encodePropString(buf[n:], p.Flags, PropertyIDServerReference, p.ServerReference)
+	size, err = encodePropString(buf[n:], p.Flags, PropertyResponseInfo, p.ResponseInfo)
 	n += size
 	if err != nil {
 		return n, err
 	}
 
-	size, err = encodePropString(buf[n:], p.Flags, PropertyIDAuthenticationMethod, p.AuthenticationMethod)
+	size, err = encodePropString(buf[n:], p.Flags, PropertyServerReference, p.ServerReference)
 	n += size
 	if err != nil {
 		return n, err
 	}
 
-	size, err = encodePropString(buf[n:], p.Flags, PropertyIDAuthenticationData, p.AuthenticationData)
+	size, err = encodePropString(buf[n:], p.Flags, PropertyAuthenticationMethod, p.AuthenticationMethod)
+	n += size
+	if err != nil {
+		return n, err
+	}
+
+	size, err = encodePropString(buf[n:], p.Flags, PropertyAuthenticationData, p.AuthenticationData)
 	n += size
 
 	return n, err

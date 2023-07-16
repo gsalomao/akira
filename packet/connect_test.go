@@ -45,8 +45,8 @@ func (s *ConnectTestSuite) TestSize() {
 				Version:        MQTT50,
 				KeepAlive:      500,
 				ClientID:       []byte("abc"),
-				Properties:     &PropertiesConnect{},
-				WillProperties: &PropertiesWill{},
+				Properties:     &ConnectProperties{},
+				WillProperties: &WillProperties{},
 			},
 			18,
 		},
@@ -56,10 +56,10 @@ func (s *ConnectTestSuite) TestSize() {
 				Version:        MQTT50,
 				ClientID:       []byte("abc"),
 				Flags:          connectFlagWillFlag,
-				Properties:     &PropertiesConnect{},
+				Properties:     &ConnectProperties{},
 				WillTopic:      []byte("a"),
 				WillPayload:    []byte("b"),
-				WillProperties: &PropertiesWill{},
+				WillProperties: &WillProperties{},
 			},
 			25,
 		},
@@ -69,14 +69,14 @@ func (s *ConnectTestSuite) TestSize() {
 				Version:  MQTT50,
 				ClientID: []byte("abc"),
 				Flags:    ConnectFlags(connectFlagWillFlag | connectFlagUsernameFlag | connectFlagPasswordFlag),
-				Properties: &PropertiesConnect{
-					Flags:                 PropertyFlags(0).Set(PropertyIDSessionExpiryInterval),
+				Properties: &ConnectProperties{
+					Flags:                 PropertyFlags(0).Set(PropertySessionExpiryInterval),
 					SessionExpiryInterval: 30,
 				},
 				WillTopic:   []byte("a"),
 				WillPayload: []byte("b"),
-				WillProperties: &PropertiesWill{
-					Flags:             PropertyFlags(0).Set(PropertyIDWillDelayInterval),
+				WillProperties: &WillProperties{
+					Flags:             PropertyFlags(0).Set(PropertyWillDelayInterval),
 					WillDelayInterval: 60,
 				},
 				Username: []byte("user"),
@@ -246,10 +246,10 @@ func (s *ConnectTestSuite) TestDecodeSuccess() {
 				0x04,     // Packet flags
 				255, 255, // Keep alive
 				5,               // Property length
-				17, 0, 0, 0, 10, // SessionExpiryInterval
+				17, 0, 0, 0, 10, // Session expiry interval
 				0, 3, 'a', 'b', 'c', // Client ID
 				5,               // Will Property length
-				24, 0, 0, 0, 15, // WillDelayInterval
+				24, 0, 0, 0, 15, // Will delay interval
 				0, 1, 'a', // Will Topic
 				0, 1, 'b', // Will Payload
 			},
@@ -257,13 +257,13 @@ func (s *ConnectTestSuite) TestDecodeSuccess() {
 				Version:   MQTT50,
 				KeepAlive: 65535,
 				Flags:     connectFlagWillFlag,
-				Properties: &PropertiesConnect{
-					Flags:                 PropertyFlags(0).Set(PropertyIDSessionExpiryInterval),
+				Properties: &ConnectProperties{
+					Flags:                 PropertyFlags(0).Set(PropertySessionExpiryInterval),
 					SessionExpiryInterval: 10,
 				},
 				ClientID: []byte("abc"),
-				WillProperties: &PropertiesWill{
-					Flags:             PropertyFlags(0).Set(PropertyIDWillDelayInterval),
+				WillProperties: &WillProperties{
+					Flags:             PropertyFlags(0).Set(PropertyWillDelayInterval),
 					WillDelayInterval: 15,
 				},
 				WillTopic:   []byte("a"),
@@ -424,25 +424,25 @@ func BenchmarkConnectDecode(b *testing.B) {
 	}
 }
 
-type PropertiesConnectTestSuite struct {
+type ConnectPropertiesTestSuite struct {
 	suite.Suite
 }
 
-func (s *PropertiesConnectTestSuite) TestHas() {
+func (s *ConnectPropertiesTestSuite) TestHas() {
 	testCases := []struct {
-		props  *PropertiesConnect
+		props  *ConnectProperties
 		id     PropertyID
 		result bool
 	}{
-		{&PropertiesConnect{}, PropertyIDUserProperty, true},
-		{&PropertiesConnect{}, PropertyIDAuthenticationMethod, true},
-		{&PropertiesConnect{}, PropertyIDAuthenticationData, true},
-		{&PropertiesConnect{}, PropertyIDSessionExpiryInterval, true},
-		{&PropertiesConnect{}, PropertyIDMaximumPacketSize, true},
-		{&PropertiesConnect{}, PropertyIDReceiveMaximum, true},
-		{&PropertiesConnect{}, PropertyIDTopicAliasMaximum, true},
-		{&PropertiesConnect{}, PropertyIDRequestResponseInfo, true},
-		{&PropertiesConnect{}, PropertyIDRequestProblemInfo, true},
+		{&ConnectProperties{}, PropertyUserProperty, true},
+		{&ConnectProperties{}, PropertyAuthenticationMethod, true},
+		{&ConnectProperties{}, PropertyAuthenticationData, true},
+		{&ConnectProperties{}, PropertySessionExpiryInterval, true},
+		{&ConnectProperties{}, PropertyMaximumPacketSize, true},
+		{&ConnectProperties{}, PropertyReceiveMaximum, true},
+		{&ConnectProperties{}, PropertyTopicAliasMaximum, true},
+		{&ConnectProperties{}, PropertyRequestResponseInfo, true},
+		{&ConnectProperties{}, PropertyRequestProblemInfo, true},
 		{nil, 0, false},
 	}
 
@@ -454,20 +454,20 @@ func (s *PropertiesConnectTestSuite) TestHas() {
 	}
 }
 
-func (s *PropertiesConnectTestSuite) TestSize() {
+func (s *ConnectPropertiesTestSuite) TestSize() {
 	var flags PropertyFlags
 
-	flags = flags.Set(PropertyIDUserProperty)
-	flags = flags.Set(PropertyIDAuthenticationMethod)
-	flags = flags.Set(PropertyIDAuthenticationData)
-	flags = flags.Set(PropertyIDSessionExpiryInterval)
-	flags = flags.Set(PropertyIDMaximumPacketSize)
-	flags = flags.Set(PropertyIDReceiveMaximum)
-	flags = flags.Set(PropertyIDTopicAliasMaximum)
-	flags = flags.Set(PropertyIDRequestResponseInfo)
-	flags = flags.Set(PropertyIDRequestProblemInfo)
+	flags = flags.Set(PropertyUserProperty)
+	flags = flags.Set(PropertyAuthenticationMethod)
+	flags = flags.Set(PropertyAuthenticationData)
+	flags = flags.Set(PropertySessionExpiryInterval)
+	flags = flags.Set(PropertyMaximumPacketSize)
+	flags = flags.Set(PropertyReceiveMaximum)
+	flags = flags.Set(PropertyTopicAliasMaximum)
+	flags = flags.Set(PropertyRequestResponseInfo)
+	flags = flags.Set(PropertyRequestProblemInfo)
 
-	props := PropertiesConnect{
+	props := ConnectProperties{
 		Flags: flags,
 		UserProperties: []UserProperty{
 			{[]byte("a"), []byte("b")},
@@ -481,14 +481,14 @@ func (s *PropertiesConnectTestSuite) TestSize() {
 	s.Assert().Equal(48, size)
 }
 
-func (s *PropertiesConnectTestSuite) TestSizeOnNil() {
-	var props *PropertiesConnect
+func (s *ConnectPropertiesTestSuite) TestSizeOnNil() {
+	var props *ConnectProperties
 
 	size := props.size()
 	s.Assert().Equal(0, size)
 }
 
-func (s *PropertiesConnectTestSuite) TestDecodeSuccess() {
+func (s *ConnectPropertiesTestSuite) TestDecodeSuccess() {
 	data := []byte{
 		0,               // Property Length
 		17, 0, 0, 0, 10, // Session Expiry Interval
@@ -504,18 +504,18 @@ func (s *PropertiesConnectTestSuite) TestDecodeSuccess() {
 	}
 	data[0] = byte(len(data) - 1)
 
-	props, n, err := decodeProperties[PropertiesConnect](data)
+	props, n, err := decodeProperties[ConnectProperties](data)
 	s.Require().NoError(err)
 	s.Assert().Equal(len(data), n)
-	s.Assert().True(props.Has(PropertyIDSessionExpiryInterval))
-	s.Assert().True(props.Has(PropertyIDReceiveMaximum))
-	s.Assert().True(props.Has(PropertyIDMaximumPacketSize))
-	s.Assert().True(props.Has(PropertyIDTopicAliasMaximum))
-	s.Assert().True(props.Has(PropertyIDRequestResponseInfo))
-	s.Assert().True(props.Has(PropertyIDRequestProblemInfo))
-	s.Assert().True(props.Has(PropertyIDAuthenticationMethod))
-	s.Assert().True(props.Has(PropertyIDAuthenticationData))
-	s.Assert().True(props.Has(PropertyIDUserProperty))
+	s.Assert().True(props.Has(PropertySessionExpiryInterval))
+	s.Assert().True(props.Has(PropertyReceiveMaximum))
+	s.Assert().True(props.Has(PropertyMaximumPacketSize))
+	s.Assert().True(props.Has(PropertyTopicAliasMaximum))
+	s.Assert().True(props.Has(PropertyRequestResponseInfo))
+	s.Assert().True(props.Has(PropertyRequestProblemInfo))
+	s.Assert().True(props.Has(PropertyAuthenticationMethod))
+	s.Assert().True(props.Has(PropertyAuthenticationData))
+	s.Assert().True(props.Has(PropertyUserProperty))
 	s.Assert().Equal(10, int(props.SessionExpiryInterval))
 	s.Assert().Equal(50, int(props.ReceiveMaximum))
 	s.Assert().Equal(200, int(props.MaximumPacketSize))
@@ -530,7 +530,7 @@ func (s *PropertiesConnectTestSuite) TestDecodeSuccess() {
 	s.Assert().Equal([]byte{10}, props.AuthenticationData)
 }
 
-func (s *PropertiesTestSuite) TestDecodeError() {
+func (s *ConnectPropertiesTestSuite) TestDecodeError() {
 	testCases := []struct {
 		name string
 		data []byte
@@ -577,33 +577,33 @@ func (s *PropertiesTestSuite) TestDecodeError() {
 
 	for _, test := range testCases {
 		s.Run(test.name, func() {
-			_, _, err := decodeProperties[PropertiesConnect](test.data)
+			_, _, err := decodeProperties[ConnectProperties](test.data)
 			s.Require().ErrorIs(err, test.err)
 		})
 	}
 }
 
-func TestPropertiesConnectTestSuite(t *testing.T) {
-	suite.Run(t, new(PropertiesConnectTestSuite))
+func TestConnectPropertiesTestSuite(t *testing.T) {
+	suite.Run(t, new(ConnectPropertiesTestSuite))
 }
 
-type PropertiesWillTestSuite struct {
+type WillPropertiesTestSuite struct {
 	suite.Suite
 }
 
-func (s *PropertiesWillTestSuite) TestHas() {
+func (s *WillPropertiesTestSuite) TestHas() {
 	testCases := []struct {
-		props  *PropertiesWill
+		props  *WillProperties
 		id     PropertyID
 		result bool
 	}{
-		{&PropertiesWill{}, PropertyIDUserProperty, true},
-		{&PropertiesWill{}, PropertyIDCorrelationData, true},
-		{&PropertiesWill{}, PropertyIDContentType, true},
-		{&PropertiesWill{}, PropertyIDResponseTopic, true},
-		{&PropertiesWill{}, PropertyIDWillDelayInterval, true},
-		{&PropertiesWill{}, PropertyIDMessageExpiryInterval, true},
-		{&PropertiesWill{}, PropertyIDPayloadFormatIndicator, true},
+		{&WillProperties{}, PropertyUserProperty, true},
+		{&WillProperties{}, PropertyCorrelationData, true},
+		{&WillProperties{}, PropertyContentType, true},
+		{&WillProperties{}, PropertyResponseTopic, true},
+		{&WillProperties{}, PropertyWillDelayInterval, true},
+		{&WillProperties{}, PropertyMessageExpiryInterval, true},
+		{&WillProperties{}, PropertyPayloadFormatIndicator, true},
 		{nil, 0, false},
 	}
 
@@ -615,17 +615,17 @@ func (s *PropertiesWillTestSuite) TestHas() {
 	}
 }
 
-func (s *PropertiesWillTestSuite) TestSize() {
+func (s *WillPropertiesTestSuite) TestSize() {
 	var flags PropertyFlags
-	flags = flags.Set(PropertyIDUserProperty)
-	flags = flags.Set(PropertyIDCorrelationData)
-	flags = flags.Set(PropertyIDContentType)
-	flags = flags.Set(PropertyIDResponseTopic)
-	flags = flags.Set(PropertyIDWillDelayInterval)
-	flags = flags.Set(PropertyIDMessageExpiryInterval)
-	flags = flags.Set(PropertyIDPayloadFormatIndicator)
+	flags = flags.Set(PropertyUserProperty)
+	flags = flags.Set(PropertyCorrelationData)
+	flags = flags.Set(PropertyContentType)
+	flags = flags.Set(PropertyResponseTopic)
+	flags = flags.Set(PropertyWillDelayInterval)
+	flags = flags.Set(PropertyMessageExpiryInterval)
+	flags = flags.Set(PropertyPayloadFormatIndicator)
 
-	props := PropertiesWill{
+	props := WillProperties{
 		Flags:                  flags,
 		UserProperties:         []UserProperty{{[]byte("a"), []byte("b")}},
 		CorrelationData:        []byte{20, 1},
@@ -640,14 +640,14 @@ func (s *PropertiesWillTestSuite) TestSize() {
 	s.Assert().Equal(35, size)
 }
 
-func (s *PropertiesWillTestSuite) TestSizeOnNil() {
-	var props *PropertiesWill
+func (s *WillPropertiesTestSuite) TestSizeOnNil() {
+	var props *WillProperties
 
 	size := props.size()
 	s.Assert().Equal(0, size)
 }
 
-func (s *PropertiesWillTestSuite) TestDecodeSuccess() {
+func (s *WillPropertiesTestSuite) TestDecodeSuccess() {
 	data := []byte{
 		0,               // Property Length
 		24, 0, 0, 0, 15, // Will Delay Interval
@@ -660,16 +660,16 @@ func (s *PropertiesWillTestSuite) TestDecodeSuccess() {
 	}
 	data[0] = byte(len(data) - 1)
 
-	props, n, err := decodeProperties[PropertiesWill](data)
+	props, n, err := decodeProperties[WillProperties](data)
 	s.Require().NoError(err)
 	s.Assert().Equal(len(data), n)
-	s.Assert().True(props.Has(PropertyIDWillDelayInterval))
-	s.Assert().True(props.Has(PropertyIDPayloadFormatIndicator))
-	s.Assert().True(props.Has(PropertyIDMessageExpiryInterval))
-	s.Assert().True(props.Has(PropertyIDContentType))
-	s.Assert().True(props.Has(PropertyIDResponseTopic))
-	s.Assert().True(props.Has(PropertyIDCorrelationData))
-	s.Assert().True(props.Has(PropertyIDUserProperty))
+	s.Assert().True(props.Has(PropertyWillDelayInterval))
+	s.Assert().True(props.Has(PropertyPayloadFormatIndicator))
+	s.Assert().True(props.Has(PropertyMessageExpiryInterval))
+	s.Assert().True(props.Has(PropertyContentType))
+	s.Assert().True(props.Has(PropertyResponseTopic))
+	s.Assert().True(props.Has(PropertyCorrelationData))
+	s.Assert().True(props.Has(PropertyUserProperty))
 	s.Assert().Equal(15, int(props.WillDelayInterval))
 	s.Assert().True(props.PayloadFormatIndicator)
 	s.Assert().Equal(10, int(props.MessageExpiryInterval))
@@ -680,7 +680,7 @@ func (s *PropertiesWillTestSuite) TestDecodeSuccess() {
 	s.Assert().Equal([]byte("b"), props.UserProperties[0].Value)
 }
 
-func (s *PropertiesWillTestSuite) TestDecodeError() {
+func (s *WillPropertiesTestSuite) TestDecodeError() {
 	testCases := []struct {
 		name string
 		data []byte
@@ -725,12 +725,12 @@ func (s *PropertiesWillTestSuite) TestDecodeError() {
 
 	for _, test := range testCases {
 		s.Run(test.name, func() {
-			_, _, err := decodeProperties[PropertiesWill](test.data)
+			_, _, err := decodeProperties[WillProperties](test.data)
 			s.Require().ErrorIs(err, test.err)
 		})
 	}
 }
 
-func TestPropertiesWillTestSuite(t *testing.T) {
-	suite.Run(t, new(PropertiesWillTestSuite))
+func TestWillPropertiesTestSuite(t *testing.T) {
+	suite.Run(t, new(WillPropertiesTestSuite))
 }

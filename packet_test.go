@@ -65,8 +65,8 @@ func TestReadPacketSuccess(t *testing.T) {
 				KeepAlive: 255,
 				Flags:     packet.ConnectFlags(0x02), // Clean session flag
 				ClientID:  []byte("ab"),
-				Properties: &packet.PropertiesConnect{
-					Flags:                 packet.PropertyFlags(0).Set(packet.PropertyIDSessionExpiryInterval),
+				Properties: &packet.ConnectProperties{
+					Flags:                 packet.PropertyFlags(0).Set(packet.PropertySessionExpiryInterval),
 					SessionExpiryInterval: 30,
 				},
 			},
