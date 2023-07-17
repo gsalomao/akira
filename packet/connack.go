@@ -16,7 +16,30 @@ package packet
 
 import (
 	"errors"
+	"fmt"
 )
+
+var validReasonCodes = [][]ReasonCode{
+	// V3.1
+	{
+		ReasonCodeSuccess, ReasonCodeV3UnacceptableProtocolVersion, ReasonCodeV3IdentifierRejected,
+		ReasonCodeV3ServerUnavailable, ReasonCodeV3BadUsernameOrPassword, ReasonCodeV3NotAuthorized,
+	},
+	// V3.1.1
+	{
+		ReasonCodeSuccess, ReasonCodeV3UnacceptableProtocolVersion, ReasonCodeV3IdentifierRejected,
+		ReasonCodeV3ServerUnavailable, ReasonCodeV3BadUsernameOrPassword, ReasonCodeV3NotAuthorized,
+	},
+	// V5.0
+	{
+		ReasonCodeSuccess, ReasonCodeUnspecifiedError, ReasonCodeMalformedPacket, ReasonCodeProtocolError,
+		ReasonCodeImplementationSpecificError, ReasonCodeUnsupportedProtocolVersion, ReasonCodeClientIDNotValid,
+		ReasonCodeBadUsernameOrPassword, ReasonCodeNotAuthorized, ReasonCodeServerUnavailable, ReasonCodeServerBusy,
+		ReasonCodeBanned, ReasonCodeBadAuthenticationMethod, ReasonCodeTopicNameInvalid, ReasonCodePacketTooLarge,
+		ReasonCodeQuotaExceeded, ReasonCodePayloadFormatInvalid, ReasonCodeRetainNotSupported,
+		ReasonCodeQoSNotSupported, ReasonCodeUseAnotherServer, ReasonCodeServerMoved, ReasonCodeConnectionRateExceeded,
+	},
+}
 
 // ConnAck represents the CONNACK Packet from MQTT specifications.
 type ConnAck struct {
@@ -53,6 +76,9 @@ func (p *ConnAck) Encode(buf []byte) (n int, err error) {
 	if len(buf) < p.Size() {
 		return 0, errors.New("buffer too small")
 	}
+	if err = p.Validate(); err != nil {
+		return 0, err
+	}
 
 	header := FixedHeader{PacketType: TypeConnAck, RemainingLength: p.remainingLength()}
 	n = header.encode(buf)
@@ -76,6 +102,33 @@ func (p *ConnAck) Encode(buf []byte) (n int, err error) {
 	}
 
 	return n, err
+}
+
+// Validate validates if the CONNACK Packet is valid.
+func (p *ConnAck) Validate() error {
+	if p.Version < MQTT31 || p.Version > MQTT50 {
+		return fmt.Errorf("%w: invalid version", ErrMalformedPacket)
+	}
+
+	var found bool
+	for _, code := range validReasonCodes[p.Version-MQTT31] {
+		if p.Code == code {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("%w: invalid reason code", ErrMalformedPacket)
+	}
+
+	if p.Version == MQTT50 {
+		err := p.Properties.Validate()
+		if err != nil {
+			return fmt.Errorf("%w: invalid properties: %s ", ErrMalformedPacket, err.Error())
+		}
+	}
+
+	return nil
 }
 
 func (p *ConnAck) remainingLength() int {
@@ -163,6 +216,39 @@ func (p *ConnAckProperties) Set(id PropertyID) {
 	if p != nil {
 		p.Flags = p.Flags.Set(id)
 	}
+}
+
+// Validate validates if the properties are valid.
+func (p *ConnAckProperties) Validate() error {
+	if p == nil {
+		return nil
+	}
+
+	if err := validatePropString(p.Flags, PropertyAssignedClientID, p.AssignedClientID); err != nil {
+		return errors.New("missing assigned client identifier")
+	}
+	if err := validatePropString(p.Flags, PropertyReasonString, p.ReasonString); err != nil {
+		return errors.New("missing reason string")
+	}
+	if err := validatePropString(p.Flags, PropertyResponseInfo, p.ResponseInfo); err != nil {
+		return errors.New("missing response info")
+	}
+	if err := validatePropString(p.Flags, PropertyServerReference, p.ServerReference); err != nil {
+		return errors.New("missing server reference")
+	}
+	if err := validatePropString(p.Flags, PropertyAuthenticationMethod, p.AuthenticationMethod); err != nil {
+		return errors.New("missing authentication method")
+	}
+	if err := validatePropString(p.Flags, PropertyAuthenticationData, p.AuthenticationData); err != nil {
+		return errors.New("missing authentication data")
+	}
+	if err := validatePropUserProperty(p.Flags, p.UserProperties); err != nil {
+		return err
+	}
+	if p.Flags.Has(PropertyMaximumQoS) && p.MaximumQoS > byte(QoS2) {
+		return errors.New("invalid maximum qos")
+	}
+	return nil
 }
 
 func (p *ConnAckProperties) size() int {

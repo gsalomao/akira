@@ -126,6 +126,20 @@ var packetTypeToString = map[Type]string{
 // Version represents the MQTT version.
 type Version byte
 
+// String returns the MQTT version name.
+func (v Version) String() string {
+	switch v {
+	case MQTT31:
+		return "3.1"
+	case MQTT311:
+		return "3.1.1"
+	case MQTT50:
+		return "5.0"
+	default:
+		return "unknown"
+	}
+}
+
 // QoS represents the quality of service.
 type QoS byte
 

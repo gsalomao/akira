@@ -636,3 +636,25 @@ func encodePropString(buf []byte, f PropertyFlags, id PropertyID, str []byte) (i
 	}
 	return 0, nil
 }
+
+func validatePropUserProperty(f PropertyFlags, props []UserProperty) error {
+	if !f.Has(PropertyUserProperty) {
+		return nil
+	}
+	if len(props) == 0 {
+		return errors.New("missing user property")
+	}
+	for _, p := range props {
+		if len(p.Key) == 0 {
+			return errors.New("missing user property key")
+		}
+	}
+	return nil
+}
+
+func validatePropString(f PropertyFlags, id PropertyID, str []byte) error {
+	if f.Has(id) && len(str) == 0 {
+		return errors.New("missing string")
+	}
+	return nil
+}

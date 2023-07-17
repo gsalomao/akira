@@ -141,6 +141,155 @@ func (s *ConnAckTestSuite) TestEncodeError() {
 	s.Assert().Zero(n)
 }
 
+func (s *ConnAckTestSuite) TestEncodeErrorWhenPacketInvalid() {
+	data := make([]byte, 10)
+	packet := ConnAck{}
+
+	n, err := packet.Encode(data)
+	s.Require().Error(err)
+	s.Assert().Zero(n)
+}
+
+func (s *ConnAckTestSuite) TestValidateWithValidVersion() {
+	testCases := []Version{MQTT31, MQTT311, MQTT50}
+
+	for _, test := range testCases {
+		s.Run(test.String(), func() {
+			connack := ConnAck{Version: test}
+			err := connack.Validate()
+			s.Require().NoError(err)
+		})
+	}
+}
+
+func (s *ConnAckTestSuite) TestValidateWithInvalidVersion() {
+	connack := ConnAck{}
+	err := connack.Validate()
+	s.Require().Error(err)
+}
+
+func (s *ConnAckTestSuite) TestValidateWithValidReasonCode() {
+	testCases := []struct {
+		version Version
+		code    ReasonCode
+	}{
+		{MQTT31, ReasonCodeSuccess},
+		{MQTT31, ReasonCodeV3UnacceptableProtocolVersion},
+		{MQTT31, ReasonCodeV3IdentifierRejected},
+		{MQTT31, ReasonCodeV3ServerUnavailable},
+		{MQTT31, ReasonCodeV3BadUsernameOrPassword},
+		{MQTT31, ReasonCodeV3NotAuthorized},
+		{MQTT311, ReasonCodeSuccess},
+		{MQTT311, ReasonCodeV3UnacceptableProtocolVersion},
+		{MQTT311, ReasonCodeV3IdentifierRejected},
+		{MQTT311, ReasonCodeV3ServerUnavailable},
+		{MQTT311, ReasonCodeV3BadUsernameOrPassword},
+		{MQTT311, ReasonCodeV3NotAuthorized},
+		{MQTT50, ReasonCodeSuccess},
+		{MQTT50, ReasonCodeUnspecifiedError},
+		{MQTT50, ReasonCodeMalformedPacket},
+		{MQTT50, ReasonCodeProtocolError},
+		{MQTT50, ReasonCodeImplementationSpecificError},
+		{MQTT50, ReasonCodeUnsupportedProtocolVersion},
+		{MQTT50, ReasonCodeClientIDNotValid},
+		{MQTT50, ReasonCodeBadUsernameOrPassword},
+		{MQTT50, ReasonCodeNotAuthorized},
+		{MQTT50, ReasonCodeServerUnavailable},
+		{MQTT50, ReasonCodeServerBusy},
+		{MQTT50, ReasonCodeBanned},
+		{MQTT50, ReasonCodeBadAuthenticationMethod},
+		{MQTT50, ReasonCodeTopicNameInvalid},
+		{MQTT50, ReasonCodePacketTooLarge},
+		{MQTT50, ReasonCodeQuotaExceeded},
+		{MQTT50, ReasonCodePayloadFormatInvalid},
+		{MQTT50, ReasonCodeRetainNotSupported},
+		{MQTT50, ReasonCodeQoSNotSupported},
+		{MQTT50, ReasonCodeUseAnotherServer},
+		{MQTT50, ReasonCodeServerMoved},
+		{MQTT50, ReasonCodeConnectionRateExceeded},
+	}
+
+	for _, test := range testCases {
+		s.Run(fmt.Sprintf("V%s-0x%.2X", test.version.String(), test.code), func() {
+			connack := ConnAck{Version: test.version, Code: test.code}
+			err := connack.Validate()
+			s.Require().NoError(err)
+		})
+	}
+}
+
+func (s *ConnAckTestSuite) TestValidateWithInvalidReasonCode() {
+	testCases := []struct {
+		version Version
+		code    ReasonCode
+	}{
+		{MQTT31, ReasonCodeUnspecifiedError},
+		{MQTT31, ReasonCodeMalformedPacket},
+		{MQTT31, ReasonCodeProtocolError},
+		{MQTT31, ReasonCodeImplementationSpecificError},
+		{MQTT31, ReasonCodeUnsupportedProtocolVersion},
+		{MQTT31, ReasonCodeClientIDNotValid},
+		{MQTT31, ReasonCodeBadUsernameOrPassword},
+		{MQTT31, ReasonCodeNotAuthorized},
+		{MQTT31, ReasonCodeServerUnavailable},
+		{MQTT31, ReasonCodeServerBusy},
+		{MQTT31, ReasonCodeBanned},
+		{MQTT31, ReasonCodeBadAuthenticationMethod},
+		{MQTT31, ReasonCodeTopicNameInvalid},
+		{MQTT31, ReasonCodePacketTooLarge},
+		{MQTT31, ReasonCodeQuotaExceeded},
+		{MQTT31, ReasonCodePayloadFormatInvalid},
+		{MQTT31, ReasonCodeRetainNotSupported},
+		{MQTT31, ReasonCodeQoSNotSupported},
+		{MQTT31, ReasonCodeUseAnotherServer},
+		{MQTT31, ReasonCodeServerMoved},
+		{MQTT31, ReasonCodeConnectionRateExceeded},
+		{MQTT311, ReasonCodeUnspecifiedError},
+		{MQTT311, ReasonCodeMalformedPacket},
+		{MQTT311, ReasonCodeProtocolError},
+		{MQTT311, ReasonCodeImplementationSpecificError},
+		{MQTT311, ReasonCodeUnsupportedProtocolVersion},
+		{MQTT311, ReasonCodeClientIDNotValid},
+		{MQTT311, ReasonCodeBadUsernameOrPassword},
+		{MQTT311, ReasonCodeNotAuthorized},
+		{MQTT311, ReasonCodeServerUnavailable},
+		{MQTT311, ReasonCodeServerBusy},
+		{MQTT311, ReasonCodeBanned},
+		{MQTT311, ReasonCodeBadAuthenticationMethod},
+		{MQTT311, ReasonCodeTopicNameInvalid},
+		{MQTT311, ReasonCodePacketTooLarge},
+		{MQTT311, ReasonCodeQuotaExceeded},
+		{MQTT311, ReasonCodePayloadFormatInvalid},
+		{MQTT311, ReasonCodeRetainNotSupported},
+		{MQTT311, ReasonCodeQoSNotSupported},
+		{MQTT311, ReasonCodeUseAnotherServer},
+		{MQTT311, ReasonCodeServerMoved},
+		{MQTT311, ReasonCodeConnectionRateExceeded},
+		{MQTT50, ReasonCodeV3UnacceptableProtocolVersion},
+		{MQTT50, ReasonCodeV3IdentifierRejected},
+		{MQTT50, ReasonCodeV3ServerUnavailable},
+		{MQTT50, ReasonCodeV3BadUsernameOrPassword},
+		{MQTT50, ReasonCodeV3NotAuthorized},
+	}
+
+	for _, test := range testCases {
+		s.Run(fmt.Sprintf("V%s-0x%.2X", test.version.String(), test.code), func() {
+			connack := ConnAck{Version: test.version, Code: test.code}
+			err := connack.Validate()
+			s.Require().Error(err)
+		})
+	}
+}
+
+func (s *ConnAckTestSuite) TestValidateWithInvalidProperties() {
+	connack := ConnAck{
+		Version:    MQTT50,
+		Properties: &ConnAckProperties{Flags: PropertyFlags(0).Set(PropertyReasonString)},
+	}
+	err := connack.Validate()
+	s.Require().Error(err)
+}
+
 func TestConnAckTestSuite(t *testing.T) {
 	suite.Run(t, new(ConnAckTestSuite))
 }
@@ -484,6 +633,35 @@ func (s *ConnAckPropertiesTestSuite) TestEncodeError() {
 			s.Require().Error(err)
 		})
 	}
+}
+
+func (s *ConnAckPropertiesTestSuite) TestValidateWithMissingProperty() {
+	testCases := []struct {
+		name string
+		id   PropertyID
+	}{
+		{"Assigned client ID", PropertyAssignedClientID},
+		{"Reason string", PropertyReasonString},
+		{"Reason info", PropertyResponseInfo},
+		{"Server reference", PropertyServerReference},
+		{"Authentication method", PropertyAuthenticationMethod},
+		{"Authentication data", PropertyAuthenticationData},
+		{"User property", PropertyUserProperty},
+	}
+
+	for _, test := range testCases {
+		s.Run(test.name, func() {
+			props := ConnAckProperties{Flags: PropertyFlags(0).Set(test.id)}
+			err := props.Validate()
+			s.Require().Error(err)
+		})
+	}
+}
+
+func (s *ConnAckPropertiesTestSuite) TestValidateWithInvalidMaximumQoS() {
+	props := ConnAckProperties{Flags: PropertyFlags(0).Set(PropertyMaximumQoS), MaximumQoS: 3}
+	err := props.Validate()
+	s.Require().Error(err)
 }
 
 func TestConnAckPropertiesTestSuite(t *testing.T) {
