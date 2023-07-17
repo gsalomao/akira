@@ -40,15 +40,6 @@ func (s *PropertiesTestSuite) TestDecodePropertiesErrorPropertyLength() {
 	s.Require().Error(err)
 }
 
-func (s *PropertiesTestSuite) TestDecodePropertiesInvalidPropertyType() {
-	data := []byte{1}
-
-	p, n, err := decodeProperties[int](data)
-	s.Require().Error(err)
-	s.Assert().Nil(p)
-	s.Assert().Equal(1, n)
-}
-
 func TestPropertiesTestSuite(t *testing.T) {
 	suite.Run(t, new(PropertiesTestSuite))
 }

@@ -14,6 +14,8 @@
 
 package packet
 
+import "fmt"
+
 const (
 	connectFlagReserved     = 0x01
 	connectFlagCleanSession = 0x02
@@ -122,11 +124,11 @@ func (p *Connect) Size() int {
 // from buf and the error, if it fails to read the packet correctly.
 func (p *Connect) Decode(buf []byte, h FixedHeader) (n int, err error) {
 	if h.PacketType != TypeConnect {
-		return 0, ErrMalformedPacketType
+		return 0, fmt.Errorf("%w: invalid packet type", ErrMalformedPacket)
 	}
 
 	if h.Flags != 0 {
-		return 0, ErrMalformedFlags
+		return 0, fmt.Errorf("%w: invalid control flags", ErrMalformedPacket)
 	}
 
 	var cnt int
@@ -145,7 +147,7 @@ func (p *Connect) Decode(buf []byte, h FixedHeader) (n int, err error) {
 
 	p.KeepAlive, err = decodeUint[uint16](buf[n:])
 	if err != nil {
-		return 0, ErrMalformedKeepAlive
+		return 0, fmt.Errorf("%w: invalid keep alive", ErrMalformedPacket)
 	}
 	n += 2
 
@@ -191,57 +193,51 @@ func (p *Connect) Decode(buf []byte, h FixedHeader) (n int, err error) {
 func (p *Connect) decodeVersion(buf []byte) (int, error) {
 	name, n, err := decodeString(buf)
 	if err != nil {
-		return n, ErrMalformedProtocolName
+		return n, fmt.Errorf("%w: mssing protocol name", ErrMalformedPacket)
 	}
 	if n >= len(buf) {
-		return n, ErrMalformedProtocolVersion
+		return n, fmt.Errorf("%w: missing protocol version", ErrMalformedPacket)
 	}
 
 	p.Version = Version(buf[n])
 	n++
 
 	if p.Version < MQTT31 || p.Version > MQTT50 {
-		return n, ErrMalformedProtocolVersion
+		return n, fmt.Errorf("%w: invalid protocol version", ErrMalformedPacket)
 	}
-
 	if string(name) != protocolNames[p.Version-MQTT31] {
-		return n, ErrMalformedProtocolName
+		return n, fmt.Errorf("%w: invalid protocol name", ErrMalformedPacket)
 	}
-
 	return n, nil
 }
 
 func (p *Connect) decodeFlags(buf []byte) (int, error) {
 	if len(buf) == 0 {
-		return 0, ErrMalformedConnectFlags
+		return 0, fmt.Errorf("%w: missing connect flags", ErrMalformedPacket)
 	}
 
 	p.Flags = ConnectFlags(buf[0])
 	n := 1
 
 	if p.Flags.Reserved() {
-		return n, ErrMalformedConnectFlags
+		return n, fmt.Errorf("%w: invalid connect flags - reserved", ErrMalformedPacket)
 	}
 
 	willFlags := p.Flags.WillFlag()
 	willQos := p.Flags.WillQoS()
 
 	if !willFlags && willQos != QoS0 {
-		return n, ErrMalformedConnectFlags
+		return n, fmt.Errorf("%w: invalid connect flags - will qos", ErrMalformedPacket)
 	}
-
 	if willQos > QoS2 {
-		return n, ErrMalformedConnectFlags
+		return n, fmt.Errorf("%w: invalid connect flags - will qos", ErrMalformedPacket)
 	}
-
 	if !willFlags && p.Flags.WillRetain() {
-		return n, ErrMalformedConnectFlags
+		return n, fmt.Errorf("%w: invalid connect flags - will retain", ErrMalformedPacket)
 	}
-
 	if p.Version != MQTT50 && p.Flags.Password() && !p.Flags.Username() {
-		return n, ErrMalformedConnectFlags
+		return n, fmt.Errorf("%w: invalid connect flags - username/password flags", ErrMalformedPacket)
 	}
-
 	return n, nil
 }
 
@@ -254,19 +250,19 @@ func (p *Connect) decodeProperties(buf []byte) (int, error) {
 	var err error
 
 	p.Properties, n, err = decodeProperties[ConnectProperties](buf)
-	return n, err
+	if err != nil {
+		return n, fmt.Errorf("connect properties: %w", err)
+	}
+	return n, nil
 }
 
 func (p *Connect) decodeClientID(buf []byte) (int, error) {
 	id, n, err := decodeString(buf)
 	if err != nil {
-		return n, ErrMalformedClientID
+		return n, fmt.Errorf("%w: invalid client identifier", ErrMalformedPacket)
 	}
-
-	if len(id) == 0 {
-		if p.Version == MQTT31 {
-			return n, ErrV3ClientIDRejected
-		}
+	if len(id) == 0 && p.Version == MQTT31 {
+		return n, fmt.Errorf("%w: missing client identifier", ErrMalformedPacket)
 	}
 
 	p.ClientID = id
@@ -292,10 +288,10 @@ func (p *Connect) decodeWill(buf []byte) (int, error) {
 
 	topic, n, err := decodeString(buf)
 	if err != nil {
-		return n, ErrMalformedWillTopic
+		return n, fmt.Errorf("%w: invalid will topic", ErrMalformedPacket)
 	}
 	if !isValidTopicName(string(topic)) {
-		return n, ErrMalformedWillTopic
+		return n, fmt.Errorf("%w: invalid will topic", ErrMalformedPacket)
 	}
 
 	var payload []byte
@@ -304,7 +300,7 @@ func (p *Connect) decodeWill(buf []byte) (int, error) {
 	payload, size, err = decodeString(buf[n:])
 	n += size
 	if err != nil {
-		return n, ErrMalformedWillPayload
+		return n, fmt.Errorf("%w: invalid will payload", ErrMalformedPacket)
 	}
 
 	p.WillTopic = topic
@@ -319,7 +315,7 @@ func (p *Connect) decodeUsername(buf []byte) (int, error) {
 
 	username, n, err := decodeString(buf)
 	if err != nil {
-		return n, ErrMalformedUsername
+		return n, fmt.Errorf("%w: invalid username", ErrMalformedPacket)
 	}
 
 	p.Username = username
@@ -333,7 +329,7 @@ func (p *Connect) decodePassword(buf []byte) (int, error) {
 
 	password, n, err := decodeBinary(buf)
 	if err != nil {
-		return n, ErrMalformedPassword
+		return n, fmt.Errorf("%w: invalid password", ErrMalformedPacket)
 	}
 
 	p.Password = password
@@ -454,7 +450,7 @@ func (p *ConnectProperties) decode(buf []byte, remaining int) (n int, err error)
 		var size int
 
 		if n >= len(buf) {
-			return n, ErrMalformedPropertyConnect
+			return n, fmt.Errorf("%w: missing connect properties", ErrMalformedPacket)
 		}
 
 		b = buf[n]
@@ -498,7 +494,7 @@ func (p *ConnectProperties) decodeProperty(id PropertyID, buf []byte) (n int, er
 	case PropertyAuthenticationData:
 		p.AuthenticationData, n, err = decodePropAuthenticationData(buf, p)
 	default:
-		err = ErrMalformedPropertyInvalid
+		err = fmt.Errorf("%w: invalid connect property: %v", ErrMalformedPacket, id)
 	}
 
 	return n, err
@@ -570,7 +566,7 @@ func (p *WillProperties) decode(buf []byte, remaining int) (n int, err error) {
 		var size int
 
 		if n >= len(buf) {
-			return n, ErrMalformedPropertyWill
+			return n, fmt.Errorf("%w: missing will properties", ErrMalformedPacket)
 		}
 
 		b = buf[n]
@@ -610,7 +606,7 @@ func (p *WillProperties) decodeProperty(id PropertyID, buf []byte) (n int, err e
 			p.UserProperties = append(p.UserProperties, user)
 		}
 	default:
-		err = ErrMalformedPropertyInvalid
+		err = fmt.Errorf("%w: invalid will property: %v", ErrMalformedPacket, id)
 	}
 
 	return n, err

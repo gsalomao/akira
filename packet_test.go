@@ -91,33 +91,13 @@ func TestReadPacketError(t *testing.T) {
 		data []byte
 		err  error
 	}{
-		{
-			name: "Invalid packet type",
-			data: []byte{0, 0},
-			err:  packet.ErrMalformedPacketType,
-		},
-		{
-			name: "Invalid packet",
-			data: []byte{byte(packet.TypeConnect) << 4, 0},
-			err:  packet.ErrMalformedProtocolName,
-		},
-		{
-			name: "Missing remaining length",
-			data: []byte{byte(packet.TypeConnect) << 4, 10},
-			err:  io.EOF,
-		},
+		{name: "Invalid packet type", data: []byte{0, 0}, err: packet.ErrProtocolError},
+		{name: "Invalid packet", data: []byte{byte(packet.TypeConnect) << 4, 0}, err: packet.ErrMalformedPacket},
+		{name: "Missing remaining length", data: []byte{byte(packet.TypeConnect) << 4, 10}, err: io.EOF},
 		{
 			name: "Unexpected packet length",
-			data: []byte{
-				byte(packet.TypeConnect) << 4, 15, // Fixed header
-				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
-				4,      // Protocol version
-				2,      // Packet flags (Clean Session)
-				0, 255, // Keep alive
-				0, 2, 'a', 'b', // Client ID
-				0, // Unexpected byte
-			},
-			err: packet.ErrMalformedPacketLength,
+			data: []byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 4, 2, 0, 255, 0, 2, 'a', 'b', 0},
+			err:  packet.ErrMalformedPacket,
 		},
 	}
 

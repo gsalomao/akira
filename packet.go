@@ -55,7 +55,7 @@ func readPacket(r *bufio.Reader) (Packet, int, error) {
 	var header packet.FixedHeader
 
 	if hSize, err = header.Read(r); err != nil {
-		return nil, hSize, fmt.Errorf("failed to read packet: %w", err)
+		return nil, hSize, err
 	}
 
 	var p PacketDecodable
@@ -64,15 +64,14 @@ func readPacket(r *bufio.Reader) (Packet, int, error) {
 	case packet.TypeConnect:
 		p = &packet.Connect{}
 	default:
-		return nil, hSize, fmt.Errorf("failed to read packet: %w: %v", packet.ErrMalformedPacketType,
-			header.PacketType)
+		return nil, hSize, fmt.Errorf("unsupported packet type: %w: %v", packet.ErrProtocolError, header.PacketType)
 	}
 
 	// Allocate the slice which will be the backing data for the packet.
 	data := make([]byte, header.RemainingLength)
 
 	if _, err = io.ReadFull(r, data); err != nil {
-		return nil, hSize, fmt.Errorf("failed to read remaining bytes: %w", err)
+		return nil, hSize, err
 	}
 
 	var pSize int
@@ -80,10 +79,10 @@ func readPacket(r *bufio.Reader) (Packet, int, error) {
 	pSize, err = p.Decode(data, header)
 	n := hSize + pSize
 	if err != nil {
-		return nil, n, fmt.Errorf("failed to read %s packet: %w", p.Type(), err)
+		return nil, n, fmt.Errorf("%w (%s)", err, p.Type())
 	}
 	if pSize != header.RemainingLength {
-		return nil, n, fmt.Errorf("failed to read %s packet: %w", p.Type(), packet.ErrMalformedPacketLength)
+		return nil, n, fmt.Errorf("packet size does not match: %w (%s)", packet.ErrMalformedPacket, p.Type())
 	}
 
 	return p, n, nil

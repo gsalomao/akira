@@ -137,7 +137,7 @@ func (s *FixedHeaderTestSuite) TestReadMalformedPacket() {
 	n, err := header.Read(reader)
 
 	var code Error
-	s.Require().ErrorIs(err, ErrMalformedVarInteger)
+	s.Require().ErrorIs(err, ErrMalformedPacket)
 	s.Require().ErrorAs(err, &code)
 	s.Assert().Equal(len(data), n)
 	s.Assert().Equal(ReasonCodeMalformedPacket, code.Code)

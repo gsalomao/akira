@@ -121,7 +121,7 @@ func TestReadVarIntegerInvalidValue(t *testing.T) {
 	reader := bufio.NewReader(bytes.NewReader(data))
 
 	_, err := readVarInteger(reader, &val)
-	require.ErrorIs(t, err, ErrMalformedVarInteger)
+	require.ErrorIs(t, err, ErrMalformedPacket)
 }
 
 func TestDecodeVarIntegerSuccess(t *testing.T) {
@@ -163,7 +163,7 @@ func TestDecodeVarIntegerInvalidValue(t *testing.T) {
 	data := []byte{0xff, 0xff, 0xff, 0x80}
 
 	_, err := decodeVarInteger(data, &val)
-	require.ErrorIs(t, err, ErrMalformedVarInteger)
+	require.Error(t, err)
 }
 
 func TestDecodeStringSuccess(t *testing.T) {
@@ -203,14 +203,14 @@ func TestDecodeStringInvalid(t *testing.T) {
 
 		t.Run(fmt.Sprint(test), func(t *testing.T) {
 			_, _, err := decodeString(data)
-			require.ErrorIs(t, err, ErrMalformedString)
+			require.Error(t, err)
 		})
 	}
 }
 
 func TestDecodeStringError(t *testing.T) {
 	_, _, err := decodeString([]byte{})
-	require.ErrorIs(t, err, ErrMalformedString)
+	require.Error(t, err)
 }
 
 func TestEncodeStringSuccess(t *testing.T) {
@@ -261,7 +261,7 @@ func TestDecodeBinarySuccess(t *testing.T) {
 
 func TestDecodeBinaryError(t *testing.T) {
 	_, _, err := decodeBinary([]byte{})
-	require.ErrorIs(t, err, ErrMalformedBinary)
+	require.Error(t, err)
 }
 
 func TestEncodeBinarySuccess(t *testing.T) {
@@ -287,7 +287,7 @@ func TestEncodeBinarySuccess(t *testing.T) {
 
 func TestDecodeUintErrorNoData(t *testing.T) {
 	_, err := decodeUint[uint8](nil)
-	require.ErrorIs(t, err, ErrMalformedInteger)
+	require.Error(t, err)
 }
 
 func TestDecodeUint8(t *testing.T) {

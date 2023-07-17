@@ -51,30 +51,32 @@ const (
 	// of the other reason codes apply.
 	ReasonCodeUnspecifiedError ReasonCode = 0x80
 
-	// ReasonCodeMalformedPacket indicates that data within the Connect packet could not be correctly parsed.
+	// ReasonCodeMalformedPacket indicates that data within the packet could not be correctly parsed.
 	ReasonCodeMalformedPacket ReasonCode = 0x81
 
-	// ReasonCodeProtocolError indicates that data in the Connect packet does not conform to the MQTT specification.
+	// ReasonCodeProtocolError indicates that data in the packet does not conform with the MQTT specification, or an
+	// unexpected or out of order packet was received.
 	ReasonCodeProtocolError ReasonCode = 0x82
 
-	// ReasonCodeImplementationSpecificError indicates that the Connect is valid but is not accepted by this server.
+	// ReasonCodeImplementationSpecificError indicates that the packet is valid but is not accepted by the server.
 	ReasonCodeImplementationSpecificError ReasonCode = 0x83
 
-	// ReasonCodeUnsupportedProtocolVersion indicates that does not support the version of the MQTT protocol
+	// ReasonCodeUnsupportedProtocolVersion indicates that the server does not support the version of the MQTT protocol
 	// requested by the client.
 	ReasonCodeUnsupportedProtocolVersion ReasonCode = 0x84
 
-	// ReasonCodeInvalidClientID indicates that the client identifier is a valid string but is not allowed.
-	ReasonCodeInvalidClientID ReasonCode = 0x85
+	// ReasonCodeClientIDNotValid indicates that the client identifier is a valid string but is not allowed by the
+	// server.
+	ReasonCodeClientIDNotValid ReasonCode = 0x85
 
 	// ReasonCodeBadUsernameOrPassword indicates that the server does not accept the username or password specified by
 	// the client.
 	ReasonCodeBadUsernameOrPassword ReasonCode = 0x86
 
-	// ReasonCodeNotAuthorized indicates that the client is not authorized to connect.
+	// ReasonCodeNotAuthorized indicates that the client is not authorized to perform the operation.
 	ReasonCodeNotAuthorized ReasonCode = 0x87
 
-	// ReasonCodeServerUnavailable indicates that the server is not available.
+	// ReasonCodeServerUnavailable indicates that the server is not available at the moment.
 	ReasonCodeServerUnavailable ReasonCode = 0x88
 
 	// ReasonCodeServerBusy indicates that the server is busy at the moment.
@@ -91,53 +93,52 @@ const (
 	ReasonCodeBadAuthenticationMethod ReasonCode = 0x8C
 
 	// ReasonCodeKeepAliveTimeout indicates that connection is closed because no packet has been received for 1.5
-	// times the Keepalive time.
+	// times the keep alive time.
 	ReasonCodeKeepAliveTimeout ReasonCode = 0x8D
 
-	// ReasonCodeSessionTakeOver indicates that another connection using the same client identified has connected.
-	ReasonCodeSessionTakeOver ReasonCode = 0x8E
+	// ReasonCodeSessionTakenOver indicates that another client using the same client identified has connected.
+	ReasonCodeSessionTakenOver ReasonCode = 0x8E
 
 	// ReasonCodeTopicFilterInvalid indicates that the topic filter is correctly formed but is not allowed.
 	ReasonCodeTopicFilterInvalid ReasonCode = 0x8F
 
-	// ReasonCodeTopicNameInvalid indicates that the Will Topic Name is not malformed, but is not accepted.
+	// ReasonCodeTopicNameInvalid indicates that the topic name is not malformed, but it is not accepted by the server.
 	ReasonCodeTopicNameInvalid ReasonCode = 0x90
 
-	// ReasonCodePacketIDInUse indicates that the specified packet ID is already in use.
+	// ReasonCodePacketIDInUse indicates that the specified packet identifier is already in use.
 	ReasonCodePacketIDInUse ReasonCode = 0x91
 
-	// ReasonCodePacketIDNotFound indicates that the packet ID was not found.
+	// ReasonCodePacketIDNotFound indicates that the packet identifier is unknown.
 	ReasonCodePacketIDNotFound ReasonCode = 0x92
 
-	// ReasonCodeReceiveMaximumExceeded indicates that has been received more than Receive Maximum publication for
+	// ReasonCodeReceiveMaximumExceeded indicates that server has received more than Receive Maximum publication for
 	// which it has not sent PUBACK or PUBCOMP.
 	ReasonCodeReceiveMaximumExceeded ReasonCode = 0x93
 
-	// ReasonCodeTopicAliasInvalid indicates that has received a PUBLISH Packet containing a topic alias which is
-	// greater than the maximum topic alias sent in the CONNECT or CONNACK packet.
+	// ReasonCodeTopicAliasInvalid indicates that the server has received a PUBLISH Packet containing a topic alias
+	// which is greater than the maximum topic alias sent in the CONNECT or CONNACK packet.
 	ReasonCodeTopicAliasInvalid ReasonCode = 0x94
 
-	// ReasonCodePacketTooLarge indicates that the Connect packet exceeded the maximum permissible size.
+	// ReasonCodePacketTooLarge indicates that the packet exceeded the maximum permissible size.
 	ReasonCodePacketTooLarge ReasonCode = 0x95
 
 	// ReasonCodeMessageRateTooHigh indicates that the received data rate is too high.
 	ReasonCodeMessageRateTooHigh ReasonCode = 0x96
 
-	// ReasonCodePacketQuotaExceeded indicates that an implementation or administrative imposed limit has been exceeded.
-	ReasonCodePacketQuotaExceeded ReasonCode = 0x97
+	// ReasonCodeQuotaExceeded indicates that an implementation or administrative imposed limit has been exceeded.
+	ReasonCodeQuotaExceeded ReasonCode = 0x97
 
-	// ReasonCodeAdministrativeAction indicates that the connection is closed by administrative action.
+	// ReasonCodeAdministrativeAction indicates that the connection is closed due to an administrative action.
 	ReasonCodeAdministrativeAction ReasonCode = 0x98
 
-	// ReasonCodePayloadFormatInvalid indicates that the Will Payload does not match the specified Payload Format
+	// ReasonCodePayloadFormatInvalid indicates that the payload format does not match the specified Payload Format
 	// Indicator.
 	ReasonCodePayloadFormatInvalid ReasonCode = 0x99
 
-	// ReasonCodeRetainNotSupported indicates that the server does not support retained messages, and Will Retain was
-	// set to 1.
+	// ReasonCodeRetainNotSupported indicates that the server does not support retained messages.
 	ReasonCodeRetainNotSupported ReasonCode = 0x9A
 
-	// ReasonCodeQoSNotSupported indicates that the server does not support the QoS set in Will QoS.
+	// ReasonCodeQoSNotSupported indicates that the server does not support the specified QoS.
 	ReasonCodeQoSNotSupported ReasonCode = 0x9B
 
 	// ReasonCodeUseAnotherServer indicates that the client should temporarily use another server.

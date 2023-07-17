@@ -17,6 +17,8 @@ package packet
 import (
 	"bufio"
 	"encoding/binary"
+	"errors"
+	"fmt"
 	"strings"
 	"unicode/utf8"
 	"unsafe"
@@ -194,7 +196,7 @@ func readVarInteger(r *bufio.Reader, val *int) (int, error) {
 		}
 
 		if multiplier > 128*128*128 || n == 4 {
-			return n, ErrMalformedVarInteger
+			return n, fmt.Errorf("%w: invalid variable integer", ErrMalformedPacket)
 		}
 	}
 
@@ -208,7 +210,7 @@ func decodeVarInteger(buf []byte, val *int) (int, error) {
 
 	for {
 		if n >= len(buf) {
-			return n, ErrMalformedVarInteger
+			return n, errors.New("invalid variable integer")
 		}
 
 		b := buf[n]
@@ -221,7 +223,7 @@ func decodeVarInteger(buf []byte, val *int) (int, error) {
 		}
 
 		if multiplier > 128*128*128 || n == 4 {
-			return n, ErrMalformedVarInteger
+			return n, errors.New("invalid variable integer")
 		}
 	}
 
@@ -232,7 +234,7 @@ func decodeUint[T integer](data []byte) (T, error) {
 	var v T
 
 	if int(unsafe.Sizeof(v)) > len(data) {
-		return v, ErrMalformedInteger
+		return v, errors.New("unsupported integer size")
 	}
 
 	switch any(v).(type) {
@@ -255,7 +257,7 @@ func decodeBool(data []byte) (bool, error) {
 	case 1:
 		v = true
 	default:
-		err = ErrMalformedInteger
+		err = errors.New("invalid bool value")
 	}
 
 	return v, err
@@ -264,12 +266,12 @@ func decodeBool(data []byte) (bool, error) {
 func decodeBinary(data []byte) ([]byte, int, error) {
 	length, err := decodeUint[uint16](data)
 	if err != nil {
-		return nil, 0, ErrMalformedBinary
+		return nil, 0, fmt.Errorf("invalid binary length: %w", err)
 	}
 	n := 2
 
 	if int(length) > len(data)-n {
-		return nil, n, ErrMalformedBinary
+		return nil, n, errors.New("invalid binary length")
 	}
 
 	bin := data[n : n+int(length)]
@@ -281,11 +283,11 @@ func decodeBinary(data []byte) ([]byte, int, error) {
 func decodeString(data []byte) ([]byte, int, error) {
 	str, n, err := decodeBinary(data)
 	if err != nil {
-		return nil, n, ErrMalformedString
+		return nil, n, fmt.Errorf("invalid string: %w", err)
 	}
 
 	if !isValidString(str) {
-		return nil, n, ErrMalformedString
+		return nil, n, errors.New("invalid string")
 	}
 
 	return str, n, nil
@@ -348,7 +350,7 @@ func encodeBinary(buf []byte, bin []byte) int {
 
 func encodeString(buf []byte, str []byte) (int, error) {
 	if !isValidString(str) {
-		return 0, ErrMalformedString
+		return 0, errors.New("invalid string")
 	}
 
 	n := encodeBinary(buf, str)
