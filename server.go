@@ -18,9 +18,12 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
+
+	"github.com/gsalomao/akira/packet"
 )
 
 // ErrInvalidServerState indicates that the Server is not in a valid state for the operation.
@@ -56,6 +59,7 @@ type ServerState uint32
 // To create a Server instance, use the NewServer factory method.
 type Server struct {
 	config      Config
+	store       store
 	listeners   *listeners
 	hooks       *hooks
 	clients     *clients
@@ -80,11 +84,12 @@ func NewServer(opts *Options) (s *Server, err error) {
 
 	s = &Server{
 		config:    *opts.Config,
+		store:     store{sessionStore: opts.SessionStore},
 		listeners: newListeners(),
 		hooks:     newHooks(),
 		clients:   newClients(),
 		readBufPool: sync.Pool{
-			New: func() interface{} { return bufio.NewReaderSize(nil, int(s.config.ReadBufferSize)) },
+			New: func() interface{} { return bufio.NewReaderSize(nil, s.config.ReadBufferSize) },
 		},
 	}
 
@@ -308,6 +313,11 @@ func (s *Server) handleConnection(l Listener, nc net.Conn) {
 			if pkt == nil {
 				continue
 			}
+
+			err = s.handlePacket(client, pkt)
+			if err != nil {
+				return
+			}
 		}
 	}()
 
@@ -322,4 +332,122 @@ func (s *Server) receivePacket(c *Client) (p Packet, err error) {
 	c.refreshDeadline()
 
 	return c.receivePacket(buf)
+}
+
+func (s *Server) handlePacket(c *Client, p Packet) error {
+	switch pkt := p.(type) {
+	case *packet.Connect:
+		// The first step must be to set the version of the MQTT connection as this information is required for further
+		// processing.
+		c.Connection.Version = pkt.Version
+
+		err := s.hooks.onConnect(c, pkt)
+		if err != nil {
+			var pktErr packet.Error
+			if errors.As(err, &pktErr) {
+				if pktErr.Code != packet.ReasonCodeSuccess && pktErr.Code != packet.ReasonCodeMalformedPacket {
+					_ = s.sendConnAck(c, pktErr.Code, false, nil)
+				}
+			}
+			return err
+		}
+
+		err = s.handlePacketConnect(c, pkt)
+		if err != nil {
+			s.hooks.onConnectError(c, pkt, err)
+			return err
+		}
+
+		s.hooks.onConnected(c)
+		return nil
+	default:
+		return errors.New("unsupported packet")
+	}
+}
+
+func (s *Server) handlePacketConnect(c *Client, connect *packet.Connect) error {
+	var (
+		session        *Session
+		sessionPresent bool
+		err            error
+	)
+
+	if !isClientIDValid(connect.Version, len(connect.ClientID), &s.config) {
+		_ = s.sendConnAck(c, packet.ReasonCodeClientIDNotValid, false, nil)
+		return packet.ErrClientIDNotValid
+	}
+
+	if !isKeepAliveValid(connect.Version, connect.KeepAlive, s.config.MaxKeepAlive) {
+		// For MQTT v3.1 and v3.1.1, there is no mechanism to tell the clients what Keep Alive value they should use.
+		// If an MQTT v3.1 or v3.1.1 client specifies a Keep Alive time greater than maximum keep alive, the CONNACK
+		// packet shall be sent with the reason code "identifier rejected".
+		_ = s.sendConnAck(c, packet.ReasonCodeClientIDNotValid, false, nil)
+		return packet.ErrClientIDNotValid
+	}
+
+	// A new memory block must be created to store the client ID, and copy the content to the new memory, to avoid
+	// memory leak as the ClientID in the CONNECT Packet shares the same underlying memory of the whole packet.
+	clientID := make([]byte, len(connect.ClientID))
+	copy(clientID, connect.ClientID)
+
+	// If the client requested a clean session, the server must delete any existing session for the given client
+	// identifier. Otherwise, resume any existing session for the given client identifier.
+	if connect.Flags.CleanSession() {
+		err = s.store.deleteSession(clientID)
+	} else {
+		session, err = s.store.getSession(clientID)
+	}
+	if err != nil {
+		// If the session store fails to get the session, or to delete the session, the server replies to client
+		// indicating that the service is unavailable.
+		pErr := packet.ErrServerUnavailable
+		_ = s.sendConnAck(c, pErr.Code, false, nil)
+		return fmt.Errorf("%w: %s", pErr, err.Error())
+	}
+
+	if session == nil {
+		session = &Session{ClientID: clientID}
+	} else {
+		sessionPresent = true
+	}
+
+	c.Session = session
+	c.Session.Connected = true
+	c.Session.Properties = sessionProperties(connect.Properties, &s.config)
+	c.Session.LastWill = lastWill(connect)
+	c.Connection.KeepAlive = sessionKeepAlive(connect.KeepAlive, s.config.MaxKeepAlive)
+
+	err = s.store.saveSession(session.ClientID, session)
+	if err != nil {
+		// If the session store fails to save the session, the server replies to client indicating that the service
+		// is unavailable.
+		pErr := packet.ErrServerUnavailable
+		_ = s.sendConnAck(c, pErr.Code, false, nil)
+		return fmt.Errorf("%w: %s", pErr, err.Error())
+	}
+
+	err = s.sendConnAck(c, packet.ReasonCodeSuccess, sessionPresent, connect)
+	if err != nil {
+		return err
+	}
+
+	c.setState(ClientConnected)
+	s.clients.update(c)
+	return nil
+}
+
+func (s *Server) sendConnAck(c *Client, code packet.ReasonCode, present bool, connect *packet.Connect) error {
+	var props *packet.ConnAckProperties
+
+	if code == packet.ReasonCodeClientIDNotValid && c.Connection.Version != packet.MQTT50 {
+		code = packet.ReasonCodeV3IdentifierRejected
+	}
+	if code == packet.ReasonCodeServerUnavailable && c.Connection.Version != packet.MQTT50 {
+		code = packet.ReasonCodeV3ServerUnavailable
+	}
+	if code == packet.ReasonCodeSuccess && c.Connection.Version == packet.MQTT50 {
+		props = connAckProperties(c, &s.config, connect)
+	}
+	connack := packet.ConnAck{Version: c.Connection.Version, Code: code, SessionPresent: present, Properties: props}
+	return c.sendPacket(&connack)
 }

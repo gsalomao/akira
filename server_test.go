@@ -20,6 +20,7 @@ import (
 	"net"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/gsalomao/akira"
 	"github.com/gsalomao/akira/internal/mocks"
@@ -48,7 +49,7 @@ func (s *ServerTestSuite) TearDownTest() {
 	s.server.Close()
 }
 
-func (s *ServerTestSuite) addListener() (akira.Listener, <-chan akira.OnConnectionFunc) {
+func (s *ServerTestSuite) addListener(srv *akira.Server) (akira.Listener, <-chan akira.OnConnectionFunc) {
 	onConnectionStream := make(chan akira.OnConnectionFunc, 1)
 
 	listener := mocks.NewMockListener(s.T())
@@ -60,7 +61,7 @@ func (s *ServerTestSuite) addListener() (akira.Listener, <-chan akira.OnConnecti
 		return doneCh, nil
 	})
 	listener.EXPECT().Stop()
-	err := s.server.AddListener(listener)
+	err := srv.AddListener(listener)
 	s.Require().NoError(err)
 
 	return listener, onConnectionStream
@@ -392,7 +393,7 @@ func (s *ServerTestSuite) TestCloseWhenServerNotStarted() {
 }
 
 func (s *ServerTestSuite) TestHandleConnection() {
-	listener, onConnectionStream := s.addListener()
+	listener, onConnectionStream := s.addListener(s.server)
 
 	onConnOpen := mocks.NewMockOnConnectionOpenHook(s.T())
 	onConnOpen.EXPECT().Name().Return("onConnOpen")
@@ -439,7 +440,7 @@ func (s *ServerTestSuite) TestHandleConnection() {
 }
 
 func (s *ServerTestSuite) TestHandleConnectionWithReadTimeout() {
-	listener, onConnectionStream := s.addListener()
+	listener, onConnectionStream := s.addListener(s.server)
 
 	connClosedCh := make(chan struct{})
 	onConnClosed := mocks.NewMockOnConnectionClosedHook(s.T())
@@ -461,7 +462,7 @@ func (s *ServerTestSuite) TestHandleConnectionWithReadTimeout() {
 }
 
 func (s *ServerTestSuite) TestHandleConnectionWithOnConnectionOpenReturningError() {
-	listener, onConnectionStream := s.addListener()
+	listener, onConnectionStream := s.addListener(s.server)
 
 	onConnOpen := mocks.NewMockOnConnectionOpenHook(s.T())
 	onConnOpen.EXPECT().Name().Return("onConnOpen")
@@ -484,9 +485,9 @@ func (s *ServerTestSuite) TestHandleConnectionWithOnConnectionOpenReturningError
 	<-connClosedCh
 }
 
-func (s *ServerTestSuite) TestHandlePacketConnect() {
+func (s *ServerTestSuite) TestReceivePacket() {
 	var connect *packet.Connect
-	listener, onConnectionStream := s.addListener()
+	listener, onConnectionStream := s.addListener(s.server)
 	receivedCh := make(chan struct{})
 
 	onPacketReceived := mocks.NewMockOnPacketReceivedHook(s.T())
@@ -507,14 +508,7 @@ func (s *ServerTestSuite) TestHandlePacketConnect() {
 	onConnection := <-onConnectionStream
 	onConnection(listener, conn2)
 
-	msg := []byte{
-		byte(packet.TypeConnect) << 4, 14, // Fixed header
-		0, 4, 'M', 'Q', 'T', 'T', // Protocol name
-		4,      // Protocol version
-		2,      // Packet flags (Clean session)
-		0, 255, // Keep alive
-		0, 2, 'a', 'b', // Client ID
-	}
+	msg := []byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 2, 0, 255, 0, 2, 'a', 'b'}
 	_, _ = conn1.Write(msg)
 	<-receivedCh
 
@@ -528,7 +522,7 @@ func (s *ServerTestSuite) TestHandlePacketConnect() {
 }
 
 func (s *ServerTestSuite) TestCloseConnectionWhenReceiveInvalidPacket() {
-	listener, onConnectionStream := s.addListener()
+	listener, onConnectionStream := s.addListener(s.server)
 
 	connClosedCh := make(chan struct{})
 	onConnClosed := mocks.NewMockOnConnectionClosedHook(s.T())
@@ -544,17 +538,13 @@ func (s *ServerTestSuite) TestCloseConnectionWhenReceiveInvalidPacket() {
 	onConnection := <-onConnectionStream
 	onConnection(listener, conn2)
 
-	msg := []byte{
-		byte(packet.TypeConnect) << 4, 7, // Fixed header
-		0, 4, 'M', 'Q', 'T', 'T', // Protocol name
-		0, // Protocol version
-	}
+	msg := []byte{0x10, 7, 0, 4, 'M', 'Q', 'T', 'T', 0}
 	_, _ = conn1.Write(msg)
 	<-connClosedCh
 }
 
 func (s *ServerTestSuite) TestCloseConnectionIfOnPacketReceiveErrorReturnsError() {
-	listener, onConnectionStream := s.addListener()
+	listener, onConnectionStream := s.addListener(s.server)
 
 	onPacketRcvError := mocks.NewMockOnPacketReceiveErrorHook(s.T())
 	onPacketRcvError.EXPECT().Name().Return("onPacketRcvError")
@@ -575,17 +565,13 @@ func (s *ServerTestSuite) TestCloseConnectionIfOnPacketReceiveErrorReturnsError(
 	onConnection := <-onConnectionStream
 	onConnection(listener, conn2)
 
-	msg := []byte{
-		byte(packet.TypeConnect) << 4, 7, // Fixed header
-		0, 4, 'M', 'Q', 'T', 'T', // Protocol name
-		0, // Protocol version
-	}
+	msg := []byte{0x10, 7, 0, 4, 'M', 'Q', 'T', 'T', 0}
 	_, _ = conn1.Write(msg)
 	<-connClosedCh
 }
 
 func (s *ServerTestSuite) TestKeepReceivingWhenOnPacketReceiveErrorDoesNotReturnError() {
-	listener, onConnectionStream := s.addListener()
+	listener, onConnectionStream := s.addListener(s.server)
 
 	onPacketRcv := mocks.NewMockOnPacketReceiveHook(s.T())
 	onPacketRcv.EXPECT().Name().Return("onPacketRcv")
@@ -615,11 +601,7 @@ func (s *ServerTestSuite) TestKeepReceivingWhenOnPacketReceiveErrorDoesNotReturn
 	onConnection := <-onConnectionStream
 	onConnection(listener, conn2)
 
-	msg := []byte{
-		byte(packet.TypeConnect) << 4, 7, // Fixed header
-		0, 4, 'M', 'Q', 'T', 'T', // Protocol name
-		0, // Protocol version
-	}
+	msg := []byte{0x10, 7, 0, 4, 'M', 'Q', 'T', 'T', 0}
 	_, _ = conn1.Write(msg)
 	<-receivedCh
 
@@ -628,7 +610,7 @@ func (s *ServerTestSuite) TestKeepReceivingWhenOnPacketReceiveErrorDoesNotReturn
 }
 
 func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketReceiveReturnsError() {
-	listener, onConnectionStream := s.addListener()
+	listener, onConnectionStream := s.addListener(s.server)
 
 	onPacketRcv := mocks.NewMockOnPacketReceiveHook(s.T())
 	onPacketRcv.EXPECT().Name().Return("onPacketRcv")
@@ -652,7 +634,7 @@ func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketReceiveReturnsError() {
 }
 
 func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketReceivedReturnsError() {
-	listener, onConnectionStream := s.addListener()
+	listener, onConnectionStream := s.addListener(s.server)
 
 	onPacketReceived := mocks.NewMockOnPacketReceivedHook(s.T())
 	onPacketReceived.EXPECT().Name().Return("onPacketReceived")
@@ -674,16 +656,1058 @@ func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketReceivedReturnsError() 
 	onConnection := <-onConnectionStream
 	onConnection(listener, conn2)
 
-	msg := []byte{
-		byte(packet.TypeConnect) << 4, 14, // Fixed header
-		0, 4, 'M', 'Q', 'T', 'T', // Protocol name
-		4,      // Protocol version
-		2,      // Packet flags (Clean session)
-		0, 255, // Keep alive
-		0, 2, 'a', 'b', // Client ID
-	}
+	msg := []byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 2, 0, 255, 0, 2, 'a', 'b'}
 	_, _ = conn1.Write(msg)
 	<-connClosedCh
+}
+
+func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketSendReturnsError() {
+	opts := akira.NewDefaultOptions()
+	srv, _ := akira.NewServer(opts)
+	defer srv.Close()
+
+	listener, onConnectionStream := s.addListener(srv)
+
+	onPacketSend := mocks.NewMockOnPacketSendHook(s.T())
+	onPacketSend.EXPECT().Name().Return("onPacketSend")
+	onPacketSend.EXPECT().OnPacketSend(mock.Anything, mock.Anything).Return(assert.AnError)
+	_ = srv.AddHook(onPacketSend)
+
+	conn1, conn2 := net.Pipe()
+	defer func() { _ = conn1.Close() }()
+	_ = srv.Start(context.Background())
+
+	onConnection := <-onConnectionStream
+	onConnection(listener, conn2)
+
+	msg := []byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 2, 0, 100, 0, 2, 'a', 'b'}
+	_, _ = conn1.Write(msg)
+
+	reply := make([]byte, 4)
+	_, err := conn1.Read(reply)
+	s.Require().ErrorIs(err, io.EOF)
+}
+
+func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketSentReturnsError() {
+	opts := akira.NewDefaultOptions()
+	srv, _ := akira.NewServer(opts)
+	defer srv.Close()
+
+	listener, onConnectionStream := s.addListener(srv)
+
+	onPacketSent := mocks.NewMockOnPacketSentHook(s.T())
+	onPacketSent.EXPECT().Name().Return("onPacketSent")
+	onPacketSent.EXPECT().OnPacketSent(mock.Anything, mock.Anything).Return(assert.AnError)
+	_ = srv.AddHook(onPacketSent)
+
+	conn1, conn2 := net.Pipe()
+	defer func() { _ = conn1.Close() }()
+	_ = srv.Start(context.Background())
+
+	onConnection := <-onConnectionStream
+	onConnection(listener, conn2)
+
+	msg := []byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 2, 0, 100, 0, 2, 'a', 'b'}
+	_, _ = conn1.Write(msg)
+
+	reply := make([]byte, 4)
+	_, err := conn1.Read(reply)
+	s.Require().NoError(err)
+
+	_, err = conn1.Read(reply)
+	s.Require().ErrorIs(err, io.EOF)
+}
+
+func (s *ServerTestSuite) TestOnPacketSendErrorIsCalledWhenFailedToSendPacket() {
+	opts := akira.NewDefaultOptions()
+	srv, _ := akira.NewServer(opts)
+	defer srv.Close()
+
+	listener, onConnectionStream := s.addListener(srv)
+
+	sendErrCh := make(chan struct{})
+	onPacketSendErr := mocks.NewMockOnPacketSendErrorHook(s.T())
+	onPacketSendErr.EXPECT().Name().Return("onPacketSendErr")
+	onPacketSendErr.EXPECT().OnPacketSendError(mock.Anything, mock.Anything, mock.Anything).
+		Run(func(_ *akira.Client, _ akira.Packet, err error) {
+			s.Require().Error(err)
+			close(sendErrCh)
+		})
+	_ = srv.AddHook(onPacketSendErr)
+
+	conn1, conn2 := net.Pipe()
+	_ = srv.Start(context.Background())
+
+	onConnection := <-onConnectionStream
+	onConnection(listener, conn2)
+
+	msg := []byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 2, 0, 100, 0, 2, 'a', 'b'}
+	_, _ = conn1.Write(msg)
+	_ = conn1.Close()
+	<-sendErrCh
+}
+
+func (s *ServerTestSuite) TestConnectPacket() {
+	testCases := []struct {
+		name    string
+		connect []byte
+		connack []byte
+	}{
+		{
+			"V3.1",
+			[]byte{0x10, 16, 0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 0, 0, 100, 0, 2, 'a', 'b'},
+			[]byte{0x20, 2, 0, 0},
+		},
+		{
+			"V3.1.1",
+			[]byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 0, 0, 100, 0, 2, 'a', 'b'},
+			[]byte{0x20, 2, 0, 0},
+		},
+		{
+			"V5.0",
+			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 0, 0, 100, 0, 0, 2, 'a', 'b'},
+			[]byte{0x20, 3, 0, 0, 0},
+		},
+	}
+
+	for _, test := range testCases {
+		s.Run(test.name, func() {
+			var session *akira.Session
+
+			store := mocks.NewMockSessionStore(s.T())
+			store.EXPECT().GetSession([]byte{'a', 'b'}).Return(nil, nil)
+			store.EXPECT().SaveSession(mock.Anything, mock.Anything).
+				RunAndReturn(func(id []byte, ss *akira.Session) error {
+					s.Assert().Equal([]byte{'a', 'b'}, id)
+					s.Assert().Equal(id, ss.ClientID)
+					s.Assert().True(ss.Connected)
+					session = ss
+					return nil
+				})
+
+			opts := akira.NewDefaultOptions()
+			opts.SessionStore = store
+			srv, _ := akira.NewServer(opts)
+			defer srv.Close()
+
+			listener, onConnectionStream := s.addListener(srv)
+
+			onPacketSend := mocks.NewMockOnPacketSendHook(s.T())
+			onPacketSend.EXPECT().Name().Return("onPacketSend")
+			onPacketSend.EXPECT().OnPacketSend(mock.Anything, mock.Anything).
+				RunAndReturn(func(c *akira.Client, p akira.Packet) error {
+					s.Require().Equal(session, c.Session)
+					s.Require().Equal(packet.TypeConnAck, p.Type())
+					return nil
+				})
+			_ = srv.AddHook(onPacketSend)
+
+			onPacketSent := mocks.NewMockOnPacketSentHook(s.T())
+			onPacketSent.EXPECT().Name().Return("onPacketSent")
+			onPacketSent.EXPECT().OnPacketSent(mock.Anything, mock.Anything).
+				RunAndReturn(func(c *akira.Client, p akira.Packet) error {
+					s.Require().Equal(session, c.Session)
+					s.Require().Equal(packet.TypeConnAck, p.Type())
+					return nil
+				})
+			_ = srv.AddHook(onPacketSent)
+
+			onConnect := mocks.NewMockOnConnectHook(s.T())
+			onConnect.EXPECT().Name().Return("onConnect")
+			onConnect.EXPECT().OnConnect(mock.Anything, mock.Anything).
+				RunAndReturn(func(c *akira.Client, p *packet.Connect) error {
+					s.Require().NotNil(c)
+					s.Require().NotNil(p)
+					s.Assert().Equal([]byte{'a', 'b'}, p.ClientID)
+					return nil
+				})
+			_ = srv.AddHook(onConnect)
+
+			connectedCh := make(chan struct{})
+			onConnected := mocks.NewMockOnConnectedHook(s.T())
+			onConnected.EXPECT().Name().Return("onConnected")
+			onConnected.EXPECT().OnConnected(mock.Anything).Run(func(c *akira.Client) {
+				s.Require().Equal(akira.ClientConnected, c.State())
+				s.Require().Equal(session, c.Session)
+				s.Require().NotNil(c.Connection)
+				s.Assert().WithinDuration(time.Now(), c.Connection.ConnectedAt, time.Second)
+				close(connectedCh)
+			})
+			_ = srv.AddHook(onConnected)
+
+			conn1, conn2 := net.Pipe()
+			defer func() { _ = conn1.Close() }()
+			_ = srv.Start(context.Background())
+
+			onConnection := <-onConnectionStream
+			onConnection(listener, conn2)
+			_, _ = conn1.Write(test.connect)
+
+			connack := make([]byte, len(test.connack))
+			_, err := conn1.Read(connack)
+			s.Require().NoError(err)
+			s.Assert().Equal(test.connack, connack)
+			<-connectedCh
+		})
+	}
+}
+
+func (s *ServerTestSuite) TestConnectPacketWithSessionPresent() {
+	testCases := []struct {
+		name    string
+		connect []byte
+		connack []byte
+	}{
+		{
+			"V3.1",
+			[]byte{0x10, 16, 0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 0, 0, 255, 0, 2, 'a', 'b'},
+			[]byte{0x20, 2, 0, 0},
+		},
+		{
+			"V3.1.1",
+			[]byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 0, 0, 255, 0, 2, 'a', 'b'},
+			[]byte{0x20, 2, 1, 0},
+		},
+		{
+			"V5.0",
+			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 0, 0, 255, 0, 0, 2, 'a', 'b'},
+			[]byte{0x20, 3, 1, 0, 0},
+		},
+	}
+
+	for _, test := range testCases {
+		s.Run(test.name, func() {
+			session := &akira.Session{ClientID: []byte{'a', 'b'}, Connected: false}
+
+			store := mocks.NewMockSessionStore(s.T())
+			store.EXPECT().GetSession([]byte{'a', 'b'}).Return(session, nil)
+			store.EXPECT().SaveSession([]byte{'a', 'b'}, session).
+				RunAndReturn(func(_ []byte, session *akira.Session) error {
+					s.Assert().True(session.Connected)
+					return nil
+				})
+
+			opts := akira.NewDefaultOptions()
+			opts.SessionStore = store
+			srv, _ := akira.NewServer(opts)
+			defer srv.Close()
+
+			listener, onConnectionStream := s.addListener(srv)
+
+			conn1, conn2 := net.Pipe()
+			defer func() { _ = conn1.Close() }()
+			_ = srv.Start(context.Background())
+
+			onConnection := <-onConnectionStream
+			onConnection(listener, conn2)
+			_, _ = conn1.Write(test.connect)
+
+			connack := make([]byte, len(test.connack))
+			_, err := conn1.Read(connack)
+			s.Require().NoError(err)
+			s.Assert().Equal(test.connack, connack)
+		})
+	}
+}
+
+func (s *ServerTestSuite) TestConnectPacketWithCleanSession() {
+	store := mocks.NewMockSessionStore(s.T())
+	store.EXPECT().DeleteSession([]byte{'a', 'b'}).Return(nil)
+	store.EXPECT().SaveSession(mock.Anything, mock.Anything).
+		RunAndReturn(func(id []byte, session *akira.Session) error {
+			s.Assert().Equal([]byte{'a', 'b'}, id)
+			s.Assert().Equal(id, session.ClientID)
+			s.Assert().True(session.Connected)
+			return nil
+		})
+
+	opts := akira.NewDefaultOptions()
+	opts.SessionStore = store
+	srv, _ := akira.NewServer(opts)
+	defer srv.Close()
+
+	listener, onConnectionStream := s.addListener(srv)
+
+	conn1, conn2 := net.Pipe()
+	defer func() { _ = conn1.Close() }()
+	_ = srv.Start(context.Background())
+
+	onConnection := <-onConnectionStream
+	onConnection(listener, conn2)
+
+	connect := []byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 255, 0, 0, 2, 'a', 'b'}
+	_, _ = conn1.Write(connect)
+
+	expected := []byte{0x20, 3, 0, 0, 0}
+	connack := make([]byte, len(expected))
+
+	_, err := conn1.Read(connack)
+	s.Require().NoError(err)
+	s.Assert().Equal(expected, connack)
+}
+
+func (s *ServerTestSuite) TestConnectPacketWithConfig() {
+	testCases := []struct {
+		name    string
+		config  akira.Config
+		connect []byte
+		connack []byte
+	}{
+		{
+			"Session expiry interval",
+			akira.Config{
+				MaxSessionExpiryInterval:      150,
+				MaxQoS:                        2,
+				RetainAvailable:               true,
+				WildcardSubscriptionAvailable: true,
+				SubscriptionIDAvailable:       true,
+				SharedSubscriptionAvailable:   true,
+			},
+			[]byte{0x10, 20, 0, 4, 'M', 'Q', 'T', 'T', 5, 0, 0, 100, 5, 0x11, 0, 0, 0, 200, 0, 2, 'a', 'b'},
+			[]byte{0x20, 8, 0, 0, 5, 0x11, 0, 0, 0, 150},
+		},
+		{
+			"Server keep alive",
+			akira.Config{
+				MaxKeepAlive:                  50,
+				MaxQoS:                        2,
+				RetainAvailable:               true,
+				WildcardSubscriptionAvailable: true,
+				SubscriptionIDAvailable:       true,
+				SharedSubscriptionAvailable:   true,
+			},
+			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
+			[]byte{0x20, 6, 0, 0, 3, 0x13, 0, 50},
+		},
+		{
+			"Receive maximum",
+			akira.Config{
+				MaxInflightMessages:           100,
+				MaxQoS:                        2,
+				RetainAvailable:               true,
+				WildcardSubscriptionAvailable: true,
+				SubscriptionIDAvailable:       true,
+				SharedSubscriptionAvailable:   true,
+			},
+			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
+			[]byte{0x20, 6, 0, 0, 3, 0x21, 0, 100},
+		},
+		{
+			"Topic alias maximum",
+			akira.Config{
+				TopicAliasMax:                 10,
+				MaxQoS:                        2,
+				RetainAvailable:               true,
+				WildcardSubscriptionAvailable: true,
+				SubscriptionIDAvailable:       true,
+				SharedSubscriptionAvailable:   true,
+			},
+			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
+			[]byte{0x20, 6, 0, 0, 3, 0x22, 0, 10},
+		},
+		{
+			"Maximum QoS",
+			akira.Config{
+				MaxQoS:                        1,
+				RetainAvailable:               true,
+				WildcardSubscriptionAvailable: true,
+				SubscriptionIDAvailable:       true,
+				SharedSubscriptionAvailable:   true,
+			},
+			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
+			[]byte{0x20, 5, 0, 0, 2, 0x24, 1},
+		},
+		{
+			"Retain available",
+			akira.Config{
+				MaxQoS:                        2,
+				RetainAvailable:               false,
+				WildcardSubscriptionAvailable: true,
+				SubscriptionIDAvailable:       true,
+				SharedSubscriptionAvailable:   true,
+			},
+			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
+			[]byte{0x20, 5, 0, 0, 2, 0x25, 0},
+		},
+		{
+			"Maximum packet size",
+			akira.Config{
+				MaxPacketSize:                 200,
+				MaxQoS:                        2,
+				RetainAvailable:               true,
+				WildcardSubscriptionAvailable: true,
+				SubscriptionIDAvailable:       true,
+				SharedSubscriptionAvailable:   true,
+			},
+			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
+			[]byte{0x20, 8, 0, 0, 5, 0x27, 0, 0, 0, 200},
+		},
+		{
+			"Wildcard subscription available",
+			akira.Config{
+				MaxQoS:                        2,
+				RetainAvailable:               true,
+				WildcardSubscriptionAvailable: false,
+				SubscriptionIDAvailable:       true,
+				SharedSubscriptionAvailable:   true,
+			},
+			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
+			[]byte{0x20, 5, 0, 0, 2, 0x28, 0},
+		},
+		{
+			"Subscription identifier available",
+			akira.Config{
+				MaxQoS:                        2,
+				RetainAvailable:               true,
+				WildcardSubscriptionAvailable: true,
+				SubscriptionIDAvailable:       false,
+				SharedSubscriptionAvailable:   true,
+			},
+			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
+			[]byte{0x20, 5, 0, 0, 2, 0x29, 0},
+		},
+		{
+			"Shared subscription available",
+			akira.Config{
+				MaxQoS:                        2,
+				RetainAvailable:               true,
+				WildcardSubscriptionAvailable: true,
+				SubscriptionIDAvailable:       true,
+				SharedSubscriptionAvailable:   false,
+			},
+			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
+			[]byte{0x20, 5, 0, 0, 2, 0x2A, 0},
+		},
+	}
+
+	for _, test := range testCases {
+		s.Run(test.name, func() {
+			opts := akira.NewDefaultOptions()
+			if test.config.MaxSessionExpiryInterval != opts.Config.MaxSessionExpiryInterval {
+				opts.Config.MaxSessionExpiryInterval = test.config.MaxSessionExpiryInterval
+			}
+			if test.config.MaxKeepAlive != opts.Config.MaxKeepAlive {
+				opts.Config.MaxKeepAlive = test.config.MaxKeepAlive
+			}
+			if test.config.MaxInflightMessages != opts.Config.MaxInflightMessages {
+				opts.Config.MaxInflightMessages = test.config.MaxInflightMessages
+			}
+			if test.config.TopicAliasMax != opts.Config.TopicAliasMax {
+				opts.Config.TopicAliasMax = test.config.TopicAliasMax
+			}
+			if test.config.MaxQoS != opts.Config.MaxQoS {
+				opts.Config.MaxQoS = test.config.MaxQoS
+			}
+			if test.config.RetainAvailable != opts.Config.RetainAvailable {
+				opts.Config.RetainAvailable = test.config.RetainAvailable
+			}
+			if test.config.MaxPacketSize != opts.Config.MaxPacketSize {
+				opts.Config.MaxPacketSize = test.config.MaxPacketSize
+			}
+			if test.config.WildcardSubscriptionAvailable != opts.Config.WildcardSubscriptionAvailable {
+				opts.Config.WildcardSubscriptionAvailable = test.config.WildcardSubscriptionAvailable
+			}
+			if test.config.SubscriptionIDAvailable != opts.Config.SubscriptionIDAvailable {
+				opts.Config.SubscriptionIDAvailable = test.config.SubscriptionIDAvailable
+			}
+			if test.config.SharedSubscriptionAvailable != opts.Config.SharedSubscriptionAvailable {
+				opts.Config.SharedSubscriptionAvailable = test.config.SharedSubscriptionAvailable
+			}
+
+			srv, _ := akira.NewServer(opts)
+			defer srv.Close()
+
+			listener, onConnectionStream := s.addListener(srv)
+
+			conn1, conn2 := net.Pipe()
+			defer func() { _ = conn1.Close() }()
+			_ = srv.Start(context.Background())
+
+			onConnection := <-onConnectionStream
+			onConnection(listener, conn2)
+
+			_, _ = conn1.Write(test.connect)
+			connack := make([]byte, len(test.connack))
+
+			_, err := conn1.Read(connack)
+			s.Require().NoError(err)
+			s.Assert().Equal(test.connack, connack)
+		})
+	}
+}
+
+func (s *ServerTestSuite) TestConnectPacketWithSessionProperties() {
+	srv, _ := akira.NewServer(akira.NewDefaultOptions())
+	defer srv.Close()
+
+	var props *akira.SessionProperties
+	connectCh := make(chan struct{})
+
+	onConnected := mocks.NewMockOnConnectedHook(s.T())
+	onConnected.EXPECT().Name().Return("onConnected")
+	onConnected.EXPECT().OnConnected(mock.Anything).Run(func(c *akira.Client) {
+		props = c.Session.Properties
+		close(connectCh)
+	})
+	_ = srv.AddHook(onConnected)
+
+	listener, onConnectionStream := s.addListener(srv)
+
+	conn1, conn2 := net.Pipe()
+	defer func() { _ = conn1.Close() }()
+	_ = srv.Start(context.Background())
+
+	onConnection := <-onConnectionStream
+	onConnection(listener, conn2)
+
+	connect := []byte{0x10, 51, 0, 4, 'M', 'Q', 'T', 'T', 5, 0, 0, 100, 36,
+		17, 0, 0, 0, 100, // Session Expiry Interval
+		33, 0, 150, // Receive Maximum
+		39, 0, 0, 0, 200, // Maximum Packet Size
+		34, 0, 250, // Topic Alias Maximum
+		25, 1, // Request Response Info
+		23, 1, // Request Problem Info
+		38, 0, 1, 'a', 0, 1, 'b', // User Property
+		21, 0, 2, 'e', 'f', // Authentication Method
+		22, 0, 1, 10, // Authentication Data
+		0, 2, 'a', 'b'}
+	_, _ = conn1.Write(connect)
+
+	connack := make([]byte, 10)
+	_, err := conn1.Read(connack)
+	s.Require().NoError(err)
+
+	<-connectCh
+	s.Require().NotNil(props)
+	s.Require().True(props.Has(packet.PropertySessionExpiryInterval))
+	s.Require().True(props.Has(packet.PropertyMaximumPacketSize))
+	s.Require().True(props.Has(packet.PropertyReceiveMaximum))
+	s.Require().True(props.Has(packet.PropertyTopicAliasMaximum))
+	s.Require().True(props.Has(packet.PropertyRequestResponseInfo))
+	s.Require().True(props.Has(packet.PropertyRequestProblemInfo))
+	s.Require().True(props.Has(packet.PropertyUserProperty))
+
+	s.Assert().Equal(100, int(props.SessionExpiryInterval))
+	s.Assert().Equal(150, int(props.ReceiveMaximum))
+	s.Assert().Equal(200, int(props.MaximumPacketSize))
+	s.Assert().Equal(250, int(props.TopicAliasMaximum))
+	s.Assert().True(props.RequestResponseInfo)
+	s.Assert().True(props.RequestProblemInfo)
+	s.Assert().Equal([]packet.UserProperty{{Key: []byte("a"), Value: []byte("b")}}, props.UserProperties)
+}
+
+func (s *ServerTestSuite) TestConnectPacketWithLastWill() {
+	srv, _ := akira.NewServer(akira.NewDefaultOptions())
+	defer srv.Close()
+
+	var will *akira.LastWill
+	connectCh := make(chan struct{})
+
+	onConnected := mocks.NewMockOnConnectedHook(s.T())
+	onConnected.EXPECT().Name().Return("onConnected")
+	onConnected.EXPECT().OnConnected(mock.Anything).Run(func(c *akira.Client) {
+		will = c.Session.LastWill
+		close(connectCh)
+	})
+	_ = srv.AddHook(onConnected)
+
+	listener, onConnectionStream := s.addListener(srv)
+
+	conn1, conn2 := net.Pipe()
+	defer func() { _ = conn1.Close() }()
+	_ = srv.Start(context.Background())
+
+	onConnection := <-onConnectionStream
+	onConnection(listener, conn2)
+
+	connect := []byte{0x10, 57, 0, 4, 'M', 'Q', 'T', 'T', 5, 0x34, 0, 100, 0, 0, 2, 'a', 'b',
+		35,              // Property Length
+		24, 0, 0, 0, 10, // Will Delay Interval
+		1, 1, // Payload Format Indicator
+		2, 0, 0, 0, 20, // Message Expiry Interval
+		3, 0, 4, 'j', 's', 'o', 'n', // Content Type
+		8, 0, 1, 'b', // Response Topic
+		9, 0, 2, 20, 1, // Correlation Data
+		38, 0, 1, 'a', 0, 1, 'b', // User Property
+		0, 1, 'a', // Will Topic
+		0, 1, 'b', // Will Payload
+	}
+	_, _ = conn1.Write(connect)
+
+	connack := make([]byte, 10)
+	_, err := conn1.Read(connack)
+	s.Require().NoError(err)
+
+	<-connectCh
+	s.Require().NotNil(will)
+
+	expected := akira.LastWill{
+		Topic:   []byte("a"),
+		Payload: []byte("b"),
+		QoS:     packet.QoS2,
+		Retain:  true,
+		Properties: &packet.WillProperties{
+			Flags: packet.PropertyFlags(0).
+				Set(packet.PropertyWillDelayInterval).
+				Set(packet.PropertyPayloadFormatIndicator).
+				Set(packet.PropertyMessageExpiryInterval).
+				Set(packet.PropertyContentType).
+				Set(packet.PropertyResponseTopic).
+				Set(packet.PropertyCorrelationData).
+				Set(packet.PropertyUserProperty),
+			WillDelayInterval:      10,
+			PayloadFormatIndicator: true,
+			MessageExpiryInterval:  20,
+			ContentType:            []byte("json"),
+			ResponseTopic:          []byte("b"),
+			CorrelationData:        []byte{20, 1},
+			UserProperties:         []packet.UserProperty{{[]byte("a"), []byte("b")}},
+		},
+	}
+	s.Assert().Equal(expected, *will)
+}
+
+func (s *ServerTestSuite) TestConnectPacketV3WithMaxKeepAliveExceeded() {
+	testCases := []struct {
+		name    string
+		connect []byte
+		connack []byte
+	}{
+		{
+			"V3.1",
+			[]byte{0x10, 16, 0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 0, 0, 200, 0, 2, 'a', 'b'},
+			[]byte{0x20, 2, 0, 2},
+		},
+		{
+			"V3.1.1",
+			[]byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 0, 0, 200, 0, 2, 'a', 'b'},
+			[]byte{0x20, 2, 0, 2},
+		},
+	}
+
+	for _, test := range testCases {
+		s.Run(test.name, func() {
+			opts := akira.NewDefaultOptions()
+			opts.Config.MaxKeepAlive = 100
+
+			srv, _ := akira.NewServer(opts)
+			defer srv.Close()
+
+			listener, onConnectionStream := s.addListener(srv)
+
+			conn1, conn2 := net.Pipe()
+			defer func() { _ = conn1.Close() }()
+			_ = srv.Start(context.Background())
+
+			onConnection := <-onConnectionStream
+			onConnection(listener, conn2)
+			_, _ = conn1.Write(test.connect)
+
+			connack := make([]byte, len(test.connack))
+			_, err := conn1.Read(connack)
+			s.Require().NoError(err)
+			s.Assert().Equal(test.connack, connack)
+
+			_, err = conn1.Read(connack)
+			s.Require().ErrorIs(err, io.EOF)
+		})
+	}
+}
+
+func (s *ServerTestSuite) TestConnectPacketWithClientIDTooBig() {
+	testCases := []struct {
+		name    string
+		connect []byte
+		connack []byte
+	}{
+		{
+			"V3.1",
+			[]byte{0x10, 38, 0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 0, 0, 100, 0, 24,
+				'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+				'0', '1', '2', '3'},
+			[]byte{0x20, 2, 0, 2},
+		},
+		{
+			"V3.1.1",
+			[]byte{0x10, 36, 0, 4, 'M', 'Q', 'T', 'T', 4, 0, 0, 100, 0, 24,
+				'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+				'0', '1', '2', '3'},
+			[]byte{0x20, 2, 0, 2},
+		},
+		{
+			"V5.0",
+			[]byte{0x10, 37, 0, 4, 'M', 'Q', 'T', 'T', 5, 0, 0, 100, 0, 0, 24,
+				'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+				'0', '1', '2', '3'},
+			[]byte{0x20, 3, 0, 0x85, 0},
+		},
+	}
+
+	for _, test := range testCases {
+		s.Run(test.name, func() {
+			opts := akira.NewDefaultOptions()
+			opts.Config.MaxClientIDSize = 23
+			srv, _ := akira.NewServer(opts)
+			defer srv.Close()
+
+			listener, onConnectionStream := s.addListener(srv)
+
+			conn1, conn2 := net.Pipe()
+			defer func() { _ = conn1.Close() }()
+			_ = srv.Start(context.Background())
+
+			onConnection := <-onConnectionStream
+			onConnection(listener, conn2)
+			_, _ = conn1.Write(test.connect)
+
+			connack := make([]byte, len(test.connack))
+			_, err := conn1.Read(connack)
+			s.Require().NoError(err)
+			s.Assert().Equal(test.connack, connack)
+
+			_, err = conn1.Read(connack)
+			s.Require().ErrorIs(err, io.EOF)
+		})
+	}
+}
+
+func (s *ServerTestSuite) TestConnectPacketRejectedWhenEmptyClientID() {
+	testCases := []struct {
+		name    string
+		connect []byte
+		connack []byte
+	}{
+		{
+			"V3.1.1, no clean session",
+			[]byte{0x10, 12, 0, 4, 'M', 'Q', 'T', 'T', 4, 0, 0, 100, 0, 0},
+			[]byte{0x20, 2, 0, 0x02},
+		},
+		{
+			"V3.1.1, clean session",
+			[]byte{0x10, 12, 0, 4, 'M', 'Q', 'T', 'T', 4, 2, 0, 100, 0, 0},
+			[]byte{0x20, 2, 0, 0x02},
+		},
+		{
+			"V5.0",
+			[]byte{0x10, 13, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 0},
+			[]byte{0x20, 3, 0, 0x85, 0},
+		},
+	}
+
+	for _, test := range testCases {
+		s.Run(test.name, func() {
+			srv, _ := akira.NewServer(akira.NewDefaultOptions())
+			defer srv.Close()
+
+			listener, onConnectionStream := s.addListener(srv)
+
+			conn1, conn2 := net.Pipe()
+			defer func() { _ = conn1.Close() }()
+			_ = srv.Start(context.Background())
+
+			onConnection := <-onConnectionStream
+			onConnection(listener, conn2)
+			_, _ = conn1.Write(test.connect)
+
+			connack := make([]byte, len(test.connack))
+			_, err := conn1.Read(connack)
+			s.Require().NoError(err)
+			s.Assert().Equal(test.connack, connack)
+
+			_, err = conn1.Read(connack)
+			s.Require().ErrorIs(err, io.EOF)
+		})
+	}
+}
+
+func (s *ServerTestSuite) TestConnectPacketWithGetSessionReturningError() {
+	testCases := []struct {
+		name    string
+		connect []byte
+		connack []byte
+	}{
+		{
+			"V3.1",
+			[]byte{0x10, 16, 0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 0, 0, 100, 0, 2, 'a', 'b'},
+			[]byte{0x20, 2, 0, 3},
+		},
+		{
+			"V3.1.1",
+			[]byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 0, 0, 100, 0, 2, 'a', 'b'},
+			[]byte{0x20, 2, 0, 3},
+		},
+		{
+			"V5.0",
+			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 0, 0, 100, 0, 0, 2, 'a', 'b'},
+			[]byte{0x20, 3, 0, 0x88, 0},
+		},
+	}
+
+	for _, test := range testCases {
+		s.Run(test.name, func() {
+			store := mocks.NewMockSessionStore(s.T())
+			store.EXPECT().GetSession([]byte{'a', 'b'}).Return(nil, assert.AnError)
+
+			opts := akira.NewDefaultOptions()
+			opts.SessionStore = store
+			srv, _ := akira.NewServer(opts)
+			defer srv.Close()
+
+			onConnectErr := mocks.NewMockOnConnectErrorHook(s.T())
+			onConnectErr.EXPECT().Name().Return("onConnectErr")
+			onConnectErr.EXPECT().OnConnectError(mock.Anything, mock.Anything, mock.Anything).
+				Run(func(c *akira.Client, p *packet.Connect, err error) {
+					s.Require().NotNil(c)
+					s.Require().NotNil(p)
+					s.Require().Error(err)
+					s.Assert().Equal([]byte{'a', 'b'}, p.ClientID)
+				})
+			_ = srv.AddHook(onConnectErr)
+
+			listener, onConnectionStream := s.addListener(srv)
+
+			conn1, conn2 := net.Pipe()
+			defer func() { _ = conn1.Close() }()
+			_ = srv.Start(context.Background())
+
+			onConnection := <-onConnectionStream
+			onConnection(listener, conn2)
+			_, _ = conn1.Write(test.connect)
+
+			connack := make([]byte, len(test.connack))
+			_, err := conn1.Read(connack)
+			s.Require().NoError(err)
+			s.Assert().Equal(test.connack, connack)
+
+			_, err = conn1.Read(connack)
+			s.Require().ErrorIs(err, io.EOF)
+		})
+	}
+}
+
+func (s *ServerTestSuite) TestConnectPacketWithDeleteSessionReturningError() {
+	testCases := []struct {
+		name    string
+		connect []byte
+		connack []byte
+	}{
+		{
+			"V3.1",
+			[]byte{0x10, 16, 0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 2, 0, 100, 0, 2, 'a', 'b'},
+			[]byte{0x20, 2, 0, 3},
+		},
+		{
+			"V3.1.1",
+			[]byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 2, 0, 100, 0, 2, 'a', 'b'},
+			[]byte{0x20, 2, 0, 3},
+		},
+		{
+			"V5.0",
+			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
+			[]byte{0x20, 3, 0, 0x88, 0},
+		},
+	}
+
+	for _, test := range testCases {
+		s.Run(test.name, func() {
+			store := mocks.NewMockSessionStore(s.T())
+			store.EXPECT().DeleteSession([]byte{'a', 'b'}).Return(assert.AnError)
+
+			opts := akira.NewDefaultOptions()
+			opts.SessionStore = store
+			srv, _ := akira.NewServer(opts)
+			defer srv.Close()
+
+			onConnectErr := mocks.NewMockOnConnectErrorHook(s.T())
+			onConnectErr.EXPECT().Name().Return("onConnectErr")
+			onConnectErr.EXPECT().OnConnectError(mock.Anything, mock.Anything, mock.Anything).
+				Run(func(c *akira.Client, p *packet.Connect, err error) {
+					s.Require().NotNil(c)
+					s.Require().NotNil(p)
+					s.Require().Error(err)
+				})
+			_ = srv.AddHook(onConnectErr)
+
+			listener, onConnectionStream := s.addListener(srv)
+
+			conn1, conn2 := net.Pipe()
+			defer func() { _ = conn1.Close() }()
+			_ = srv.Start(context.Background())
+
+			onConnection := <-onConnectionStream
+			onConnection(listener, conn2)
+			_, _ = conn1.Write(test.connect)
+
+			connack := make([]byte, len(test.connack))
+			_, err := conn1.Read(connack)
+			s.Require().NoError(err)
+			s.Assert().Equal(test.connack, connack)
+
+			_, err = conn1.Read(connack)
+			s.Require().ErrorIs(err, io.EOF)
+		})
+	}
+}
+
+func (s *ServerTestSuite) TestConnectPacketWithSaveSessionReturningError() {
+	testCases := []struct {
+		name    string
+		connect []byte
+		connack []byte
+	}{
+		{
+			"V3.1",
+			[]byte{0x10, 16, 0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 2, 0, 100, 0, 2, 'a', 'b'},
+			[]byte{0x20, 2, 0, 3},
+		},
+		{
+			"V3.1.1",
+			[]byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 2, 0, 100, 0, 2, 'a', 'b'},
+			[]byte{0x20, 2, 0, 3},
+		},
+		{
+			"V5.0",
+			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
+			[]byte{0x20, 3, 0, 0x88, 0},
+		},
+	}
+
+	for _, test := range testCases {
+		s.Run(test.name, func() {
+			store := mocks.NewMockSessionStore(s.T())
+			store.EXPECT().DeleteSession([]byte{'a', 'b'}).Return(nil)
+			store.EXPECT().SaveSession(mock.Anything, mock.Anything).Return(assert.AnError)
+
+			opts := akira.NewDefaultOptions()
+			opts.SessionStore = store
+			srv, _ := akira.NewServer(opts)
+			defer srv.Close()
+
+			onConnectErr := mocks.NewMockOnConnectErrorHook(s.T())
+			onConnectErr.EXPECT().Name().Return("onConnectErr")
+			onConnectErr.EXPECT().OnConnectError(mock.Anything, mock.Anything, mock.Anything).
+				Run(func(c *akira.Client, p *packet.Connect, err error) {
+					s.Require().NotNil(c)
+					s.Require().NotNil(p)
+					s.Require().Error(err)
+				})
+			_ = srv.AddHook(onConnectErr)
+
+			listener, onConnectionStream := s.addListener(srv)
+
+			conn1, conn2 := net.Pipe()
+			defer func() { _ = conn1.Close() }()
+			_ = srv.Start(context.Background())
+
+			onConnection := <-onConnectionStream
+			onConnection(listener, conn2)
+			_, _ = conn1.Write(test.connect)
+
+			connack := make([]byte, len(test.connack))
+			_, err := conn1.Read(connack)
+			s.Require().NoError(err)
+			s.Assert().Equal(test.connack, connack)
+
+			_, err = conn1.Read(connack)
+			s.Require().ErrorIs(err, io.EOF)
+		})
+	}
+}
+
+func (s *ServerTestSuite) TestConnectPacketWithOnConnectReturningError() {
+	srv, _ := akira.NewServer(akira.NewDefaultOptions())
+	defer srv.Close()
+
+	onConnect := mocks.NewMockOnConnectHook(s.T())
+	onConnect.EXPECT().Name().Return("onConnect")
+	onConnect.EXPECT().OnConnect(mock.Anything, mock.Anything).Return(assert.AnError)
+	_ = srv.AddHook(onConnect)
+
+	listener, onConnectionStream := s.addListener(srv)
+
+	conn1, conn2 := net.Pipe()
+	defer func() { _ = conn1.Close() }()
+	_ = srv.Start(context.Background())
+
+	onConnection := <-onConnectionStream
+	onConnection(listener, conn2)
+
+	connect := []byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 2, 0, 100, 0, 2, 'a', 'b'}
+	_, _ = conn1.Write(connect)
+
+	connack := make([]byte, 4)
+	_, err := conn1.Read(connack)
+	s.Require().ErrorIs(err, io.EOF)
+}
+
+func (s *ServerTestSuite) TestConnectPacketSendConnAckWhenOnConnectReturnPacketError() {
+	srv, _ := akira.NewServer(akira.NewDefaultOptions())
+	defer srv.Close()
+
+	onConnect := mocks.NewMockOnConnectHook(s.T())
+	onConnect.EXPECT().Name().Return("onConnect")
+	onConnect.EXPECT().OnConnect(mock.Anything, mock.Anything).Return(packet.ErrNotAuthorized)
+	_ = srv.AddHook(onConnect)
+
+	listener, onConnectionStream := s.addListener(srv)
+
+	conn1, conn2 := net.Pipe()
+	defer func() { _ = conn1.Close() }()
+	_ = srv.Start(context.Background())
+
+	onConnection := <-onConnectionStream
+	onConnection(listener, conn2)
+
+	connect := []byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'}
+	_, _ = conn1.Write(connect)
+
+	expected := []byte{0x20, 3, 0, 0x87, 0}
+	connack := make([]byte, len(expected))
+
+	_, err := conn1.Read(connack)
+	s.Require().NoError(err)
+	s.Assert().Equal(expected, connack)
+
+	_, err = conn1.Read(connack)
+	s.Require().ErrorIs(err, io.EOF)
+}
+
+func (s *ServerTestSuite) TestConnectPacketDontSendConnAckWhenOnConnectReturnReasonCodes() {
+	testCases := []struct {
+		name string
+		code packet.ReasonCode
+	}{
+		{"Success", packet.ReasonCodeSuccess},
+		{"Malformed packet", packet.ReasonCodeMalformedPacket},
+	}
+
+	for _, test := range testCases {
+		s.Run(test.name, func() {
+			srv, _ := akira.NewServer(akira.NewDefaultOptions())
+			defer srv.Close()
+
+			onConnect := mocks.NewMockOnConnectHook(s.T())
+			onConnect.EXPECT().Name().Return("onConnect")
+			onConnect.EXPECT().OnConnect(mock.Anything, mock.Anything).Return(packet.Error{Code: test.code})
+			_ = srv.AddHook(onConnect)
+
+			listener, onConnectionStream := s.addListener(srv)
+
+			conn1, conn2 := net.Pipe()
+			defer func() { _ = conn1.Close() }()
+			_ = srv.Start(context.Background())
+
+			onConnection := <-onConnectionStream
+			onConnection(listener, conn2)
+
+			connect := []byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'}
+			_, _ = conn1.Write(connect)
+
+			connack := make([]byte, 4)
+			_, err := conn1.Read(connack)
+			s.Require().ErrorIs(err, io.EOF)
+		})
+	}
 }
 
 func TestServerTestSuite(t *testing.T) {

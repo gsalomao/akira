@@ -45,6 +45,14 @@ func (h *hookSpy) OnPacketReceived(_ *Client, _ Packet) error {
 	return nil
 }
 
+func (h *hookSpy) OnPacketSend(_ *Client, _ Packet) error {
+	return nil
+}
+
+func (h *hookSpy) OnPacketSent(_ *Client, _ Packet) error {
+	return nil
+}
+
 func BenchmarkHooksOnConnectionOpen(b *testing.B) {
 	b.Run("No Hook", func(b *testing.B) {
 		h := newHooks()
@@ -155,6 +163,44 @@ func BenchmarkHooksOnPacketReceived(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			_ = h.onPacketReceived(nil, nil)
+		}
+	})
+}
+
+func BenchmarkHooksOnPacketSend(b *testing.B) {
+	b.Run("No Hook", func(b *testing.B) {
+		h := newHooks()
+
+		for i := 0; i < b.N; i++ {
+			_ = h.onPacketSend(nil, nil)
+		}
+	})
+
+	b.Run("With Hook", func(b *testing.B) {
+		h := newHooks()
+		_ = h.add(&hookSpy{})
+
+		for i := 0; i < b.N; i++ {
+			_ = h.onPacketSend(nil, nil)
+		}
+	})
+}
+
+func BenchmarkHooksOnPacketSent(b *testing.B) {
+	b.Run("No Hook", func(b *testing.B) {
+		h := newHooks()
+
+		for i := 0; i < b.N; i++ {
+			_ = h.onPacketSent(nil, nil)
+		}
+	})
+
+	b.Run("With Hook", func(b *testing.B) {
+		h := newHooks()
+		_ = h.add(&hookSpy{})
+
+		for i := 0; i < b.N; i++ {
+			_ = h.onPacketSent(nil, nil)
 		}
 	})
 }

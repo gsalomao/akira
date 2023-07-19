@@ -24,6 +24,7 @@ import (
 
 	"github.com/gsalomao/akira"
 	"github.com/gsalomao/akira/listener"
+	"github.com/gsalomao/akira/packet"
 )
 
 func main() {
@@ -113,10 +114,23 @@ func (h *loggingHook) OnConnectionOpened(_ *akira.Server, _ akira.Listener) {
 	log.Println("Client opened")
 }
 
-func (h *loggingHook) OnConnectionClose(_ *akira.Server, _ akira.Listener) {
+func (h *loggingHook) OnConnectionClose(_ *akira.Server, _ akira.Listener, _ error) {
 	log.Println("Client close")
 }
 
-func (h *loggingHook) OnConnectionClosed(_ *akira.Server, _ akira.Listener) {
+func (h *loggingHook) OnConnectionClosed(_ *akira.Server, _ akira.Listener, _ error) {
 	log.Println("Client closed")
+}
+
+func (h *loggingHook) OnConnect(_ *akira.Client, _ *packet.Connect) error {
+	log.Println("Client connecting")
+	return nil
+}
+
+func (h *loggingHook) OnConnectError(_ *akira.Client, _ *packet.Connect, _ error) {
+	log.Println("Connection failed")
+}
+
+func (h *loggingHook) OnConnected(_ *akira.Client) {
+	log.Println("Client connected")
 }

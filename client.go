@@ -27,11 +27,14 @@ import (
 )
 
 const (
-	// ClientStatePending indicates that the network connection is open but the MQTT connection flow is pending.
-	ClientStatePending ClientState = iota
+	// ClientPending indicates that the network connection is open but the MQTT connection flow is pending.
+	ClientPending ClientState = iota
 
-	// ClientStateClosed indicates that the client is closed and not able to receive or send any packet.
-	ClientStateClosed
+	// ClientConnected indicates that the client is currently connected.
+	ClientConnected
+
+	// ClientClosed indicates that the client is closed and not able to receive or send any packet.
+	ClientClosed
 )
 
 // ClientState represents the client state.
@@ -59,6 +62,9 @@ type Connection struct {
 	netConn  net.Conn
 	listener Listener
 
+	// Timestamp which the client connected.
+	ConnectedAt time.Time
+
 	// KeepAlive is a time interval, measured in seconds, that is permitted to elapse between the point at which
 	// the client finishes transmitting one control packet and the point it starts sending the next.
 	KeepAlive uint16
@@ -84,6 +90,9 @@ type Session struct {
 
 // SessionProperties represents the properties of the session (MQTT V5.0 only).
 type SessionProperties struct {
+	// Flags indicates which properties are present.
+	Flags packet.PropertyFlags
+
 	// UserProperties is a list of user properties.
 	UserProperties []packet.UserProperty `json:"user_properties"`
 
@@ -108,6 +117,21 @@ type SessionProperties struct {
 	RequestProblemInfo bool `json:"request_problem_info"`
 }
 
+// Has returns whether the property is present or not.
+func (p *SessionProperties) Has(id packet.PropertyID) bool {
+	if p != nil {
+		return p.Flags.Has(id)
+	}
+	return false
+}
+
+// Set sets the property indicating that it's present.
+func (p *SessionProperties) Set(id packet.PropertyID) {
+	if p != nil {
+		p.Flags = p.Flags.Set(id)
+	}
+}
+
 // LastWill represents the MQTT Will Message.
 type LastWill struct {
 	// Topic represents the topic which the Will Message will be published.
@@ -129,9 +153,10 @@ type LastWill struct {
 func newClient(nc net.Conn, s *Server, l Listener) *Client {
 	c := Client{
 		Connection: &Connection{
-			netConn:   nc,
-			listener:  l,
-			KeepAlive: s.config.ConnectTimeout,
+			netConn:     nc,
+			listener:    l,
+			ConnectedAt: time.Now(),
+			KeepAlive:   s.config.ConnectTimeout,
 		},
 		Server: s,
 	}
@@ -146,7 +171,7 @@ func (c *Client) Close(err error) {
 		c.Lock()
 		defer c.Unlock()
 
-		c.state = ClientStateClosed
+		c.state = ClientClosed
 		_ = c.Connection.netConn.Close()
 
 		c.Server.hooks.onConnectionClosed(c.Server, c.Connection.listener, err)
@@ -161,6 +186,13 @@ func (c *Client) State() ClientState {
 	return c.state
 }
 
+func (c *Client) setState(s ClientState) {
+	c.Lock()
+	defer c.Unlock()
+
+	c.state = s
+}
+
 func (c *Client) receivePacket(r *bufio.Reader) (Packet, error) {
 	if err := c.Server.hooks.onPacketReceive(c); err != nil {
 		return nil, err
@@ -168,7 +200,7 @@ func (c *Client) receivePacket(r *bufio.Reader) (Packet, error) {
 
 	p, _, err := readPacket(r)
 	if err != nil {
-		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || c.State() == ClientStateClosed {
+		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || c.State() == ClientClosed {
 			return nil, err
 		}
 
@@ -188,6 +220,31 @@ func (c *Client) receivePacket(r *bufio.Reader) (Packet, error) {
 	return p, err
 }
 
+func (c *Client) sendPacket(p PacketEncodable) error {
+	err := c.Server.hooks.onPacketSend(c, p)
+	if err != nil {
+		return err
+	}
+
+	buf := make([]byte, p.Size())
+
+	_, err = p.Encode(buf)
+	if err != nil {
+		c.Server.hooks.onPacketSendError(c, p, err)
+		return err
+	}
+
+	_, err = c.Connection.netConn.Write(buf)
+	if err != nil {
+		if !errors.Is(err, io.EOF) {
+			c.Server.hooks.onPacketSendError(c, p, err)
+		}
+		return err
+	}
+
+	return c.Server.hooks.onPacketSent(c, p)
+}
+
 func (c *Client) refreshDeadline() {
 	var deadline time.Time
 
@@ -200,12 +257,16 @@ func (c *Client) refreshDeadline() {
 }
 
 type clients struct {
-	mutex   sync.RWMutex
-	pending []*Client
+	mutex     sync.RWMutex
+	pending   []*Client
+	connected map[string]*Client
 }
 
 func newClients() *clients {
-	c := clients{pending: make([]*Client, 0)}
+	c := clients{
+		pending:   make([]*Client, 0),
+		connected: make(map[string]*Client),
+	}
 	return &c
 }
 
@@ -213,14 +274,22 @@ func (c *clients) add(client *Client) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	c.pending = append(c.pending, client)
+	c.addLocked(client)
 }
 
 func (c *clients) remove(client *Client) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	c.removeLocked(client)
+	c.removePendingLocked(client)
+}
+
+func (c *clients) update(client *Client) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	c.removePendingLocked(client)
+	c.addLocked(client)
 }
 
 func (c *clients) closeAll() {
@@ -229,11 +298,25 @@ func (c *clients) closeAll() {
 
 	for _, client := range c.pending {
 		client.Close(nil)
-		c.removeLocked(client)
+		c.removePendingLocked(client)
+	}
+	for id, client := range c.connected {
+		client.Close(nil)
+		delete(c.connected, id)
 	}
 }
 
-func (c *clients) removeLocked(client *Client) {
+func (c *clients) addLocked(client *Client) {
+	switch client.State() {
+	case ClientPending:
+		c.pending = append(c.pending, client)
+	case ClientConnected:
+		c.connected[string(client.Session.ClientID)] = client
+	default:
+	}
+}
+
+func (c *clients) removePendingLocked(client *Client) {
 	var i int
 	size := len(c.pending)
 

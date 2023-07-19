@@ -40,7 +40,7 @@ func (s *ClientsTestSuite) SetupTest() {
 	s.conn1, s.conn2 = net.Pipe()
 
 	s.client = newClient(s.conn2, s.server, nil)
-	s.Require().Equal(ClientStatePending, s.client.State())
+	s.Require().Equal(ClientPending, s.client.State())
 }
 
 func (s *ClientsTestSuite) TearDownTest() {
@@ -89,6 +89,21 @@ func (s *ClientsTestSuite) TestRemoveUnknownClient() {
 	s.Require().Empty(s.clients.pending)
 }
 
+func (s *ClientsTestSuite) TestUpdate() {
+	s.clients.add(s.client)
+
+	s.client.Session = &Session{ClientID: []byte("abc")}
+	s.client.setState(ClientConnected)
+
+	s.clients.update(s.client)
+	s.Assert().Empty(s.clients.pending)
+	s.Require().Len(s.clients.connected, 1)
+
+	client, ok := s.clients.connected["abc"]
+	s.Require().True(ok)
+	s.Assert().Equal(s.client, client)
+}
+
 func (s *ClientsTestSuite) TestCloseAll() {
 	cls := []*Client{
 		newClient(s.conn2, s.server, nil),
@@ -99,11 +114,16 @@ func (s *ClientsTestSuite) TestCloseAll() {
 		s.clients.add(cls[i])
 	}
 
+	cls[0].Session = &Session{ClientID: []byte("abc")}
+	cls[0].setState(ClientConnected)
+	s.clients.update(cls[0])
+
 	s.clients.closeAll()
-	s.Require().Empty(s.clients.pending)
+	s.Assert().Empty(s.clients.pending)
+	s.Assert().Empty(s.clients.connected)
 
 	for i := range cls {
-		s.Assert().Equal(ClientStateClosed, cls[i].State())
+		s.Assert().Equal(ClientClosed, cls[i].State())
 	}
 }
 

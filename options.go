@@ -14,6 +14,8 @@
 
 package akira
 
+import "github.com/gsalomao/akira/packet"
+
 // Options contains the Server options to be used.
 type Options struct {
 	// Config contains the server configuration.
@@ -24,30 +26,72 @@ type Options struct {
 
 	// Hooks is the list of Hook to be added into the server.
 	Hooks []Hook
+
+	// SessionStore is the store responsible for persist the Session in a non-volatile memory.
+	SessionStore SessionStore
 }
 
 // NewDefaultOptions creates a default Options.
 func NewDefaultOptions() *Options {
-	return &Options{
-		Config: NewDefaultConfig(),
-	}
+	return &Options{Config: NewDefaultConfig()}
 }
 
 // Config contains the Server configuration.
 type Config struct {
+	// MaxClientIDSize is the maximum length for client identifier, in bytes, allowed by the server.
+	MaxClientIDSize int `json:"max_client_id_size"`
+
 	// ReadBufferSize is the number of bytes for the read buffer.
-	ReadBufferSize uint32 `json:"read_buffer_size"`
+	ReadBufferSize int `json:"read_buffer_size"`
+
+	// MaxPacketSize indicates the maximum packet size, in bytes, allowed by the server.
+	MaxPacketSize uint32 `json:"max_packet_size"`
+
+	// MaxSessionExpiryInterval indicates the maximum session expire interval, in seconds, allowed by the server.
+	MaxSessionExpiryInterval uint32 `json:"max_session_expiry_interval"`
 
 	// ConnectTimeout is the number of seconds to wait for the CONNECT Packet after the Client has established the
 	// network connection.
 	ConnectTimeout uint16 `json:"connect_timeout"`
+
+	// MaxKeepAlive is the maximum Keep Alive value, in seconds, allowed by the server.
+	MaxKeepAlive uint16 `json:"max_keep_alive"`
+
+	// MaxInflightMessages indicates maximum number of QoS 1 or 2 messages that can be processed simultaneously per
+	// client.
+	MaxInflightMessages uint16 `json:"max_inflight_messages"`
+
+	// TopicAliasMax indicates the highest value that the sever accepts as a topic alias sent by the client. The server
+	// uses this value to limit the number of topic aliases that it's willing to hold for each client.
+	TopicAliasMax uint16 `json:"topic_alias_max"`
+
+	// MaxQoS indicates the maximum QoS for PUBLISH Packets accepted by the server.
+	MaxQoS byte `json:"maximum_qos"`
+
+	// RetainAvailable indicates whether the server allows retained messages or not.
+	RetainAvailable bool `json:"retain_available"`
+
+	// WildcardSubscriptionAvailable indicates whether the server allows wildcard subscription or not.
+	WildcardSubscriptionAvailable bool `json:"wildcard_subscription_available"`
+
+	// SubscriptionIDAvailable indicates whether the server allows subscription identifier or not.
+	SubscriptionIDAvailable bool `json:"subscription_id_available"`
+
+	// SharedSubscriptionAvailable indicates whether the server allows shared subscription or not.
+	SharedSubscriptionAvailable bool `json:"shared_subscription_available"`
 }
 
 // NewDefaultConfig creates a default Config.
 func NewDefaultConfig() *Config {
 	c := Config{
-		ReadBufferSize: 1024,
-		ConnectTimeout: 10,
+		MaxClientIDSize:               23,
+		ReadBufferSize:                1024,
+		ConnectTimeout:                10,
+		MaxQoS:                        byte(packet.QoS2),
+		RetainAvailable:               true,
+		WildcardSubscriptionAvailable: true,
+		SubscriptionIDAvailable:       true,
+		SharedSubscriptionAvailable:   true,
 	}
 	return &c
 }

@@ -18,6 +18,8 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
+
+	"github.com/gsalomao/akira/packet"
 )
 
 const (
@@ -35,6 +37,12 @@ const (
 	onPacketReceiveHook
 	onPacketReceiveErrorHook
 	onPacketReceivedHook
+	onPacketSendHook
+	onPacketSendErrorHook
+	onPacketSentHook
+	onConnectHook
+	onConnectErrorHook
+	onConnectedHook
 	numOfHookTypes
 )
 
@@ -143,8 +151,9 @@ type OnPacketReceiveHook interface {
 }
 
 // OnPacketReceiveErrorHook is the hook interface that wraps the OnPacketReceiveError method. The OnPacketReceiveError
-// method is called by the server, with the error as parameter, when it fails to receive a new packet. If this method
-// returns an error, the server closes the client. Otherwise, it tries to receive a new packet again.
+// method is called by the server when it fails to receive a packet from the client for any reason other than the
+// network connection closed. If this method returns an error, the server closes the client. Otherwise, it tries to
+// receive a new packet again.
 type OnPacketReceiveErrorHook interface {
 	Hook
 	OnPacketReceiveError(c *Client, err error) error
@@ -156,6 +165,54 @@ type OnPacketReceiveErrorHook interface {
 type OnPacketReceivedHook interface {
 	Hook
 	OnPacketReceived(c *Client, p Packet) error
+}
+
+// OnPacketSendHook is the hook interface that wraps the OnPacketSend method. The OnPacketSend method is called by the
+// server before the packet has been sent to the client. If this method returns an error, the server discards the
+// packet and closes the client.
+type OnPacketSendHook interface {
+	Hook
+	OnPacketSend(c *Client, p Packet) error
+}
+
+// OnPacketSendErrorHook is the hook interface that wraps the OnPacketSendError method. The OnPacketSendError method
+// is called by the server when it fails to send the packet to the client for any reason other than the network
+// connection closed.
+type OnPacketSendErrorHook interface {
+	Hook
+	OnPacketSendError(c *Client, p Packet, err error)
+}
+
+// OnPacketSentHook is the hook interface that wraps the OnPacketSent method. The OnPacketSent method is called by the
+// server after the packet has been sent to the client. If this method returns an error, the server closes the client.
+type OnPacketSentHook interface {
+	Hook
+	OnPacketSent(c *Client, p Packet) error
+}
+
+// OnConnectHook is the hook interface that wraps the OnConnect method. The OnConnect method is called by the server
+// when it receives a CONNECT Packet. If this method returns an error, the server stops the connection process and
+// closes the client. If the returned error is a packet.Error with a reason code other than packet.ReasonCodeSuccess
+// and packet.ReasonCodeMalformedPacket, the server sends a CONNACK Packet with the reason code before it closes the
+// client.
+type OnConnectHook interface {
+	Hook
+	OnConnect(c *Client, p *packet.Connect) error
+}
+
+// OnConnectErrorHook is the hook interface that wraps the OnConnectError method. The OnConnectError method is called
+// by the server when it fails to connect the client. The connection process can fail for different reasons, and the
+// error indicating the reason is passed as parameter.
+type OnConnectErrorHook interface {
+	Hook
+	OnConnectError(c *Client, p *packet.Connect, err error)
+}
+
+// OnConnectedHook is the hook interface that wraps the OnConnected method. The OnConnected method is called by the
+// server when it completes the connection process to connect the client with success.
+type OnConnectedHook interface {
+	Hook
+	OnConnected(c *Client)
 }
 
 var hooksRegistryFunc = map[hookType]func(*hooks, Hook, hookType){
@@ -173,6 +230,12 @@ var hooksRegistryFunc = map[hookType]func(*hooks, Hook, hookType){
 	onPacketReceiveHook:      registerHook[OnPacketReceiveHook],
 	onPacketReceiveErrorHook: registerHook[OnPacketReceiveErrorHook],
 	onPacketReceivedHook:     registerHook[OnPacketReceivedHook],
+	onPacketSendHook:         registerHook[OnPacketSendHook],
+	onPacketSendErrorHook:    registerHook[OnPacketSendErrorHook],
+	onPacketSentHook:         registerHook[OnPacketSentHook],
+	onConnectHook:            registerHook[OnConnectHook],
+	onConnectErrorHook:       registerHook[OnConnectErrorHook],
+	onConnectedHook:          registerHook[OnConnectedHook],
 }
 
 func registerHook[T any](h *hooks, hook Hook, t hookType) {
@@ -429,4 +492,106 @@ func (h *hooks) onPacketReceived(c *Client, p Packet) error {
 	}
 
 	return nil
+}
+
+func (h *hooks) onPacketSend(c *Client, p Packet) error {
+	if !h.hasHook(onPacketSendHook) {
+		return nil
+	}
+
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+
+	for _, hook := range h.hooks[onPacketSendHook] {
+		hk := hook.(OnPacketSendHook)
+
+		err := hk.OnPacketSend(c, p)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (h *hooks) onPacketSendError(c *Client, p Packet, err error) {
+	if !h.hasHook(onPacketSendErrorHook) {
+		return
+	}
+
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+
+	for _, hook := range h.hooks[onPacketSendErrorHook] {
+		hk := hook.(OnPacketSendErrorHook)
+		hk.OnPacketSendError(c, p, err)
+	}
+}
+
+func (h *hooks) onPacketSent(c *Client, p Packet) error {
+	if !h.hasHook(onPacketSentHook) {
+		return nil
+	}
+
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+
+	for _, hook := range h.hooks[onPacketSentHook] {
+		hk := hook.(OnPacketSentHook)
+
+		err := hk.OnPacketSent(c, p)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (h *hooks) onConnect(c *Client, p *packet.Connect) error {
+	if !h.hasHook(onConnectHook) {
+		return nil
+	}
+
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+
+	for _, hook := range h.hooks[onConnectHook] {
+		hk := hook.(OnConnectHook)
+
+		err := hk.OnConnect(c, p)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (h *hooks) onConnectError(c *Client, p *packet.Connect, err error) {
+	if !h.hasHook(onConnectErrorHook) {
+		return
+	}
+
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+
+	for _, hook := range h.hooks[onConnectErrorHook] {
+		hk := hook.(OnConnectErrorHook)
+		hk.OnConnectError(c, p, err)
+	}
+}
+
+func (h *hooks) onConnected(c *Client) {
+	if !h.hasHook(onConnectedHook) {
+		return
+	}
+
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+
+	for _, hook := range h.hooks[onConnectedHook] {
+		hk := hook.(OnConnectedHook)
+		hk.OnConnected(c)
+	}
 }
