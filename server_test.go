@@ -1250,7 +1250,7 @@ func (s *ServerTestSuite) TestConnectPacketWithLastWill() {
 			ContentType:            []byte("json"),
 			ResponseTopic:          []byte("b"),
 			CorrelationData:        []byte{20, 1},
-			UserProperties:         []packet.UserProperty{{[]byte("a"), []byte("b")}},
+			UserProperties:         []packet.UserProperty{{Key: []byte("a"), Value: []byte("b")}},
 		},
 	}
 	s.Assert().Equal(expected, *will)

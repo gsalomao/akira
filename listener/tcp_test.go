@@ -51,7 +51,7 @@ func (s *TCPListenerTestSuite) TestListenWithTLSConfigSuccess() {
 	key, err := os.ReadFile("testdata/test.key")
 	s.Require().NoError(err)
 
-	x509, err := tls.X509KeyPair([]byte(cert), []byte(key))
+	x509, err := tls.X509KeyPair(cert, key)
 	s.Require().NoError(err)
 
 	tlsConfig := tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{x509}}
