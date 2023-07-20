@@ -14,12 +14,15 @@
 
 package akira
 
+import "errors"
+
+// ErrSessionNotFound indicates that the session was not found in the SessionStore.
+var ErrSessionNotFound = errors.New("session not found")
+
 // SessionStore is responsible for persistence of Session in a non-volatile memory.
 type SessionStore interface {
-	// GetSession gets the session stored for the given client identifier. If the SessionStore does not find any
-	// session for the given client identifier, it returns nil for both the session and the error. If the SessionStore
-	// fails to get the session for any reason other than the session was not found, the error is returned with nil
-	// session.
+	// GetSession gets the session stored for the given client identifier and the error if it fails to get the session.
+	// If the SessionStore does not find the session for the given client identifier, it returns ErrSessionNotFound.
 	GetSession(clientID []byte) (s *Session, err error)
 
 	// SaveSession saves the given session. If there's any existing session associated with the client identifier, the
@@ -38,7 +41,7 @@ type store struct {
 
 func (st store) getSession(clientID []byte) (*Session, error) {
 	if st.sessionStore == nil {
-		return nil, nil
+		return nil, ErrSessionNotFound
 	}
 	return st.sessionStore.GetSession(clientID)
 }

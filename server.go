@@ -388,7 +388,7 @@ func (s *Server) handlePacketConnect(c *Client, connect *packet.Connect) error {
 	} else {
 		session, err = s.store.getSession(connect.ClientID)
 	}
-	if err != nil {
+	if err != nil && !errors.Is(err, ErrSessionNotFound) {
 		// If the session store fails to get the session, or to delete the session, the server replies to client
 		// indicating that the service is unavailable.
 		pErr := packet.ErrServerUnavailable
