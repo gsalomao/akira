@@ -116,7 +116,7 @@ func NewServer(opts *Options) (s *Server, err error) {
 // If there's a Listener with the same name already managed by the Server, the ErrListenerAlreadyExists is returned.
 func (s *Server) AddListener(l Listener) error {
 	if s.State() == ServerRunning {
-		err := s.listeners.listen(l, s.handleConnection)
+		err := l.Listen(s.handleConnection)
 		if err != nil {
 			return err
 		}
@@ -159,8 +159,7 @@ func (s *Server) Start(ctx context.Context) error {
 		return err
 	}
 
-	newCtx, cancel := context.WithCancel(ctx)
-	s.cancelCtx = cancel
+	ctx, s.cancelCtx = context.WithCancel(ctx)
 
 	err = s.listeners.listenAll(s.handleConnection)
 	if err != nil {
@@ -169,7 +168,7 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	s.stopOnce = sync.Once{}
-	s.startDaemon(newCtx)
+	s.startDaemon(ctx)
 
 	_ = s.setState(ServerRunning)
 	return nil
@@ -229,7 +228,7 @@ func (s *Server) State() ServerState {
 func (s *Server) stop() {
 	s.stopOnce.Do(func() {
 		_ = s.setState(ServerStopping)
-		s.listeners.stopAll()
+		s.listeners.closeAll()
 		s.stopDaemon()
 		s.clients.closeAll()
 	})

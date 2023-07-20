@@ -46,21 +46,19 @@ type TCPListenerTestSuite struct {
 }
 
 func (s *TCPListenerTestSuite) TestNewTCPListenerSuccess() {
-	l := NewTCPListener("tcp1", ":1883", nil)
-	s.Require().NotNil(l)
-	defer func() { _ = l.Close() }()
+	lsn := NewTCPListener("tcp1", ":1883", nil)
+	s.Require().NotNil(lsn)
+	defer func() { _ = lsn.Close() }()
 
-	s.Assert().Equal("tcp1", l.Name())
+	s.Assert().Equal("tcp1", lsn.Name())
 }
 
 func (s *TCPListenerTestSuite) TestListenSuccess() {
-	l := NewTCPListener("tcp1", ":1883", nil)
-	defer func() { _ = l.Close() }()
+	lsn := NewTCPListener("tcp1", ":1883", nil)
+	defer func() { _ = lsn.Close() }()
 
-	listening, err := l.Listen(func(akira.Listener, net.Conn) {})
-	s.Require().NotNil(listening)
+	err := lsn.Listen(func(akira.Listener, net.Conn) {})
 	s.Require().NoError(err)
-	<-listening
 }
 
 func (s *TCPListenerTestSuite) TestListenWithTLSConfigSuccess() {
@@ -74,81 +72,57 @@ func (s *TCPListenerTestSuite) TestListenWithTLSConfigSuccess() {
 	l := NewTCPListener("tcp1", ":1883", &tlsConfig)
 	defer func() { _ = l.Close() }()
 
-	listening, err := l.Listen(func(akira.Listener, net.Conn) {})
-	s.Require().NotNil(listening)
+	lsn := NewTCPListener("tcp1", ":1883", &tlsConfig)
+	defer func() { _ = lsn.Close() }()
+
+	err = lsn.Listen(func(akira.Listener, net.Conn) {})
 	s.Require().NoError(err)
-	<-listening
 }
 
 func (s *TCPListenerTestSuite) TestListenError() {
-	l := NewTCPListener("tcp1", ":abc", nil)
-	defer func() { _ = l.Close() }()
+	lsn := NewTCPListener("tcp1", ":abc", nil)
+	defer func() { _ = lsn.Close() }()
 
-	listening, err := l.Listen(func(akira.Listener, net.Conn) {})
-	s.Require().Nil(listening)
+	err := lsn.Listen(func(akira.Listener, net.Conn) {})
 	s.Require().Error(err)
 }
 
 func (s *TCPListenerTestSuite) TestListenOnConnection() {
-	l := NewTCPListener("tcp1", ":1883", nil)
-	defer func() { _ = l.Close() }()
+	lsn := NewTCPListener("tcp1", ":1883", nil)
+	defer func() { _ = lsn.Close() }()
 
 	var nc net.Conn
 	doneCh := make(chan struct{})
 
-	listening, _ := l.Listen(func(lsn akira.Listener, c net.Conn) {
-		s.Require().Equal(l, lsn)
+	_ = lsn.Listen(func(lsn akira.Listener, c net.Conn) {
+		s.Require().Equal(lsn, lsn)
 		s.Require().NotNil(c)
 		nc = c
 		close(doneCh)
 	})
-	<-listening
 
-	c, err := net.Dial("tcp", ":1883")
-	s.Require().NotNil(c)
+	conn, err := net.Dial("tcp", ":1883")
+	s.Require().NotNil(conn)
 	s.Require().NoError(err)
-	defer func() { _ = c.Close() }()
+	defer func() { _ = conn.Close() }()
 
 	<-doneCh
 	s.Require().NotNil(nc)
 }
 
-func (s *TCPListenerTestSuite) TestStop() {
-	l := NewTCPListener("tcp1", ":1883", nil)
-	defer func() { _ = l.Close() }()
+func (s *TCPListenerTestSuite) TestClose() {
+	lsn := NewTCPListener("tcp1", ":1883", nil)
+	_ = lsn.Listen(func(akira.Listener, net.Conn) {})
 
-	listening, _ := l.Listen(func(akira.Listener, net.Conn) {})
-	<-listening
-
-	l.Stop()
-	<-listening
+	err := lsn.Close()
+	s.Require().NoError(err)
 }
 
-func (s *TCPListenerTestSuite) TestListening() {
-	l := NewTCPListener("tcp1", ":1883", nil)
-	defer func() { _ = l.Close() }()
+func (s *TCPListenerTestSuite) TestCloseWhenNotListening() {
+	lsn := NewTCPListener("tcp1", ":1883", nil)
 
-	listening, _ := l.Listen(func(akira.Listener, net.Conn) {})
-	<-listening
-	s.Require().True(l.Listening())
-}
-
-func (s *TCPListenerTestSuite) TestListeningNotListening() {
-	l := NewTCPListener("tcp1", ":1883", nil)
-	defer func() { _ = l.Close() }()
-	s.Require().False(l.Listening())
-}
-
-func (s *TCPListenerTestSuite) TestListeningStopped() {
-	l := NewTCPListener("tcp1", ":1883", nil)
-	defer func() { _ = l.Close() }()
-
-	listening, _ := l.Listen(func(akira.Listener, net.Conn) {})
-	<-listening
-
-	l.Stop()
-	<-listening
-	s.Require().False(l.Listening())
+	err := lsn.Close()
+	s.Require().NoError(err)
 }
 
 func TestTCPListenerTestSuite(t *testing.T) {

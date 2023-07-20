@@ -54,14 +54,12 @@ func (s *ServerTestSuite) addListener(srv *akira.Server) (akira.Listener, <-chan
 	onConnectionStream := make(chan akira.OnConnectionFunc, 1)
 
 	lsn := mocks.NewMockListener(s.T())
-	lsn.EXPECT().Listen(mock.Anything).RunAndReturn(func(cb akira.OnConnectionFunc) (<-chan bool, error) {
+	lsn.EXPECT().Listen(mock.Anything).RunAndReturn(func(cb akira.OnConnectionFunc) error {
 		onConnectionStream <- cb
 		close(onConnectionStream)
-		doneCh := make(chan bool)
-		close(doneCh)
-		return doneCh, nil
+		return nil
 	})
-	lsn.EXPECT().Stop()
+	lsn.EXPECT().Close().Return(nil)
 	err := srv.AddListener(lsn)
 	s.Require().NoError(err)
 
@@ -215,12 +213,8 @@ func (s *ServerTestSuite) TestAddListener() {
 func (s *ServerTestSuite) TestAddListenerWhenServerRunning() {
 	_ = s.server.Start(context.Background())
 	lsn := mocks.NewMockListener(s.T())
-	lsn.EXPECT().Listen(mock.Anything).RunAndReturn(func(_ akira.OnConnectionFunc) (<-chan bool, error) {
-		doneCh := make(chan bool)
-		close(doneCh)
-		return doneCh, nil
-	})
-	lsn.EXPECT().Stop()
+	lsn.EXPECT().Listen(mock.Anything).Return(nil)
+	lsn.EXPECT().Close().Return(nil)
 
 	err := s.server.AddListener(lsn)
 	s.Require().NoError(err)
@@ -238,7 +232,7 @@ func (s *ServerTestSuite) TestAddDuplicatedListener() {
 func (s *ServerTestSuite) TestAddListenerWithListenErrorWhenServerRunning() {
 	_ = s.server.Start(context.Background())
 	lsn := mocks.NewMockListener(s.T())
-	lsn.EXPECT().Listen(mock.Anything).Return(nil, assert.AnError)
+	lsn.EXPECT().Listen(mock.Anything).Return(assert.AnError)
 
 	err := s.server.AddListener(lsn)
 	s.Require().ErrorIs(err, assert.AnError)
@@ -246,7 +240,7 @@ func (s *ServerTestSuite) TestAddListenerWithListenErrorWhenServerRunning() {
 
 func (s *ServerTestSuite) TestStartWithListenerFailingToListen() {
 	lsn := mocks.NewMockListener(s.T())
-	lsn.EXPECT().Listen(mock.Anything).Return(nil, assert.AnError)
+	lsn.EXPECT().Listen(mock.Anything).Return(assert.AnError)
 	_ = s.server.AddListener(lsn)
 
 	err := s.server.Start(context.Background())
@@ -275,12 +269,8 @@ func (s *ServerTestSuite) TestAddHookWithOnStartReturningError() {
 
 func (s *ServerTestSuite) TestStop() {
 	lsn := mocks.NewMockListener(s.T())
-	lsn.EXPECT().Listen(mock.Anything).RunAndReturn(func(_ akira.OnConnectionFunc) (<-chan bool, error) {
-		doneCh := make(chan bool)
-		close(doneCh)
-		return doneCh, nil
-	})
-	lsn.EXPECT().Stop()
+	lsn.EXPECT().Listen(mock.Anything).Return(nil)
+	lsn.EXPECT().Close().Return(nil)
 	_ = s.server.AddListener(lsn)
 	_ = s.server.Start(context.Background())
 
@@ -316,14 +306,12 @@ func (s *ServerTestSuite) TestStopClosesAllClients() {
 	listeningCh := make(chan struct{})
 
 	lsn := mocks.NewMockListener(s.T())
-	lsn.EXPECT().Listen(mock.Anything).RunAndReturn(func(cb akira.OnConnectionFunc) (<-chan bool, error) {
+	lsn.EXPECT().Listen(mock.Anything).RunAndReturn(func(cb akira.OnConnectionFunc) error {
 		onConnection = cb
-		doneCh := make(chan bool)
-		close(doneCh)
 		close(listeningCh)
-		return doneCh, nil
+		return nil
 	})
-	lsn.EXPECT().Stop()
+	lsn.EXPECT().Close().Return(nil)
 	_ = s.server.AddListener(lsn)
 
 	receivingCh := make(chan struct{})

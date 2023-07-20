@@ -25,24 +25,20 @@ type OnConnectionFunc func(Listener, net.Conn)
 // Listener is an interface which all network listeners must implement. A network listener is responsible for listen
 // for network connections and notify any incoming connection.
 type Listener interface {
-	// Listen starts the listener. The listener calls the OnConnectionFunc for any received incoming connection.
-	// This function does not block the caller and returns a channel, which an event is sent when the listener is
-	// ready for accept incoming connection, and closed when the listener has stopped.
-	// It returns an error if the Listener fails to start.
-	Listen(OnConnectionFunc) (<-chan bool, error)
+	// Listen starts the listener. When the listener starts listening, it starts to accept any incoming connection,
+	// and calls f with the new connection. If the listener fails to start listening, it returns the error.
+	// This function does not block the caller and returns immediately after the listener is ready to accept incoming
+	// connections.
+	Listen(f OnConnectionFunc) error
 
-	// Stop stops the listener. When the listener is stopped, the channel returned by the Listen method is closed,
-	// and the listener does not accept any other incoming connection.
-	Stop()
-
-	// Listening returns whether the listener is listening for incoming connection or not.
-	Listening() bool
+	// Close closes the listener. Once the listener is closed, it does not accept any incoming connection. This
+	// function blocks and returns only after the listener has closed.
+	Close() error
 }
 
 type listeners struct {
 	mutex    sync.RWMutex
 	internal []Listener
-	wg       sync.WaitGroup
 }
 
 func newListeners() *listeners {
@@ -57,34 +53,12 @@ func (l *listeners) add(lsn Listener) {
 	l.internal = append(l.internal, lsn)
 }
 
-func (l *listeners) listen(lsn Listener, f OnConnectionFunc) error {
-	l.mutex.RLock()
-	defer l.mutex.RUnlock()
-
-	listening, err := lsn.Listen(f)
-	if err != nil {
-		return err
-	}
-
-	<-listening
-	l.wg.Add(1)
-
-	go func() {
-		defer l.wg.Done()
-
-		// Wait while Listener is listening.
-		<-listening
-	}()
-
-	return nil
-}
-
 func (l *listeners) listenAll(f OnConnectionFunc) error {
 	l.mutex.RLock()
 	defer l.mutex.RUnlock()
 
 	for _, lsn := range l.internal {
-		err := l.listen(lsn, f)
+		err := lsn.Listen(f)
 		if err != nil {
 			return err
 		}
@@ -93,13 +67,11 @@ func (l *listeners) listenAll(f OnConnectionFunc) error {
 	return nil
 }
 
-func (l *listeners) stopAll() {
+func (l *listeners) closeAll() {
 	l.mutex.RLock()
 	defer l.mutex.RUnlock()
 
 	for _, lsn := range l.internal {
-		lsn.Stop()
+		_ = lsn.Close()
 	}
-
-	l.wg.Wait()
 }

@@ -18,7 +18,6 @@ import (
 	"crypto/tls"
 	"net"
 	"sync"
-	"sync/atomic"
 
 	"github.com/gsalomao/akira"
 )
@@ -31,7 +30,6 @@ type TCPListener struct {
 	tlsConfig *tls.Config
 	handle    akira.OnConnectionFunc
 	wg        sync.WaitGroup
-	listening atomic.Bool
 }
 
 // NewTCPListener creates a new instance of the TCPListener.
@@ -49,11 +47,11 @@ func (l *TCPListener) Name() string {
 	return l.name
 }
 
-// Listen starts the listener. The listener calls the OnConnectionFunc for any received incoming TCP connection.
-// This function does not block the caller and returns a channel, which an event is sent when the listener is
-// ready for accept incoming connection, and closed when the listener has stopped.
-// It returns an error if the Listener fails to start.
-func (l *TCPListener) Listen(f akira.OnConnectionFunc) (<-chan bool, error) {
+// Listen starts the listener. When the listener starts listening, it starts to accept any incoming TCP connection,
+// and calls f with the new TCP connection. If the listener fails to start listening, it returns the error.
+// This function does not block the caller and returns immediately after the listener is ready to accept incoming
+// connections.
+func (l *TCPListener) Listen(f akira.OnConnectionFunc) error {
 	var err error
 
 	if l.tlsConfig == nil {
@@ -62,22 +60,21 @@ func (l *TCPListener) Listen(f akira.OnConnectionFunc) (<-chan bool, error) {
 		l.listener, err = tls.Listen("tcp", l.address, l.tlsConfig)
 	}
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	l.handle = f
 	l.wg.Add(1)
-	listening := make(chan bool, 1)
+	listening := make(chan struct{})
 
 	go func() {
 		defer l.wg.Done()
-		defer close(listening)
-
-		l.listening.Store(true)
-		listening <- true
+		close(listening)
 
 		for {
-			c, err := l.listener.Accept()
+			var c net.Conn
+
+			c, err = l.listener.Accept()
 			if err != nil {
 				break
 			}
@@ -86,29 +83,23 @@ func (l *TCPListener) Listen(f akira.OnConnectionFunc) (<-chan bool, error) {
 				f(l, c)
 			}
 		}
-
-		l.listening.Store(false)
 	}()
 
-	return listening, nil
+	return nil
 }
 
-// Stop stops the listener. When the listener is stopped, the channel returned by the Listen method is closed,
-// and the listener does not accept any other incoming connection.
-func (l *TCPListener) Stop() {
-	_ = l.Close()
-	l.wg.Wait()
-}
-
-// Listening returns whether the listener is listening for incoming connection or not.
-func (l *TCPListener) Listening() bool {
-	return l.listening.Load()
-}
-
-// Close closes the listener.
+// Close closes the listener. Once the listener is closed, it does not accept any other incoming TCP connection. This
+// function blocks and returns only after the listener has closed.
 func (l *TCPListener) Close() error {
 	if l.listener == nil {
 		return nil
 	}
-	return l.listener.Close()
+
+	err := l.listener.Close()
+	if err != nil {
+		return err
+	}
+
+	l.wg.Wait()
+	return nil
 }
