@@ -121,7 +121,7 @@ func (s *ServerTestSuite) TestAddHook() {
 }
 
 func (s *ServerTestSuite) TestStart() {
-	err := s.server.Start(context.Background())
+	err := s.server.Start()
 	s.Require().NoError(err)
 	s.Assert().Equal(akira.ServerRunning, s.server.State())
 }
@@ -157,7 +157,7 @@ func (s *ServerTestSuite) TestStartWithHooks() {
 	onServerStopped.EXPECT().OnServerStopped(s.server)
 	_ = s.server.AddHook(onServerStopped)
 
-	err := s.server.Start(context.Background())
+	err := s.server.Start()
 	s.Require().NoError(err)
 	s.Assert().Equal(akira.ServerRunning, s.server.State())
 }
@@ -173,7 +173,7 @@ func (s *ServerTestSuite) TestStartWithOnServerStartReturningError() {
 	onServerStartFailed.EXPECT().OnServerStartFailed(s.server, assert.AnError)
 	_ = s.server.AddHook(onServerStartFailed)
 
-	err := s.server.Start(context.Background())
+	err := s.server.Start()
 	s.Require().ErrorIs(err, assert.AnError)
 	s.Assert().Equal(akira.ServerFailed, s.server.State())
 }
@@ -189,17 +189,17 @@ func (s *ServerTestSuite) TestStartWithOnStartReturningError() {
 	onServerStartFailed.EXPECT().OnServerStartFailed(s.server, assert.AnError)
 	_ = s.server.AddHook(onServerStartFailed)
 
-	err := s.server.Start(context.Background())
+	err := s.server.Start()
 	s.Require().ErrorIs(err, assert.AnError)
 	s.Assert().Equal(akira.ServerFailed, s.server.State())
 }
 
 func (s *ServerTestSuite) TestStartWhenServerClosedReturnsError() {
-	_ = s.server.Start(context.Background())
+	_ = s.server.Start()
 	s.server.Close()
 	s.Require().Equal(akira.ServerClosed, s.server.State())
 
-	err := s.server.Start(context.Background())
+	err := s.server.Start()
 	s.Require().Error(err, akira.ErrInvalidServerState)
 }
 
@@ -211,7 +211,7 @@ func (s *ServerTestSuite) TestAddListener() {
 }
 
 func (s *ServerTestSuite) TestAddListenerWhenServerRunning() {
-	_ = s.server.Start(context.Background())
+	_ = s.server.Start()
 	lsn := mocks.NewMockListener(s.T())
 	lsn.EXPECT().Listen(mock.Anything).Return(nil)
 	lsn.EXPECT().Close().Return(nil)
@@ -230,7 +230,7 @@ func (s *ServerTestSuite) TestAddDuplicatedListener() {
 }
 
 func (s *ServerTestSuite) TestAddListenerWithListenErrorWhenServerRunning() {
-	_ = s.server.Start(context.Background())
+	_ = s.server.Start()
 	lsn := mocks.NewMockListener(s.T())
 	lsn.EXPECT().Listen(mock.Anything).Return(assert.AnError)
 
@@ -243,13 +243,13 @@ func (s *ServerTestSuite) TestStartWithListenerFailingToListen() {
 	lsn.EXPECT().Listen(mock.Anything).Return(assert.AnError)
 	_ = s.server.AddListener(lsn)
 
-	err := s.server.Start(context.Background())
+	err := s.server.Start()
 	s.Require().ErrorIs(err, assert.AnError)
 	s.Assert().Equal(akira.ServerFailed, s.server.State())
 }
 
 func (s *ServerTestSuite) TestAddHookCallsOnStartWhenServerRunning() {
-	_ = s.server.Start(context.Background())
+	_ = s.server.Start()
 	hook := mocks.NewMockOnStartHook(s.T())
 	hook.EXPECT().Name().Return("hook")
 	hook.EXPECT().OnStart(s.server).Return(nil)
@@ -259,7 +259,7 @@ func (s *ServerTestSuite) TestAddHookCallsOnStartWhenServerRunning() {
 }
 
 func (s *ServerTestSuite) TestAddHookWithOnStartReturningError() {
-	_ = s.server.Start(context.Background())
+	_ = s.server.Start()
 	hook := mocks.NewMockOnStartHook(s.T())
 	hook.EXPECT().OnStart(s.server).Return(assert.AnError)
 
@@ -272,7 +272,7 @@ func (s *ServerTestSuite) TestStop() {
 	lsn.EXPECT().Listen(mock.Anything).Return(nil)
 	lsn.EXPECT().Close().Return(nil)
 	_ = s.server.AddListener(lsn)
-	_ = s.server.Start(context.Background())
+	_ = s.server.Start()
 
 	err := s.server.Stop(context.Background())
 	s.Require().NoError(err)
@@ -294,7 +294,7 @@ func (s *ServerTestSuite) TestStopWithHooks() {
 	onServerStopped.EXPECT().Name().Return("onServerStopped")
 	onServerStopped.EXPECT().OnServerStopped(s.server)
 	_ = s.server.AddHook(onServerStopped)
-	_ = s.server.Start(context.Background())
+	_ = s.server.Start()
 
 	err := s.server.Stop(context.Background())
 	s.Require().NoError(err)
@@ -322,7 +322,7 @@ func (s *ServerTestSuite) TestStopClosesAllClients() {
 		return nil
 	})
 	_ = s.server.AddHook(onPacketReceive)
-	_ = s.server.Start(context.Background())
+	_ = s.server.Start()
 
 	conn1, conn2 := net.Pipe()
 	defer func() { _ = conn1.Close() }()
@@ -337,7 +337,7 @@ func (s *ServerTestSuite) TestStopClosesAllClients() {
 }
 
 func (s *ServerTestSuite) TestStopReturnsErrorWhenCancelled() {
-	_ = s.server.Start(context.Background())
+	_ = s.server.Start()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -352,7 +352,7 @@ func (s *ServerTestSuite) TestStopWhenServerNotRunning() {
 }
 
 func (s *ServerTestSuite) TestCloseWhenServerStopping() {
-	_ = s.server.Start(context.Background())
+	_ = s.server.Start()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	_ = s.server.Stop(ctx)
@@ -362,7 +362,7 @@ func (s *ServerTestSuite) TestCloseWhenServerStopping() {
 }
 
 func (s *ServerTestSuite) TestCloseWhenServerStopped() {
-	_ = s.server.Start(context.Background())
+	_ = s.server.Start()
 	_ = s.server.Stop(context.Background())
 
 	s.server.Close()
@@ -370,7 +370,7 @@ func (s *ServerTestSuite) TestCloseWhenServerStopped() {
 }
 
 func (s *ServerTestSuite) TestCloseWhenServerRunning() {
-	_ = s.server.Start(context.Background())
+	_ = s.server.Start()
 
 	s.server.Close()
 	s.Require().Equal(akira.ServerClosed, s.server.State())
@@ -417,7 +417,7 @@ func (s *ServerTestSuite) TestHandleConnection() {
 			close(connClosedCh)
 		})
 	_ = s.server.AddHook(onConnClosed)
-	_ = s.server.Start(context.Background())
+	_ = s.server.Start()
 
 	conn1, conn2 := net.Pipe()
 	onConnection := <-onConnectionStream
@@ -440,7 +440,7 @@ func (s *ServerTestSuite) TestHandleConnectionWithReadTimeout() {
 			close(connClosedCh)
 		})
 	_ = s.server.AddHook(onConnClosed)
-	_ = s.server.Start(context.Background())
+	_ = s.server.Start()
 
 	conn1, conn2 := net.Pipe()
 	defer func() { _ = conn1.Close() }()
@@ -464,7 +464,7 @@ func (s *ServerTestSuite) TestHandleConnectionWithOnConnectionOpenReturningError
 	onConnClosed.EXPECT().OnConnectionClosed(s.server, lsn, assert.AnError).
 		Run(func(_ *akira.Server, _ akira.Listener, _ error) { close(connClosedCh) })
 	_ = s.server.AddHook(onConnClosed)
-	_ = s.server.Start(context.Background())
+	_ = s.server.Start()
 
 	conn1, conn2 := net.Pipe()
 	defer func() { _ = conn1.Close() }()
@@ -489,7 +489,7 @@ func (s *ServerTestSuite) TestReceivePacket() {
 			return nil
 		})
 	_ = s.server.AddHook(onPacketReceived)
-	_ = s.server.Start(context.Background())
+	_ = s.server.Start()
 
 	conn1, conn2 := net.Pipe()
 	defer func() { _ = conn1.Close() }()
@@ -519,7 +519,7 @@ func (s *ServerTestSuite) TestCloseConnectionWhenReceiveInvalidPacket() {
 	onConnClosed.EXPECT().OnConnectionClosed(s.server, lsn, mock.Anything).
 		Run(func(_ *akira.Server, _ akira.Listener, _ error) { close(connClosedCh) })
 	_ = s.server.AddHook(onConnClosed)
-	_ = s.server.Start(context.Background())
+	_ = s.server.Start()
 
 	conn1, conn2 := net.Pipe()
 	defer func() { _ = conn1.Close() }()
@@ -546,7 +546,7 @@ func (s *ServerTestSuite) TestCloseConnectionIfOnPacketReceiveErrorReturnsError(
 	onConnClosed.EXPECT().OnConnectionClosed(s.server, lsn, assert.AnError).
 		Run(func(_ *akira.Server, _ akira.Listener, _ error) { close(connClosedCh) })
 	_ = s.server.AddHook(onConnClosed)
-	_ = s.server.Start(context.Background())
+	_ = s.server.Start()
 
 	conn1, conn2 := net.Pipe()
 	defer func() { _ = conn1.Close() }()
@@ -583,7 +583,7 @@ func (s *ServerTestSuite) TestKeepReceivingWhenOnPacketReceiveErrorDoesNotReturn
 	onConnClosed.EXPECT().OnConnectionClosed(s.server, lsn, mock.Anything).
 		Run(func(_ *akira.Server, _ akira.Listener, _ error) { close(connClosedCh) })
 	_ = s.server.AddHook(onConnClosed)
-	_ = s.server.Start(context.Background())
+	_ = s.server.Start()
 
 	conn1, conn2 := net.Pipe()
 
@@ -612,7 +612,7 @@ func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketReceiveReturnsError() {
 	onConnClosed.EXPECT().OnConnectionClosed(s.server, lsn, assert.AnError).
 		Run(func(_ *akira.Server, _ akira.Listener, err error) { close(connClosedCh) })
 	_ = s.server.AddHook(onConnClosed)
-	_ = s.server.Start(context.Background())
+	_ = s.server.Start()
 
 	conn1, conn2 := net.Pipe()
 	defer func() { _ = conn1.Close() }()
@@ -637,7 +637,7 @@ func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketReceivedReturnsError() 
 	onConnClosed.EXPECT().OnConnectionClosed(s.server, lsn, assert.AnError).
 		Run(func(_ *akira.Server, _ akira.Listener, err error) { close(connClosedCh) })
 	_ = s.server.AddHook(onConnClosed)
-	_ = s.server.Start(context.Background())
+	_ = s.server.Start()
 
 	conn1, conn2 := net.Pipe()
 	defer func() { _ = conn1.Close() }()
@@ -664,7 +664,7 @@ func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketSendReturnsError() {
 
 	conn1, conn2 := net.Pipe()
 	defer func() { _ = conn1.Close() }()
-	_ = srv.Start(context.Background())
+	_ = srv.Start()
 
 	onConnection := <-onConnectionStream
 	onConnection(lsn, conn2)
@@ -691,7 +691,7 @@ func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketSentReturnsError() {
 
 	conn1, conn2 := net.Pipe()
 	defer func() { _ = conn1.Close() }()
-	_ = srv.Start(context.Background())
+	_ = srv.Start()
 
 	onConnection := <-onConnectionStream
 	onConnection(lsn, conn2)
@@ -725,7 +725,7 @@ func (s *ServerTestSuite) TestOnPacketSendErrorIsCalledWhenFailedToSendPacket() 
 	_ = srv.AddHook(onPacketSendErr)
 
 	conn1, conn2 := net.Pipe()
-	_ = srv.Start(context.Background())
+	_ = srv.Start()
 
 	onConnection := <-onConnectionStream
 	onConnection(lsn, conn2)
@@ -826,7 +826,7 @@ func (s *ServerTestSuite) TestConnectPacket() {
 
 			conn1, conn2 := net.Pipe()
 			defer func() { _ = conn1.Close() }()
-			_ = srv.Start(context.Background())
+			_ = srv.Start()
 
 			onConnection := <-onConnectionStream
 			onConnection(lsn, conn2)
@@ -885,7 +885,7 @@ func (s *ServerTestSuite) TestConnectPacketWithSessionPresent() {
 
 			conn1, conn2 := net.Pipe()
 			defer func() { _ = conn1.Close() }()
-			_ = srv.Start(context.Background())
+			_ = srv.Start()
 
 			onConnection := <-onConnectionStream
 			onConnection(lsn, conn2)
@@ -919,7 +919,7 @@ func (s *ServerTestSuite) TestConnectPacketWithCleanSession() {
 
 	conn1, conn2 := net.Pipe()
 	defer func() { _ = conn1.Close() }()
-	_ = srv.Start(context.Background())
+	_ = srv.Start()
 
 	onConnection := <-onConnectionStream
 	onConnection(lsn, conn2)
@@ -1110,7 +1110,7 @@ func (s *ServerTestSuite) TestConnectPacketWithConfig() {
 
 			conn1, conn2 := net.Pipe()
 			defer func() { _ = conn1.Close() }()
-			_ = srv.Start(context.Background())
+			_ = srv.Start()
 
 			onConnection := <-onConnectionStream
 			onConnection(lsn, conn2)
@@ -1144,7 +1144,7 @@ func (s *ServerTestSuite) TestConnectPacketWithSessionProperties() {
 
 	conn1, conn2 := net.Pipe()
 	defer func() { _ = conn1.Close() }()
-	_ = srv.Start(context.Background())
+	_ = srv.Start()
 
 	onConnection := <-onConnectionStream
 	onConnection(lsn, conn2)
@@ -1204,7 +1204,7 @@ func (s *ServerTestSuite) TestConnectPacketWithLastWill() {
 
 	conn1, conn2 := net.Pipe()
 	defer func() { _ = conn1.Close() }()
-	_ = srv.Start(context.Background())
+	_ = srv.Start()
 
 	onConnection := <-onConnectionStream
 	onConnection(lsn, conn2)
@@ -1286,7 +1286,7 @@ func (s *ServerTestSuite) TestConnectPacketV3WithMaxKeepAliveExceeded() {
 
 			conn1, conn2 := net.Pipe()
 			defer func() { _ = conn1.Close() }()
-			_ = srv.Start(context.Background())
+			_ = srv.Start()
 
 			onConnection := <-onConnectionStream
 			onConnection(lsn, conn2)
@@ -1343,7 +1343,7 @@ func (s *ServerTestSuite) TestConnectPacketWithClientIDTooBig() {
 
 			conn1, conn2 := net.Pipe()
 			defer func() { _ = conn1.Close() }()
-			_ = srv.Start(context.Background())
+			_ = srv.Start()
 
 			onConnection := <-onConnectionStream
 			onConnection(lsn, conn2)
@@ -1392,7 +1392,7 @@ func (s *ServerTestSuite) TestConnectPacketRejectedWhenEmptyClientID() {
 
 			conn1, conn2 := net.Pipe()
 			defer func() { _ = conn1.Close() }()
-			_ = srv.Start(context.Background())
+			_ = srv.Start()
 
 			onConnection := <-onConnectionStream
 			onConnection(lsn, conn2)
@@ -1457,7 +1457,7 @@ func (s *ServerTestSuite) TestConnectPacketWithGetSessionReturningError() {
 
 			conn1, conn2 := net.Pipe()
 			defer func() { _ = conn1.Close() }()
-			_ = srv.Start(context.Background())
+			_ = srv.Start()
 
 			onConnection := <-onConnectionStream
 			onConnection(lsn, conn2)
@@ -1521,7 +1521,7 @@ func (s *ServerTestSuite) TestConnectPacketWithDeleteSessionReturningError() {
 
 			conn1, conn2 := net.Pipe()
 			defer func() { _ = conn1.Close() }()
-			_ = srv.Start(context.Background())
+			_ = srv.Start()
 
 			onConnection := <-onConnectionStream
 			onConnection(lsn, conn2)
@@ -1586,7 +1586,7 @@ func (s *ServerTestSuite) TestConnectPacketWithSaveSessionReturningError() {
 
 			conn1, conn2 := net.Pipe()
 			defer func() { _ = conn1.Close() }()
-			_ = srv.Start(context.Background())
+			_ = srv.Start()
 
 			onConnection := <-onConnectionStream
 			onConnection(lsn, conn2)
@@ -1616,7 +1616,7 @@ func (s *ServerTestSuite) TestConnectPacketWithOnConnectReturningError() {
 
 	conn1, conn2 := net.Pipe()
 	defer func() { _ = conn1.Close() }()
-	_ = srv.Start(context.Background())
+	_ = srv.Start()
 
 	onConnection := <-onConnectionStream
 	onConnection(lsn, conn2)
@@ -1642,7 +1642,7 @@ func (s *ServerTestSuite) TestConnectPacketSendConnAckWhenOnConnectReturnPacketE
 
 	conn1, conn2 := net.Pipe()
 	defer func() { _ = conn1.Close() }()
-	_ = srv.Start(context.Background())
+	_ = srv.Start()
 
 	onConnection := <-onConnectionStream
 	onConnection(lsn, conn2)
@@ -1684,7 +1684,7 @@ func (s *ServerTestSuite) TestConnectPacketDontSendConnAckWhenOnConnectReturnRea
 
 			conn1, conn2 := net.Pipe()
 			defer func() { _ = conn1.Close() }()
-			_ = srv.Start(context.Background())
+			_ = srv.Start()
 
 			onConnection := <-onConnectionStream
 			onConnection(lsn, conn2)
@@ -1712,7 +1712,7 @@ func BenchmarkHandleConnect(b *testing.B) {
 		b.Fatalf("Unexpected error: %s", err)
 	}
 
-	err = srv.Start(context.Background())
+	err = srv.Start()
 	if err != nil {
 		b.Fatalf("Unexpected error: %s", err)
 	}

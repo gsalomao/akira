@@ -147,7 +147,7 @@ func (s *Server) AddHook(h Hook) error {
 // If the OnServerStart or OnStart hooks return an error, the start process fails and the OnServerStartFailed hook is
 // called.
 // If the Server is not in the ServerNotStarted or ServerStopped state, it returns ErrInvalidServerState.
-func (s *Server) Start(ctx context.Context) error {
+func (s *Server) Start() error {
 	state := s.State()
 
 	if state != ServerNotStarted && state != ServerStopped {
@@ -159,7 +159,8 @@ func (s *Server) Start(ctx context.Context) error {
 		return err
 	}
 
-	ctx, s.cancelCtx = context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
+	s.cancelCtx = cancel
 
 	err = s.listeners.listenAll(s.handleConnection)
 	if err != nil {
@@ -229,7 +230,7 @@ func (s *Server) stop() {
 	s.stopOnce.Do(func() {
 		_ = s.setState(ServerStopping)
 		s.listeners.closeAll()
-		s.stopDaemon()
+		s.cancelCtx()
 		s.clients.closeAll()
 	})
 }
@@ -278,10 +279,6 @@ func (s *Server) startDaemon(ctx context.Context) {
 	}()
 
 	<-readyCh
-}
-
-func (s *Server) stopDaemon() {
-	s.cancelCtx()
 }
 
 func (s *Server) handleConnection(l Listener, nc net.Conn) {

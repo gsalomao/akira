@@ -67,7 +67,7 @@ func main() {
 		<-signals
 	}()
 
-	err = server.Start(context.Background())
+	err = server.Start()
 	if err != nil {
 		log.Println("Failed to start server")
 		exitCode = 1
