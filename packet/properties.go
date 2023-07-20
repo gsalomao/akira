@@ -404,18 +404,28 @@ func decodePropRequestProblemInfo(buf []byte, p Properties) (v bool, n int, err 
 }
 
 func decodePropUserProperty(buf []byte, p Properties) (v UserProperty, n int, err error) {
-	var size int
+	var (
+		size  int
+		key   []byte
+		value []byte
+	)
 
-	v.Key, size, err = decodeString(buf)
+	key, size, err = decodeString(buf)
 	if err != nil {
 		return v, n, fmt.Errorf("%w: invalid user property key", ErrMalformedPacket)
 	}
+
+	v.Key = make([]byte, len(key))
+	copy(v.Key, key)
 	n += size
 
-	v.Value, size, err = decodeString(buf[n:])
+	value, size, err = decodeString(buf[n:])
 	if err != nil {
 		return v, n, fmt.Errorf("%w: invalid user property value", ErrMalformedPacket)
 	}
+
+	v.Value = make([]byte, len(value))
+	copy(v.Value, value)
 	n += size
 
 	p.Set(PropertyUserProperty)
@@ -562,7 +572,9 @@ func decodePropString(buf []byte, str *[]byte) (n int, err error) {
 		return n, err
 	}
 
-	*str = data
+	*str = make([]byte, len(data))
+	copy(*str, data)
+
 	return n, nil
 }
 
@@ -574,7 +586,9 @@ func decodePropBinary(buf []byte, bin *[]byte) (n int, err error) {
 		return n, err
 	}
 
-	*bin = data
+	*bin = make([]byte, len(data))
+	copy(*bin, data)
+
 	return n, nil
 }
 

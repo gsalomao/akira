@@ -265,7 +265,9 @@ func (p *Connect) decodeClientID(buf []byte) (int, error) {
 		return n, fmt.Errorf("%w: missing client identifier", ErrMalformedPacket)
 	}
 
-	p.ClientID = id
+	p.ClientID = make([]byte, len(id))
+	copy(p.ClientID, id)
+
 	return n, nil
 }
 
@@ -303,8 +305,12 @@ func (p *Connect) decodeWill(buf []byte) (int, error) {
 		return n, fmt.Errorf("%w: invalid will payload", ErrMalformedPacket)
 	}
 
-	p.WillTopic = topic
-	p.WillPayload = payload
+	p.WillTopic = make([]byte, len(topic))
+	copy(p.WillTopic, topic)
+
+	p.WillPayload = make([]byte, len(payload))
+	copy(p.WillPayload, payload)
+
 	return n, nil
 }
 
@@ -318,7 +324,9 @@ func (p *Connect) decodeUsername(buf []byte) (int, error) {
 		return n, fmt.Errorf("%w: invalid username", ErrMalformedPacket)
 	}
 
-	p.Username = username
+	p.Username = make([]byte, len(username))
+	copy(p.Username, username)
+
 	return n, nil
 }
 
@@ -332,7 +340,9 @@ func (p *Connect) decodePassword(buf []byte) (int, error) {
 		return n, fmt.Errorf("%w: invalid password", ErrMalformedPacket)
 	}
 
-	p.Password = password
+	p.Password = make([]byte, len(password))
+	copy(p.Password, password)
+
 	return n, nil
 }
 

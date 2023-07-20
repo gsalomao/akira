@@ -385,17 +385,12 @@ func (s *Server) handlePacketConnect(c *Client, connect *packet.Connect) error {
 		return packet.ErrClientIDNotValid
 	}
 
-	// A new memory block must be created to store the client ID, and copy the content to the new memory, to avoid
-	// memory leak as the ClientID in the CONNECT Packet shares the same underlying memory of the whole packet.
-	clientID := make([]byte, len(connect.ClientID))
-	copy(clientID, connect.ClientID)
-
 	// If the client requested a clean session, the server must delete any existing session for the given client
 	// identifier. Otherwise, resume any existing session for the given client identifier.
 	if connect.Flags.CleanSession() {
-		err = s.store.deleteSession(clientID)
+		err = s.store.deleteSession(connect.ClientID)
 	} else {
-		session, err = s.store.getSession(clientID)
+		session, err = s.store.getSession(connect.ClientID)
 	}
 	if err != nil {
 		// If the session store fails to get the session, or to delete the session, the server replies to client
@@ -406,7 +401,7 @@ func (s *Server) handlePacketConnect(c *Client, connect *packet.Connect) error {
 	}
 
 	if session == nil {
-		session = &Session{ClientID: clientID}
+		session = &Session{ClientID: connect.ClientID}
 	} else {
 		sessionPresent = true
 	}

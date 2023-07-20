@@ -106,18 +106,7 @@ func sessionProperties(props *packet.ConnectProperties, conf *Config) *SessionPr
 		p.Set(packet.PropertyRequestProblemInfo)
 	}
 	if props.Has(packet.PropertyUserProperty) {
-		p.UserProperties = make([]packet.UserProperty, 0, len(props.UserProperties))
-		for _, property := range props.UserProperties {
-			up := packet.UserProperty{}
-
-			up.Key = make([]byte, len(property.Key))
-			copy(up.Key, property.Key)
-
-			up.Value = make([]byte, len(property.Value))
-			copy(up.Value, property.Value)
-
-			p.UserProperties = append(p.UserProperties, up)
-		}
+		p.UserProperties = props.UserProperties
 		p.Set(packet.PropertyUserProperty)
 	}
 
@@ -129,13 +118,12 @@ func lastWill(connect *packet.Connect) *LastWill {
 		return nil
 	}
 
-	will := &LastWill{QoS: connect.Flags.WillQoS(), Retain: connect.Flags.WillRetain()}
-
-	will.Topic = make([]byte, len(connect.WillTopic))
-	copy(will.Topic, connect.WillTopic)
-
-	will.Payload = make([]byte, len(connect.WillPayload))
-	copy(will.Payload, connect.WillPayload)
+	will := &LastWill{
+		Topic:   connect.WillTopic,
+		Payload: connect.WillPayload,
+		QoS:     connect.Flags.WillQoS(),
+		Retain:  connect.Flags.WillRetain(),
+	}
 
 	if connect.WillProperties != nil {
 		props := connect.WillProperties
@@ -154,33 +142,19 @@ func lastWill(connect *packet.Connect) *LastWill {
 			will.Properties.Set(packet.PropertyMessageExpiryInterval)
 		}
 		if props.Has(packet.PropertyContentType) {
-			will.Properties.ContentType = make([]byte, len(props.ContentType))
-			copy(will.Properties.ContentType, props.ContentType)
+			will.Properties.ContentType = props.ContentType
 			will.Properties.Set(packet.PropertyContentType)
 		}
 		if props.Has(packet.PropertyResponseTopic) {
-			will.Properties.ResponseTopic = make([]byte, len(props.ResponseTopic))
-			copy(will.Properties.ResponseTopic, props.ResponseTopic)
+			will.Properties.ResponseTopic = props.ResponseTopic
 			will.Properties.Set(packet.PropertyResponseTopic)
 		}
 		if props.Has(packet.PropertyCorrelationData) {
-			will.Properties.CorrelationData = make([]byte, len(props.CorrelationData))
-			copy(will.Properties.CorrelationData, props.CorrelationData)
+			will.Properties.CorrelationData = props.CorrelationData
 			will.Properties.Set(packet.PropertyCorrelationData)
 		}
 		if props.Has(packet.PropertyUserProperty) {
-			will.Properties.UserProperties = make([]packet.UserProperty, 0, len(props.UserProperties))
-			for _, property := range props.UserProperties {
-				up := packet.UserProperty{}
-
-				up.Key = make([]byte, len(property.Key))
-				copy(up.Key, property.Key)
-
-				up.Value = make([]byte, len(property.Value))
-				copy(up.Value, property.Value)
-
-				will.Properties.UserProperties = append(will.Properties.UserProperties, up)
-			}
+			will.Properties.UserProperties = props.UserProperties
 			will.Properties.Set(packet.PropertyUserProperty)
 		}
 	}
