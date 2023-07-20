@@ -163,21 +163,6 @@ func newClient(nc net.Conn, s *Server, l Listener) *Client {
 	return &c
 }
 
-// Close closes the client. When the client is closed, it's not able to receive or send any other packet.
-func (c *Client) Close(err error) {
-	c.closeOnce.Do(func() {
-		c.Server.hooks.onConnectionClose(c.Server, c.Connection.listener, err)
-
-		c.Lock()
-		defer c.Unlock()
-
-		c.state = ClientClosed
-		_ = c.Connection.netConn.Close()
-
-		c.Server.hooks.onConnectionClosed(c.Server, c.Connection.listener, err)
-	})
-}
-
 // State returns the current client state.
 func (c *Client) State() ClientState {
 	c.RLock()
@@ -191,6 +176,20 @@ func (c *Client) setState(s ClientState) {
 	defer c.Unlock()
 
 	c.state = s
+}
+
+func (c *Client) close(err error) {
+	c.closeOnce.Do(func() {
+		c.Server.hooks.onConnectionClose(c.Server, c.Connection.listener, err)
+
+		c.Lock()
+		defer c.Unlock()
+
+		c.state = ClientClosed
+		_ = c.Connection.netConn.Close()
+
+		c.Server.hooks.onConnectionClosed(c.Server, c.Connection.listener, err)
+	})
 }
 
 func (c *Client) receivePacket(r *bufio.Reader) (Packet, error) {
@@ -297,11 +296,11 @@ func (c *clients) closeAll() {
 	defer c.mutex.Unlock()
 
 	for _, client := range c.pending {
-		client.Close(nil)
+		client.close(nil)
 		c.removePendingLocked(client)
 	}
 	for id, client := range c.connected {
-		client.Close(nil)
+		client.close(nil)
 		delete(c.connected, id)
 	}
 }

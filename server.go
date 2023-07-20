@@ -285,7 +285,7 @@ func (s *Server) handleConnection(l Listener, nc net.Conn) {
 	client := newClient(nc, s, l)
 
 	if err := s.hooks.onConnectionOpen(s, l); err != nil {
-		client.Close(err)
+		client.close(err)
 		return
 	}
 
@@ -297,7 +297,7 @@ func (s *Server) handleConnection(l Listener, nc net.Conn) {
 		defer s.clients.remove(client)
 
 		var err error
-		defer func() { client.Close(err) }()
+		defer func() { client.close(err) }()
 
 		for {
 			var pkt Packet
