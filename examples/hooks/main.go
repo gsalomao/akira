@@ -28,14 +28,10 @@ import (
 )
 
 func main() {
-	var exitCode int
-	defer func() { os.Exit(exitCode) }()
-
 	server, err := akira.NewServer(akira.NewDefaultOptions())
 	if err != nil {
 		log.Println("Failed to create server")
-		exitCode = 1
-		return
+		os.Exit(1)
 	}
 	defer server.Close()
 
@@ -45,15 +41,13 @@ func main() {
 	err = server.AddListener(tcp)
 	if err != nil {
 		log.Println("Failed to add TCP listener into the server")
-		exitCode = 1
-		return
+		os.Exit(1)
 	}
 
 	err = server.AddHook(&loggingHook{})
 	if err != nil {
 		log.Println("Failed to add logging hook into the server")
-		exitCode = 1
-		return
+		os.Exit(1)
 	}
 
 	signals := make(chan os.Signal, 1)
@@ -70,8 +64,7 @@ func main() {
 	err = server.Start()
 	if err != nil {
 		log.Println("Failed to start server")
-		exitCode = 1
-		return
+		os.Exit(1)
 	}
 
 	wg.Wait()
@@ -106,31 +99,40 @@ func (h *loggingHook) OnServerStopped(_ *akira.Server) {
 }
 
 func (h *loggingHook) OnConnectionOpen(_ *akira.Server, _ akira.Listener) error {
-	log.Println("Client open")
+	log.Println("Connection opening")
 	return nil
 }
 
 func (h *loggingHook) OnConnectionOpened(_ *akira.Server, _ akira.Listener) {
-	log.Println("Client opened")
+	log.Println("Connection opened")
 }
 
 func (h *loggingHook) OnConnectionClose(_ *akira.Server, _ akira.Listener, _ error) {
-	log.Println("Client close")
+	log.Println("Connection closing")
 }
 
 func (h *loggingHook) OnConnectionClosed(_ *akira.Server, _ akira.Listener, _ error) {
-	log.Println("Client closed")
+	log.Println("Connection closed")
 }
 
-func (h *loggingHook) OnConnect(_ *akira.Client, _ *packet.Connect) error {
-	log.Println("Client connecting")
+func (h *loggingHook) OnPacketReceived(c *akira.Client, p akira.Packet) error {
+	if c.Session != nil {
+		log.Printf("Received packet '%s' from client '%s'", p.Type(), c.Session.ClientID)
+	} else {
+		log.Printf("Received packet '%s'", p.Type())
+	}
 	return nil
 }
 
-func (h *loggingHook) OnConnectError(_ *akira.Client, _ *packet.Connect, _ error) {
-	log.Println("Connection failed")
+func (h *loggingHook) OnConnect(_ *akira.Client, p *packet.Connect) error {
+	log.Printf("Client '%s' connecting\n", p.ClientID)
+	return nil
 }
 
-func (h *loggingHook) OnConnected(_ *akira.Client) {
-	log.Println("Client connected")
+func (h *loggingHook) OnConnectError(_ *akira.Client, p *packet.Connect, err error) {
+	log.Printf("Failed to connect client '%s': %s\n", p.ClientID, err)
+}
+
+func (h *loggingHook) OnConnected(c *akira.Client) {
+	log.Printf("Client '%s' connected with success\n", c.Session.ClientID)
 }
