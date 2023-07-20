@@ -125,38 +125,40 @@ func lastWill(connect *packet.Connect) *LastWill {
 		Retain:  connect.Flags.WillRetain(),
 	}
 
-	if connect.WillProperties != nil {
-		props := connect.WillProperties
-		will.Properties = &packet.WillProperties{Flags: props.Flags}
+	if connect.WillProperties == nil {
+		return nil
+	}
 
-		if props.Has(packet.PropertyWillDelayInterval) {
-			will.Properties.WillDelayInterval = props.WillDelayInterval
-			will.Properties.Set(packet.PropertyWillDelayInterval)
-		}
-		if props.Has(packet.PropertyPayloadFormatIndicator) {
-			will.Properties.PayloadFormatIndicator = props.PayloadFormatIndicator
-			will.Properties.Set(packet.PropertyPayloadFormatIndicator)
-		}
-		if props.Has(packet.PropertyMessageExpiryInterval) {
-			will.Properties.MessageExpiryInterval = props.MessageExpiryInterval
-			will.Properties.Set(packet.PropertyMessageExpiryInterval)
-		}
-		if props.Has(packet.PropertyContentType) {
-			will.Properties.ContentType = props.ContentType
-			will.Properties.Set(packet.PropertyContentType)
-		}
-		if props.Has(packet.PropertyResponseTopic) {
-			will.Properties.ResponseTopic = props.ResponseTopic
-			will.Properties.Set(packet.PropertyResponseTopic)
-		}
-		if props.Has(packet.PropertyCorrelationData) {
-			will.Properties.CorrelationData = props.CorrelationData
-			will.Properties.Set(packet.PropertyCorrelationData)
-		}
-		if props.Has(packet.PropertyUserProperty) {
-			will.Properties.UserProperties = props.UserProperties
-			will.Properties.Set(packet.PropertyUserProperty)
-		}
+	props := connect.WillProperties
+	will.Properties = &packet.WillProperties{Flags: props.Flags}
+
+	if props.Has(packet.PropertyWillDelayInterval) {
+		will.Properties.WillDelayInterval = props.WillDelayInterval
+		will.Properties.Set(packet.PropertyWillDelayInterval)
+	}
+	if props.Has(packet.PropertyPayloadFormatIndicator) {
+		will.Properties.PayloadFormatIndicator = props.PayloadFormatIndicator
+		will.Properties.Set(packet.PropertyPayloadFormatIndicator)
+	}
+	if props.Has(packet.PropertyMessageExpiryInterval) {
+		will.Properties.MessageExpiryInterval = props.MessageExpiryInterval
+		will.Properties.Set(packet.PropertyMessageExpiryInterval)
+	}
+	if props.Has(packet.PropertyContentType) {
+		will.Properties.ContentType = props.ContentType
+		will.Properties.Set(packet.PropertyContentType)
+	}
+	if props.Has(packet.PropertyResponseTopic) {
+		will.Properties.ResponseTopic = props.ResponseTopic
+		will.Properties.Set(packet.PropertyResponseTopic)
+	}
+	if props.Has(packet.PropertyCorrelationData) {
+		will.Properties.CorrelationData = props.CorrelationData
+		will.Properties.Set(packet.PropertyCorrelationData)
+	}
+	if props.Has(packet.PropertyUserProperty) {
+		will.Properties.UserProperties = props.UserProperties
+		will.Properties.Set(packet.PropertyUserProperty)
 	}
 
 	return will
