@@ -89,7 +89,7 @@ func NewServer(opts *Options) (s *Server, err error) {
 		hooks:     newHooks(),
 		clients:   newClients(),
 		readBufPool: sync.Pool{
-			New: func() interface{} { return bufio.NewReaderSize(nil, s.config.ReadBufferSize) },
+			New: func() any { return bufio.NewReaderSize(nil, s.config.ReadBufferSize) },
 		},
 	}
 

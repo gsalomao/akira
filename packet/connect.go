@@ -81,7 +81,7 @@ func (p *Connect) Type() Type {
 func (p *Connect) Size() int {
 	// The protocolNames is an array and the protocol version starts with number 3 for MQTT V3.1. Based on that, the
 	// protocol version is decremented by the MQTT V3.1 version number to get a value ranging from 0..2 for MQTT V3.1,
-	// V3.1.1, and V5.0
+	// V3.1.1, and V5.0.
 	size := sizeString(protocolNames[p.Version-MQTT31])
 
 	// Add +1 byte for the protocol version, +1 byte for the Connect flags, and +2 bytes for the Keep Alive.

@@ -42,8 +42,6 @@ type ClientState byte
 
 // Client represents a MQTT client.
 type Client struct {
-	sync.RWMutex
-
 	// Connection represents the client's connection.
 	Connection *Connection `json:"connection"`
 
@@ -53,6 +51,7 @@ type Client struct {
 	// Session represents the client's session.
 	Session *Session `json:"session"`
 
+	mu        sync.RWMutex
 	closeOnce sync.Once
 	state     ClientState
 }
@@ -165,15 +164,15 @@ func newClient(nc net.Conn, s *Server, l Listener) *Client {
 
 // State returns the current client state.
 func (c *Client) State() ClientState {
-	c.RLock()
-	defer c.RUnlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	return c.state
 }
 
 func (c *Client) setState(s ClientState) {
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	c.state = s
 }
@@ -182,8 +181,8 @@ func (c *Client) close(err error) {
 	c.closeOnce.Do(func() {
 		c.Server.hooks.onConnectionClose(c.Server, c.Connection.listener, err)
 
-		c.Lock()
-		defer c.Unlock()
+		c.mu.Lock()
+		defer c.mu.Unlock()
 
 		c.state = ClientClosed
 		_ = c.Connection.netConn.Close()
@@ -212,7 +211,8 @@ func (c *Client) receivePacket(r *bufio.Reader) (Packet, error) {
 		return nil, err
 	}
 
-	if err = c.Server.hooks.onPacketReceived(c, p); err != nil {
+	err = c.Server.hooks.onPacketReceived(c, p)
+	if err != nil {
 		return nil, err
 	}
 

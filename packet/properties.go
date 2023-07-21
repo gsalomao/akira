@@ -111,7 +111,7 @@ type UserProperty struct {
 
 func sizePropSessionExpiryInterval(flags PropertyFlags) int {
 	if flags.Has(PropertySessionExpiryInterval) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return 5
 	}
 	return 0
@@ -119,7 +119,7 @@ func sizePropSessionExpiryInterval(flags PropertyFlags) int {
 
 func sizePropReceiveMaximum(flags PropertyFlags) int {
 	if flags.Has(PropertyReceiveMaximum) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return 3
 	}
 	return 0
@@ -127,7 +127,7 @@ func sizePropReceiveMaximum(flags PropertyFlags) int {
 
 func sizePropMaxPacketSize(flags PropertyFlags) int {
 	if flags.Has(PropertyMaximumPacketSize) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return 5
 	}
 	return 0
@@ -135,7 +135,7 @@ func sizePropMaxPacketSize(flags PropertyFlags) int {
 
 func sizePropTopicAliasMaximum(flags PropertyFlags) int {
 	if flags.Has(PropertyTopicAliasMaximum) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return 3
 	}
 	return 0
@@ -143,7 +143,7 @@ func sizePropTopicAliasMaximum(flags PropertyFlags) int {
 
 func sizePropRequestResponseInfo(flags PropertyFlags) int {
 	if flags.Has(PropertyRequestResponseInfo) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return 2
 	}
 	return 0
@@ -151,7 +151,7 @@ func sizePropRequestResponseInfo(flags PropertyFlags) int {
 
 func sizePropRequestProblemInfo(flags PropertyFlags) int {
 	if flags.Has(PropertyRequestProblemInfo) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return 2
 	}
 	return 0
@@ -175,7 +175,7 @@ func sizePropUserProperties(flags PropertyFlags, val []UserProperty) int {
 
 func sizePropAuthenticationMethod(flags PropertyFlags, val []byte) int {
 	if flags.Has(PropertyAuthenticationMethod) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return sizeBinary(val) + 1
 	}
 	return 0
@@ -183,7 +183,7 @@ func sizePropAuthenticationMethod(flags PropertyFlags, val []byte) int {
 
 func sizePropAuthenticationData(flags PropertyFlags, val []byte) int {
 	if flags.Has(PropertyAuthenticationData) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return sizeBinary(val) + 1
 	}
 	return 0
@@ -191,7 +191,7 @@ func sizePropAuthenticationData(flags PropertyFlags, val []byte) int {
 
 func sizePropWillDelayInterval(flags PropertyFlags) int {
 	if flags.Has(PropertyWillDelayInterval) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return 5
 	}
 	return 0
@@ -199,7 +199,7 @@ func sizePropWillDelayInterval(flags PropertyFlags) int {
 
 func sizePropPayloadFormatIndicator(flags PropertyFlags) int {
 	if flags.Has(PropertyPayloadFormatIndicator) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return 2
 	}
 	return 0
@@ -207,7 +207,7 @@ func sizePropPayloadFormatIndicator(flags PropertyFlags) int {
 
 func sizePropMessageExpiryInterval(flags PropertyFlags) int {
 	if flags.Has(PropertyMessageExpiryInterval) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return 5
 	}
 	return 0
@@ -215,7 +215,7 @@ func sizePropMessageExpiryInterval(flags PropertyFlags) int {
 
 func sizePropContentType(flags PropertyFlags, val []byte) int {
 	if flags.Has(PropertyContentType) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return sizeBinary(val) + 1
 	}
 	return 0
@@ -223,7 +223,7 @@ func sizePropContentType(flags PropertyFlags, val []byte) int {
 
 func sizePropResponseTopic(flags PropertyFlags, val []byte) int {
 	if flags.Has(PropertyResponseTopic) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return sizeBinary(val) + 1
 	}
 	return 0
@@ -231,7 +231,7 @@ func sizePropResponseTopic(flags PropertyFlags, val []byte) int {
 
 func sizePropCorrelationData(flags PropertyFlags, val []byte) int {
 	if flags.Has(PropertyCorrelationData) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return sizeBinary(val) + 1
 	}
 	return 0
@@ -239,7 +239,7 @@ func sizePropCorrelationData(flags PropertyFlags, val []byte) int {
 
 func sizePropMaxQoS(flags PropertyFlags) int {
 	if flags.Has(PropertyMaximumQoS) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return 2
 	}
 	return 0
@@ -247,7 +247,7 @@ func sizePropMaxQoS(flags PropertyFlags) int {
 
 func sizePropRetainAvailable(flags PropertyFlags) int {
 	if flags.Has(PropertyRetainAvailable) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return 2
 	}
 	return 0
@@ -255,7 +255,7 @@ func sizePropRetainAvailable(flags PropertyFlags) int {
 
 func sizePropAssignedClientID(flags PropertyFlags, id []byte) int {
 	if flags.Has(PropertyAssignedClientID) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return sizeBinary(id) + 1
 	}
 	return 0
@@ -263,7 +263,7 @@ func sizePropAssignedClientID(flags PropertyFlags, id []byte) int {
 
 func sizePropReasonString(flags PropertyFlags, reasonString []byte) int {
 	if flags.Has(PropertyReasonString) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return sizeBinary(reasonString) + 1
 	}
 	return 0
@@ -271,7 +271,7 @@ func sizePropReasonString(flags PropertyFlags, reasonString []byte) int {
 
 func sizePropWildcardSubscriptionAvailable(flags PropertyFlags) int {
 	if flags.Has(PropertyWildcardSubscriptionAvailable) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return 2
 	}
 	return 0
@@ -279,7 +279,7 @@ func sizePropWildcardSubscriptionAvailable(flags PropertyFlags) int {
 
 func sizePropSubscriptionIDAvailable(flags PropertyFlags) int {
 	if flags.Has(PropertySubscriptionIDAvailable) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return 2
 	}
 	return 0
@@ -287,7 +287,7 @@ func sizePropSubscriptionIDAvailable(flags PropertyFlags) int {
 
 func sizePropSharedSubscriptionAvailable(flags PropertyFlags) int {
 	if flags.Has(PropertySharedSubscriptionAvailable) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return 2
 	}
 	return 0
@@ -295,7 +295,7 @@ func sizePropSharedSubscriptionAvailable(flags PropertyFlags) int {
 
 func sizePropServerKeepAlive(flags PropertyFlags) int {
 	if flags.Has(PropertyServerKeepAlive) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return 3
 	}
 	return 0
@@ -303,7 +303,7 @@ func sizePropServerKeepAlive(flags PropertyFlags) int {
 
 func sizePropResponseInfo(flags PropertyFlags, info []byte) int {
 	if flags.Has(PropertyResponseInfo) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return sizeBinary(info) + 1
 	}
 	return 0
@@ -311,7 +311,7 @@ func sizePropResponseInfo(flags PropertyFlags, info []byte) int {
 
 func sizePropServerReference(flags PropertyFlags, reference []byte) int {
 	if flags.Has(PropertyServerReference) {
-		// Size of the field + 1 byte for the property identifier
+		// Size of the field + 1 byte for the property identifier.
 		return sizeBinary(reference) + 1
 	}
 	return 0

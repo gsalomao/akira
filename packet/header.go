@@ -35,7 +35,7 @@ type FixedHeader struct {
 func (h *FixedHeader) Read(r *bufio.Reader) (n int, err error) {
 	var b byte
 
-	// Read the control packet type and the flags
+	// Read the control packet type and the flags.
 	b, err = r.ReadByte()
 	if err != nil {
 		return 0, err
@@ -50,7 +50,7 @@ func (h *FixedHeader) Read(r *bufio.Reader) (n int, err error) {
 
 	var rLenSize int
 
-	// Read the remaining length
+	// Read the remaining length.
 	rLenSize, err = readVarInteger(r, &h.RemainingLength)
 	if err != nil {
 		return n + rLenSize, fmt.Errorf("remaining length: %w (%v)", err, h.PacketType)

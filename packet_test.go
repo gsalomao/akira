@@ -34,36 +34,36 @@ func TestReadPacketSuccess(t *testing.T) {
 		{
 			name: "CONNECT - V3",
 			data: []byte{
-				byte(packet.TypeConnect) << 4, 14, // Fixed header
-				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
-				4,      // Protocol version
-				2,      // Packet flags (Clean session)
-				0, 255, // Keep alive
-				0, 2, 'a', 'b', // Client ID
+				byte(packet.TypeConnect) << 4, 14, // Fixed header.
+				0, 4, 'M', 'Q', 'T', 'T', // Protocol name.
+				4,      // Protocol version.
+				2,      // Packet flags (Clean session).
+				0, 255, // Keep alive.
+				0, 2, 'a', 'b', // Client ID.
 			},
 			packet: &packet.Connect{
 				Version:   packet.MQTT311,
 				KeepAlive: 255,
-				Flags:     packet.ConnectFlags(0x02), // Clean session flag
+				Flags:     packet.ConnectFlags(0x02), // Clean session flag.
 				ClientID:  []byte("ab"),
 			},
 		},
 		{
 			name: "CONNECT - V5",
 			data: []byte{
-				byte(packet.TypeConnect) << 4, 20, // Fixed header
-				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
-				5,      // Protocol version
-				2,      // Packet flags (Clean session)
-				0, 255, // Keep alive
-				5,               // Property length
-				17, 0, 0, 0, 30, // Session Expiry Interval
-				0, 2, 'a', 'b', // Client ID
+				byte(packet.TypeConnect) << 4, 20, // Fixed header.
+				0, 4, 'M', 'Q', 'T', 'T', // Protocol name.
+				5,      // Protocol version.
+				2,      // Packet flags (Clean session).
+				0, 255, // Keep alive.
+				5,               // Property length.
+				17, 0, 0, 0, 30, // Session Expiry Interval.
+				0, 2, 'a', 'b', // Client ID.
 			},
 			packet: &packet.Connect{
 				Version:   packet.MQTT50,
 				KeepAlive: 255,
-				Flags:     packet.ConnectFlags(0x02), // Clean session flag
+				Flags:     packet.ConnectFlags(0x02), // Clean session flag.
 				ClientID:  []byte("ab"),
 				Properties: &packet.ConnectProperties{
 					Flags:                 packet.PropertyFlags(0).Set(packet.PropertySessionExpiryInterval),
@@ -119,24 +119,24 @@ func BenchmarkReadPacket(b *testing.B) {
 		{
 			name: "CONNECT-V3",
 			data: []byte{
-				byte(packet.TypeConnect) << 4, 14, // Fixed header
-				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
-				4,      // Protocol version
-				2,      // Packet flags (Clean Session)
-				0, 255, // Keep alive
-				0, 2, 'a', 'b', // Client ID
+				byte(packet.TypeConnect) << 4, 14, // Fixed header.
+				0, 4, 'M', 'Q', 'T', 'T', // Protocol name.
+				4,      // Protocol version.
+				2,      // Packet flags (Clean Session).
+				0, 255, // Keep alive.
+				0, 2, 'a', 'b', // Client ID.
 			},
 		},
 		{
 			name: "CONNECT-V5",
 			data: []byte{
-				byte(packet.TypeConnect) << 4, 15, // Fixed header
-				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
-				5,      // Protocol version
-				2,      // Packet flags (Clean Session)
-				0, 255, // Keep alive
-				0,              // Property length
-				0, 2, 'a', 'b', // Client ID
+				byte(packet.TypeConnect) << 4, 15, // Fixed header.
+				0, 4, 'M', 'Q', 'T', 'T', // Protocol name.
+				5,      // Protocol version.
+				2,      // Packet flags (Clean Session).
+				0, 255, // Keep alive.
+				0,              // Property length.
+				0, 2, 'a', 'b', // Client ID.
 			},
 		},
 	}

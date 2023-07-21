@@ -20,17 +20,17 @@ import (
 )
 
 var validReasonCodes = [][]ReasonCode{
-	// V3.1
+	// V3.1.
 	{
 		ReasonCodeSuccess, ReasonCodeV3UnacceptableProtocolVersion, ReasonCodeV3IdentifierRejected,
 		ReasonCodeV3ServerUnavailable, ReasonCodeV3BadUsernameOrPassword, ReasonCodeV3NotAuthorized,
 	},
-	// V3.1.1
+	// V3.1.1.
 	{
 		ReasonCodeSuccess, ReasonCodeV3UnacceptableProtocolVersion, ReasonCodeV3IdentifierRejected,
 		ReasonCodeV3ServerUnavailable, ReasonCodeV3BadUsernameOrPassword, ReasonCodeV3NotAuthorized,
 	},
-	// V5.0
+	// V5.0.
 	{
 		ReasonCodeSuccess, ReasonCodeUnspecifiedError, ReasonCodeMalformedPacket, ReasonCodeProtocolError,
 		ReasonCodeImplementationSpecificError, ReasonCodeUnsupportedProtocolVersion, ReasonCodeClientIDNotValid,
@@ -76,7 +76,9 @@ func (p *ConnAck) Encode(buf []byte) (n int, err error) {
 	if len(buf) < p.Size() {
 		return 0, errors.New("buffer too small")
 	}
-	if err = p.Validate(); err != nil {
+
+	err = p.Validate()
+	if err != nil {
 		return 0, err
 	}
 
@@ -132,7 +134,7 @@ func (p *ConnAck) Validate() error {
 }
 
 func (p *ConnAck) remainingLength() int {
-	// Start with 2 bytes for the ConnAck flags and Reason Code
+	// Start with 2 bytes for the ConnAck flags and Reason Code.
 	remainingLength := 2
 
 	if p.Version == MQTT50 {

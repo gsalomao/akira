@@ -277,25 +277,25 @@ func decodeBool(data []byte) (bool, error) {
 	return v, err
 }
 
-func decodeBinary(data []byte) ([]byte, int, error) {
+func decodeBinary(data []byte) (bin []byte, n int, err error) {
 	length, err := decodeUint[uint16](data)
 	if err != nil {
 		return nil, 0, fmt.Errorf("invalid binary length: %w", err)
 	}
-	n := 2
+	n = 2
 
 	if int(length) > len(data)-n {
 		return nil, n, errors.New("invalid binary length")
 	}
 
-	bin := data[n : n+int(length)]
+	bin = data[n : n+int(length)]
 	n += int(length)
 
 	return bin, n, nil
 }
 
-func decodeString(data []byte) ([]byte, int, error) {
-	str, n, err := decodeBinary(data)
+func decodeString(data []byte) (str []byte, n int, err error) {
+	str, n, err = decodeBinary(data)
 	if err != nil {
 		return nil, n, fmt.Errorf("invalid string: %w", err)
 	}
@@ -353,7 +353,7 @@ func encodeBool(buf []byte, val bool) int {
 	return encodeUint(buf, b)
 }
 
-func encodeBinary(buf []byte, bin []byte) int {
+func encodeBinary(buf, bin []byte) int {
 	n := encodeUint(buf, uint16(len(bin)))
 
 	copy(buf[n:], bin)
@@ -362,7 +362,7 @@ func encodeBinary(buf []byte, bin []byte) int {
 	return n
 }
 
-func encodeString(buf []byte, str []byte) (int, error) {
+func encodeString(buf, str []byte) (int, error) {
 	if !isValidString(str) {
 		return 0, errors.New("invalid string")
 	}
@@ -390,7 +390,7 @@ func isValidString(str []byte) bool {
 }
 
 func isValidTopicName(topic string) bool {
-	if len(topic) == 0 {
+	if topic == "" {
 		return false
 	}
 

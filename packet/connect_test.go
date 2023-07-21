@@ -86,7 +86,8 @@ func (s *ConnectTestSuite) TestSize() {
 		},
 	}
 
-	for _, test := range testCases {
+	for t := range testCases {
+		test := testCases[t]
 		s.Run(test.name, func() {
 			size := test.packet.Size()
 			s.Require().Equal(test.size, size)
@@ -103,44 +104,44 @@ func (s *ConnectTestSuite) TestDecodeSuccess() {
 		{
 			"V3.1",
 			[]byte{
-				0, 6, 'M', 'Q', 'I', 's', 'd', 'p', // Protocol name
-				3,     // Protocol version
-				0,     // Packet flags
-				0, 30, // Keep alive
-				0, 1, 'a', // Client ID
+				0, 6, 'M', 'Q', 'I', 's', 'd', 'p', // Protocol name.
+				3,     // Protocol version.
+				0,     // Packet flags.
+				0, 30, // Keep alive.
+				0, 1, 'a', // Client ID.
 			},
 			Connect{Version: MQTT31, KeepAlive: 30, ClientID: []byte("a")},
 		},
 		{
 			"V3.1.1",
 			[]byte{
-				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
-				4,      // Protocol version
-				0,      // Packet flags
-				0, 255, // Keep alive
-				0, 2, 'a', 'b', // Client ID
+				0, 4, 'M', 'Q', 'T', 'T', // Protocol name.
+				4,      // Protocol version.
+				0,      // Packet flags.
+				0, 255, // Keep alive.
+				0, 2, 'a', 'b', // Client ID.
 			},
 			Connect{Version: MQTT311, KeepAlive: 255, ClientID: []byte("ab")},
 		},
 		{
 			"V3.1.1, clean session",
 			[]byte{
-				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
-				4,      // Protocol version
-				2,      // Packet flags (Clean Session)
-				0, 255, // Keep alive
-				0, 2, 'a', 'b', // Client ID
+				0, 4, 'M', 'Q', 'T', 'T', // Protocol name.
+				4,      // Protocol version.
+				2,      // Packet flags (Clean Session).
+				0, 255, // Keep alive.
+				0, 2, 'a', 'b', // Client ID.
 			},
 			Connect{Version: MQTT311, KeepAlive: 255, Flags: connectFlagCleanSession, ClientID: []byte("ab")},
 		},
 		{
 			"V3.1.1, clean session + no client ID",
 			[]byte{
-				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
-				4,      // Protocol version
-				2,      // Packet flags (Clean Session)
-				0, 255, // Keep alive
-				0, 0, // Client ID
+				0, 4, 'M', 'Q', 'T', 'T', // Protocol name.
+				4,      // Protocol version.
+				2,      // Packet flags (Clean Session).
+				0, 255, // Keep alive.
+				0, 0, // Client ID.
 			},
 			Connect{
 				Version: MQTT311, KeepAlive: 255, Flags: connectFlagCleanSession, ClientID: []byte{},
@@ -149,13 +150,13 @@ func (s *ConnectTestSuite) TestDecodeSuccess() {
 		{
 			"V3.1.1, Will flags",
 			[]byte{
-				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
-				4,    // Protocol version
-				0x2c, // Packet flags (Will Retain + Will QoS + Will Flag)
-				1, 0, // Keep alive
-				0, 2, 'a', 'b', // Client ID
-				0, 1, 'a', // Will Topic
-				0, 1, 'b', // Will Payload
+				0, 4, 'M', 'Q', 'T', 'T', // Protocol name.
+				4,    // Protocol version.
+				0x2c, // Packet flags (Will Retain + Will QoS + Will Flag).
+				1, 0, // Keep alive.
+				0, 2, 'a', 'b', // Client ID.
+				0, 1, 'a', // Will Topic.
+				0, 1, 'b', // Will Payload.
 			},
 			Connect{
 				Version:   MQTT311,
@@ -171,13 +172,13 @@ func (s *ConnectTestSuite) TestDecodeSuccess() {
 		{
 			"V3.1.1, Will flags + no will payload",
 			[]byte{
-				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
-				4,    // Protocol version
-				0x2c, // Packet flags (Will Retain + Will QoS + Will Flag)
-				1, 0, // Keep alive
-				0, 2, 'a', 'b', // Client ID
-				0, 1, 'a', // Will Topic
-				0, 0, // Will Payload
+				0, 4, 'M', 'Q', 'T', 'T', // Protocol name.
+				4,    // Protocol version.
+				0x2c, // Packet flags (Will Retain + Will QoS + Will Flag).
+				1, 0, // Keep alive.
+				0, 2, 'a', 'b', // Client ID.
+				0, 1, 'a', // Will Topic.
+				0, 0, // Will Payload.
 			},
 			Connect{
 				Version:   MQTT311,
@@ -193,13 +194,13 @@ func (s *ConnectTestSuite) TestDecodeSuccess() {
 		{
 			"V3.1.1, username/password",
 			[]byte{
-				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
-				4,    // Protocol version
-				0xc0, // Packet flags (Username + Password)
-				0, 1, // Keep alive
-				0, 2, 'a', 'b', // Client ID
-				0, 1, 'a', // Username
-				0, 1, 'b', // Password
+				0, 4, 'M', 'Q', 'T', 'T', // Protocol name.
+				4,    // Protocol version.
+				0xc0, // Packet flags (Username + Password).
+				0, 1, // Keep alive.
+				0, 2, 'a', 'b', // Client ID.
+				0, 1, 'a', // Username.
+				0, 1, 'b', // Password.
 			},
 			Connect{
 				Version:   MQTT311,
@@ -213,25 +214,25 @@ func (s *ConnectTestSuite) TestDecodeSuccess() {
 		{
 			"V5.0, no properties",
 			[]byte{
-				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
-				5,        // Protocol version
-				0,        // Packet flags
-				255, 255, // Keep alive
-				0,                   // Properties Length
-				0, 3, 'a', 'b', 'c', // Client ID
+				0, 4, 'M', 'Q', 'T', 'T', // Protocol name.
+				5,        // Protocol version.
+				0,        // Packet flags.
+				255, 255, // Keep alive.
+				0,                   // Properties Length.
+				0, 3, 'a', 'b', 'c', // Client ID.
 			},
 			Connect{Version: MQTT50, KeepAlive: 65535, ClientID: []byte("abc")},
 		},
 		{
 			"V5.0, no properties, password",
 			[]byte{
-				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
-				5,        // Protocol version
-				0x40,     // Packet flags
-				255, 255, // Keep alive
-				0,                   // Properties Length
-				0, 3, 'a', 'b', 'c', // Client ID
-				0, 1, 'd', // Password
+				0, 4, 'M', 'Q', 'T', 'T', // Protocol name.
+				5,        // Protocol version.
+				0x40,     // Packet flags.
+				255, 255, // Keep alive.
+				0,                   // Properties Length.
+				0, 3, 'a', 'b', 'c', // Client ID.
+				0, 1, 'd', // Password.
 			},
 			Connect{
 				Version: MQTT50, KeepAlive: 65535, ClientID: []byte("abc"), Flags: connectFlagPasswordFlag,
@@ -241,17 +242,17 @@ func (s *ConnectTestSuite) TestDecodeSuccess() {
 		{
 			"V5.0, properties",
 			[]byte{
-				0, 4, 'M', 'Q', 'T', 'T', // Protocol name
-				5,        // Protocol version
-				0x04,     // Packet flags
-				255, 255, // Keep alive
-				5,               // Property length
-				17, 0, 0, 0, 10, // Session expiry interval
-				0, 3, 'a', 'b', 'c', // Client ID
-				5,               // Will Property length
-				24, 0, 0, 0, 15, // Will delay interval
-				0, 1, 'a', // Will Topic
-				0, 1, 'b', // Will Payload
+				0, 4, 'M', 'Q', 'T', 'T', // Protocol name.
+				5,        // Protocol version.
+				0x04,     // Packet flags.
+				255, 255, // Keep alive.
+				5,               // Property length.
+				17, 0, 0, 0, 10, // Session expiry interval.
+				0, 3, 'a', 'b', 'c', // Client ID.
+				5,               // Will Property length.
+				24, 0, 0, 0, 15, // Will delay interval.
+				0, 1, 'a', // Will Topic.
+				0, 1, 'b', // Will Payload.
 			},
 			Connect{
 				Version:   MQTT50,
@@ -272,7 +273,8 @@ func (s *ConnectTestSuite) TestDecodeSuccess() {
 		},
 	}
 
-	for _, test := range testCases {
+	for t := range testCases {
+		test := testCases[t]
 		s.Run(test.name, func() {
 			var packet Connect
 			header := FixedHeader{PacketType: TypeConnect, RemainingLength: len(test.data)}
@@ -377,7 +379,8 @@ func BenchmarkConnectSize(b *testing.B) {
 		{"V5", Connect{Version: MQTT50, KeepAlive: 500, ClientID: []byte("abc")}},
 	}
 
-	for _, test := range testCases {
+	for t := range testCases {
+		test := testCases[t]
 		b.Run(test.name, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				_ = test.packet.Size()
@@ -478,17 +481,17 @@ func (s *ConnectPropertiesTestSuite) TestSizeOnNil() {
 
 func (s *ConnectPropertiesTestSuite) TestDecodeSuccess() {
 	data := []byte{
-		0,               // Property Length
-		17, 0, 0, 0, 10, // Session Expiry Interval
-		33, 0, 50, // Receive Maximum
-		39, 0, 0, 0, 200, // Maximum Packet Size
-		34, 0, 50, // Topic Alias Maximum
-		25, 1, // Request Response Info
-		23, 0, // Request Problem Info
-		38, 0, 1, 'a', 0, 1, 'b', // User Property
-		38, 0, 1, 'c', 0, 1, 'd', // User Property
-		21, 0, 2, 'e', 'f', // Authentication Method
-		22, 0, 1, 10, // Authentication Data
+		0,               // Property Length.
+		17, 0, 0, 0, 10, // Session Expiry Interval.
+		33, 0, 50, // Receive Maximum.
+		39, 0, 0, 0, 200, // Maximum Packet Size.
+		34, 0, 50, // Topic Alias Maximum.
+		25, 1, // Request Response Info.
+		23, 0, // Request Problem Info.
+		38, 0, 1, 'a', 0, 1, 'b', // User Property.
+		38, 0, 1, 'c', 0, 1, 'd', // User Property.
+		21, 0, 2, 'e', 'f', // Authentication Method.
+		22, 0, 1, 10, // Authentication Data.
 	}
 	data[0] = byte(len(data) - 1)
 
@@ -625,14 +628,14 @@ func (s *WillPropertiesTestSuite) TestSizeOnNil() {
 
 func (s *WillPropertiesTestSuite) TestDecodeSuccess() {
 	data := []byte{
-		0,               // Property Length
-		24, 0, 0, 0, 15, // Will Delay Interval
-		1, 1, // Payload Format Indicator
-		2, 0, 0, 0, 10, // Message Expiry Interval
-		3, 0, 4, 'j', 's', 'o', 'n', // Content Type
-		8, 0, 1, 'b', // Response Topic
-		9, 0, 2, 20, 1, // Correlation Data
-		38, 0, 1, 'a', 0, 1, 'b', // User Property
+		0,               // Property Length.
+		24, 0, 0, 0, 15, // Will Delay Interval.
+		1, 1, // Payload Format Indicator.
+		2, 0, 0, 0, 10, // Message Expiry Interval.
+		3, 0, 4, 'j', 's', 'o', 'n', // Content Type.
+		8, 0, 1, 'b', // Response Topic.
+		9, 0, 2, 20, 1, // Correlation Data.
+		38, 0, 1, 'a', 0, 1, 'b', // User Property.
 	}
 	data[0] = byte(len(data) - 1)
 

@@ -51,7 +51,7 @@ func (s *ServerTestSuite) TearDownTest() {
 	s.server.Close()
 }
 
-func (s *ServerTestSuite) addListener(srv *akira.Server) (akira.Listener, <-chan akira.OnConnectionFunc) {
+func (s *ServerTestSuite) addListener(srv *akira.Server) (l akira.Listener, cb <-chan akira.OnConnectionFunc) {
 	onConnectionStream := make(chan akira.OnConnectionFunc, 1)
 
 	lsn := mocks.NewMockListener(s.T())
@@ -505,7 +505,7 @@ func (s *ServerTestSuite) TestReceivePacket() {
 	expected := &packet.Connect{
 		Version:   packet.MQTT311,
 		KeepAlive: 255,
-		Flags:     packet.ConnectFlags(0x02), // Clean session flag
+		Flags:     packet.ConnectFlags(0x02), // Clean session flag.
 		ClientID:  []byte("ab"),
 	}
 	s.Assert().Equal(expected, connect)
@@ -1065,15 +1065,15 @@ func (s *ServerTestSuite) TestConnectPacketWithSessionProperties() {
 
 	connect := []byte{
 		0x10, 51, 0, 4, 'M', 'Q', 'T', 'T', 5, 0, 0, 100, 36,
-		17, 0, 0, 0, 100, // Session Expiry Interval
-		33, 0, 150, // Receive Maximum
-		39, 0, 0, 0, 200, // Maximum Packet Size
-		34, 0, 250, // Topic Alias Maximum
-		25, 1, // Request Response Info
-		23, 1, // Request Problem Info
-		38, 0, 1, 'a', 0, 1, 'b', // User Property
-		21, 0, 2, 'e', 'f', // Authentication Method
-		22, 0, 1, 10, // Authentication Data
+		17, 0, 0, 0, 100, // Session Expiry Interval.
+		33, 0, 150, // Receive Maximum.
+		39, 0, 0, 0, 200, // Maximum Packet Size.
+		34, 0, 250, // Topic Alias Maximum.
+		25, 1, // Request Response Info.
+		23, 1, // Request Problem Info.
+		38, 0, 1, 'a', 0, 1, 'b', // User Property.
+		21, 0, 2, 'e', 'f', // Authentication Method.
+		22, 0, 1, 10, // Authentication Data.
 		0, 2, 'a', 'b',
 	}
 	_, _ = conn1.Write(connect)
@@ -1127,16 +1127,16 @@ func (s *ServerTestSuite) TestConnectPacketWithLastWill() {
 
 	connect := []byte{
 		0x10, 57, 0, 4, 'M', 'Q', 'T', 'T', 5, 0x34, 0, 100, 0, 0, 2, 'a', 'b',
-		35,              // Property Length
-		24, 0, 0, 0, 10, // Will Delay Interval
-		1, 1, // Payload Format Indicator
-		2, 0, 0, 0, 20, // Message Expiry Interval
-		3, 0, 4, 'j', 's', 'o', 'n', // Content Type
-		8, 0, 1, 'b', // Response Topic
-		9, 0, 2, 20, 1, // Correlation Data
-		38, 0, 1, 'a', 0, 1, 'b', // User Property
-		0, 1, 'a', // Will Topic
-		0, 1, 'b', // Will Payload
+		35,              // Property Length.
+		24, 0, 0, 0, 10, // Will Delay Interval.
+		1, 1, // Payload Format Indicator.
+		2, 0, 0, 0, 20, // Message Expiry Interval.
+		3, 0, 4, 'j', 's', 'o', 'n', // Content Type.
+		8, 0, 1, 'b', // Response Topic.
+		9, 0, 2, 20, 1, // Correlation Data.
+		38, 0, 1, 'a', 0, 1, 'b', // User Property.
+		0, 1, 'a', // Will Topic.
+		0, 1, 'b', // Will Payload.
 	}
 	_, _ = conn1.Write(connect)
 
