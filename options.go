@@ -66,7 +66,7 @@ type Config struct {
 	TopicAliasMax uint16 `json:"topic_alias_max"`
 
 	// MaxQoS indicates the maximum QoS for PUBLISH Packets accepted by the server.
-	MaxQoS byte `json:"maximum_qos"`
+	MaxQoS byte `json:"max_qos"`
 
 	// RetainAvailable indicates whether the server allows retained messages or not.
 	RetainAvailable bool `json:"retain_available"`
