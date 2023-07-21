@@ -16,6 +16,7 @@ package akira_test
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net"
 	"os"
@@ -938,132 +939,67 @@ func (s *ServerTestSuite) TestConnectPacketWithCleanSession() {
 func (s *ServerTestSuite) TestConnectPacketWithConfig() {
 	testCases := []struct {
 		name    string
-		config  akira.Config
+		config  map[string]any
 		connect []byte
 		connack []byte
 	}{
 		{
 			"Session expiry interval",
-			akira.Config{
-				MaxSessionExpiryInterval:      150,
-				MaxQoS:                        2,
-				RetainAvailable:               true,
-				WildcardSubscriptionAvailable: true,
-				SubscriptionIDAvailable:       true,
-				SharedSubscriptionAvailable:   true,
-			},
+			map[string]any{"max_session_expiry_interval": 150},
 			[]byte{0x10, 20, 0, 4, 'M', 'Q', 'T', 'T', 5, 0, 0, 100, 5, 0x11, 0, 0, 0, 200, 0, 2, 'a', 'b'},
 			[]byte{0x20, 8, 0, 0, 5, 0x11, 0, 0, 0, 150},
 		},
 		{
 			"Server keep alive",
-			akira.Config{
-				MaxKeepAlive:                  50,
-				MaxQoS:                        2,
-				RetainAvailable:               true,
-				WildcardSubscriptionAvailable: true,
-				SubscriptionIDAvailable:       true,
-				SharedSubscriptionAvailable:   true,
-			},
+			map[string]any{"max_keep_alive": 50},
 			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
 			[]byte{0x20, 6, 0, 0, 3, 0x13, 0, 50},
 		},
 		{
 			"Receive maximum",
-			akira.Config{
-				MaxInflightMessages:           100,
-				MaxQoS:                        2,
-				RetainAvailable:               true,
-				WildcardSubscriptionAvailable: true,
-				SubscriptionIDAvailable:       true,
-				SharedSubscriptionAvailable:   true,
-			},
+			map[string]any{"max_inflight_messages": 100},
 			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
 			[]byte{0x20, 6, 0, 0, 3, 0x21, 0, 100},
 		},
 		{
 			"Topic alias maximum",
-			akira.Config{
-				TopicAliasMax:                 10,
-				MaxQoS:                        2,
-				RetainAvailable:               true,
-				WildcardSubscriptionAvailable: true,
-				SubscriptionIDAvailable:       true,
-				SharedSubscriptionAvailable:   true,
-			},
+			map[string]any{"topic_alias_max": 10},
 			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
 			[]byte{0x20, 6, 0, 0, 3, 0x22, 0, 10},
 		},
 		{
 			"Maximum QoS",
-			akira.Config{
-				MaxQoS:                        1,
-				RetainAvailable:               true,
-				WildcardSubscriptionAvailable: true,
-				SubscriptionIDAvailable:       true,
-				SharedSubscriptionAvailable:   true,
-			},
+			map[string]any{"max_qos": 1},
 			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
 			[]byte{0x20, 5, 0, 0, 2, 0x24, 1},
 		},
 		{
 			"Retain available",
-			akira.Config{
-				MaxQoS:                        2,
-				RetainAvailable:               false,
-				WildcardSubscriptionAvailable: true,
-				SubscriptionIDAvailable:       true,
-				SharedSubscriptionAvailable:   true,
-			},
+			map[string]any{"retain_available": false},
 			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
 			[]byte{0x20, 5, 0, 0, 2, 0x25, 0},
 		},
 		{
 			"Maximum packet size",
-			akira.Config{
-				MaxPacketSize:                 200,
-				MaxQoS:                        2,
-				RetainAvailable:               true,
-				WildcardSubscriptionAvailable: true,
-				SubscriptionIDAvailable:       true,
-				SharedSubscriptionAvailable:   true,
-			},
+			map[string]any{"max_packet_size": 200},
 			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
 			[]byte{0x20, 8, 0, 0, 5, 0x27, 0, 0, 0, 200},
 		},
 		{
 			"Wildcard subscription available",
-			akira.Config{
-				MaxQoS:                        2,
-				RetainAvailable:               true,
-				WildcardSubscriptionAvailable: false,
-				SubscriptionIDAvailable:       true,
-				SharedSubscriptionAvailable:   true,
-			},
+			map[string]any{"wildcard_subscription_available": false},
 			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
 			[]byte{0x20, 5, 0, 0, 2, 0x28, 0},
 		},
 		{
 			"Subscription identifier available",
-			akira.Config{
-				MaxQoS:                        2,
-				RetainAvailable:               true,
-				WildcardSubscriptionAvailable: true,
-				SubscriptionIDAvailable:       false,
-				SharedSubscriptionAvailable:   true,
-			},
+			map[string]any{"subscription_id_available": false},
 			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
 			[]byte{0x20, 5, 0, 0, 2, 0x29, 0},
 		},
 		{
 			"Shared subscription available",
-			akira.Config{
-				MaxQoS:                        2,
-				RetainAvailable:               true,
-				WildcardSubscriptionAvailable: true,
-				SubscriptionIDAvailable:       true,
-				SharedSubscriptionAvailable:   false,
-			},
+			map[string]any{"shared_subscription_available": false},
 			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
 			[]byte{0x20, 5, 0, 0, 2, 0x2A, 0},
 		},
@@ -1071,37 +1007,15 @@ func (s *ServerTestSuite) TestConnectPacketWithConfig() {
 
 	for _, test := range testCases {
 		s.Run(test.name, func() {
+			data, err := json.Marshal(test.config)
+			s.Require().NoError(err)
+
+			config := akira.NewDefaultConfig()
+			err = json.Unmarshal(data, &config)
+			s.Require().NoError(err)
+
 			opts := akira.NewDefaultOptions()
-			if test.config.MaxSessionExpiryInterval != opts.Config.MaxSessionExpiryInterval {
-				opts.Config.MaxSessionExpiryInterval = test.config.MaxSessionExpiryInterval
-			}
-			if test.config.MaxKeepAlive != opts.Config.MaxKeepAlive {
-				opts.Config.MaxKeepAlive = test.config.MaxKeepAlive
-			}
-			if test.config.MaxInflightMessages != opts.Config.MaxInflightMessages {
-				opts.Config.MaxInflightMessages = test.config.MaxInflightMessages
-			}
-			if test.config.TopicAliasMax != opts.Config.TopicAliasMax {
-				opts.Config.TopicAliasMax = test.config.TopicAliasMax
-			}
-			if test.config.MaxQoS != opts.Config.MaxQoS {
-				opts.Config.MaxQoS = test.config.MaxQoS
-			}
-			if test.config.RetainAvailable != opts.Config.RetainAvailable {
-				opts.Config.RetainAvailable = test.config.RetainAvailable
-			}
-			if test.config.MaxPacketSize != opts.Config.MaxPacketSize {
-				opts.Config.MaxPacketSize = test.config.MaxPacketSize
-			}
-			if test.config.WildcardSubscriptionAvailable != opts.Config.WildcardSubscriptionAvailable {
-				opts.Config.WildcardSubscriptionAvailable = test.config.WildcardSubscriptionAvailable
-			}
-			if test.config.SubscriptionIDAvailable != opts.Config.SubscriptionIDAvailable {
-				opts.Config.SubscriptionIDAvailable = test.config.SubscriptionIDAvailable
-			}
-			if test.config.SharedSubscriptionAvailable != opts.Config.SharedSubscriptionAvailable {
-				opts.Config.SharedSubscriptionAvailable = test.config.SharedSubscriptionAvailable
-			}
+			opts.Config = config
 
 			srv, _ := akira.NewServer(opts)
 			defer srv.Close()
@@ -1118,7 +1032,7 @@ func (s *ServerTestSuite) TestConnectPacketWithConfig() {
 			_, _ = conn1.Write(test.connect)
 			connack := make([]byte, len(test.connack))
 
-			_, err := conn1.Read(connack)
+			_, err = conn1.Read(connack)
 			s.Require().NoError(err)
 			s.Assert().Equal(test.connack, connack)
 		})
@@ -1149,7 +1063,8 @@ func (s *ServerTestSuite) TestConnectPacketWithSessionProperties() {
 	onConnection := <-onConnectionStream
 	onConnection(lsn, conn2)
 
-	connect := []byte{0x10, 51, 0, 4, 'M', 'Q', 'T', 'T', 5, 0, 0, 100, 36,
+	connect := []byte{
+		0x10, 51, 0, 4, 'M', 'Q', 'T', 'T', 5, 0, 0, 100, 36,
 		17, 0, 0, 0, 100, // Session Expiry Interval
 		33, 0, 150, // Receive Maximum
 		39, 0, 0, 0, 200, // Maximum Packet Size
@@ -1159,7 +1074,8 @@ func (s *ServerTestSuite) TestConnectPacketWithSessionProperties() {
 		38, 0, 1, 'a', 0, 1, 'b', // User Property
 		21, 0, 2, 'e', 'f', // Authentication Method
 		22, 0, 1, 10, // Authentication Data
-		0, 2, 'a', 'b'}
+		0, 2, 'a', 'b',
+	}
 	_, _ = conn1.Write(connect)
 
 	connack := make([]byte, 10)
@@ -1209,7 +1125,8 @@ func (s *ServerTestSuite) TestConnectPacketWithLastWill() {
 	onConnection := <-onConnectionStream
 	onConnection(lsn, conn2)
 
-	connect := []byte{0x10, 57, 0, 4, 'M', 'Q', 'T', 'T', 5, 0x34, 0, 100, 0, 0, 2, 'a', 'b',
+	connect := []byte{
+		0x10, 57, 0, 4, 'M', 'Q', 'T', 'T', 5, 0x34, 0, 100, 0, 0, 2, 'a', 'b',
 		35,              // Property Length
 		24, 0, 0, 0, 10, // Will Delay Interval
 		1, 1, // Payload Format Indicator
@@ -1256,86 +1173,69 @@ func (s *ServerTestSuite) TestConnectPacketWithLastWill() {
 	s.Assert().Equal(expected, *will)
 }
 
-func (s *ServerTestSuite) TestConnectPacketV3WithMaxKeepAliveExceeded() {
+func (s *ServerTestSuite) TestConnectPacketWithInvalid() {
 	testCases := []struct {
 		name    string
+		config  map[string]any
 		connect []byte
 		connack []byte
 	}{
 		{
-			"V3.1",
+			"MaxKeepAliveExceeded - V3.1",
+			map[string]any{"max_keep_alive": 100},
 			[]byte{0x10, 16, 0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 0, 0, 200, 0, 2, 'a', 'b'},
 			[]byte{0x20, 2, 0, 2},
 		},
 		{
-			"V3.1.1",
+			"MaxKeepAliveExceeded - V3.1.1",
+			map[string]any{"max_keep_alive": 100},
 			[]byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 0, 0, 200, 0, 2, 'a', 'b'},
 			[]byte{0x20, 2, 0, 2},
 		},
-	}
-
-	for _, test := range testCases {
-		s.Run(test.name, func() {
-			opts := akira.NewDefaultOptions()
-			opts.Config.MaxKeepAlive = 100
-
-			srv, _ := akira.NewServer(opts)
-			defer srv.Close()
-
-			lsn, onConnectionStream := s.addListener(srv)
-
-			conn1, conn2 := net.Pipe()
-			defer func() { _ = conn1.Close() }()
-			_ = srv.Start()
-
-			onConnection := <-onConnectionStream
-			onConnection(lsn, conn2)
-			_, _ = conn1.Write(test.connect)
-
-			connack := make([]byte, len(test.connack))
-			_, err := conn1.Read(connack)
-			s.Require().NoError(err)
-			s.Assert().Equal(test.connack, connack)
-
-			_, err = conn1.Read(connack)
-			s.Require().ErrorIs(err, io.EOF)
-		})
-	}
-}
-
-func (s *ServerTestSuite) TestConnectPacketWithClientIDTooBig() {
-	testCases := []struct {
-		name    string
-		connect []byte
-		connack []byte
-	}{
 		{
-			"V3.1",
-			[]byte{0x10, 38, 0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 0, 0, 100, 0, 24,
+			"ClientID - V3.1",
+			map[string]any{"max_client_id_size": 23},
+			[]byte{
+				0x10, 38, 0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 0, 0, 100, 0, 24,
 				'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-				'0', '1', '2', '3'},
+				'0', '1', '2', '3',
+			},
 			[]byte{0x20, 2, 0, 2},
 		},
 		{
-			"V3.1.1",
-			[]byte{0x10, 36, 0, 4, 'M', 'Q', 'T', 'T', 4, 0, 0, 100, 0, 24,
+			"ClientID - V3.1.1",
+			map[string]any{"max_client_id_size": 23},
+			[]byte{
+				0x10, 36, 0, 4, 'M', 'Q', 'T', 'T', 4, 0, 0, 100, 0, 24,
 				'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-				'0', '1', '2', '3'},
+				'0', '1', '2', '3',
+			},
 			[]byte{0x20, 2, 0, 2},
 		},
 		{
-			"V5.0",
-			[]byte{0x10, 37, 0, 4, 'M', 'Q', 'T', 'T', 5, 0, 0, 100, 0, 0, 24,
+			"ClientID - V5.0",
+			map[string]any{"max_client_id_size": 23},
+			[]byte{
+				0x10, 37, 0, 4, 'M', 'Q', 'T', 'T', 5, 0, 0, 100, 0, 0, 24,
 				'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-				'0', '1', '2', '3'},
+				'0', '1', '2', '3',
+			},
 			[]byte{0x20, 3, 0, 0x85, 0},
 		},
 	}
 
 	for _, test := range testCases {
 		s.Run(test.name, func() {
+			data, err := json.Marshal(test.config)
+			s.Require().NoError(err)
+
+			config := akira.NewDefaultConfig()
+			err = json.Unmarshal(data, &config)
+			s.Require().NoError(err)
+
 			opts := akira.NewDefaultOptions()
-			opts.Config.MaxClientIDSize = 23
+			opts.Config = config
+
 			srv, _ := akira.NewServer(opts)
 			defer srv.Close()
 
@@ -1350,7 +1250,7 @@ func (s *ServerTestSuite) TestConnectPacketWithClientIDTooBig() {
 			_, _ = conn1.Write(test.connect)
 
 			connack := make([]byte, len(test.connack))
-			_, err := conn1.Read(connack)
+			_, err = conn1.Read(connack)
 			s.Require().NoError(err)
 			s.Assert().Equal(test.connack, connack)
 
