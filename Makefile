@@ -52,8 +52,12 @@ generate: ## Generate files
 .PHONY: build
 build: ## Build application
 	$(call print_task,"Building application")
-	@mkdir -p ${BIN_DIR}
-	@go build -o ${BIN_DIR}/akirad cmd/akirad/main.go
+	@for dir in \
+		`find examples -iname main.go | sed -r 's/examples\///g; s/\/main.go//g'`; do \
+			echo "Building 'examples/$$dir'..."; \
+			mkdir -p ${BIN_DIR}/examples; \
+			go build -o ${BIN_DIR}/examples/$$dir examples/$$dir/main.go; \
+	done
 	$(call print_task_result,"Building application","done")
 
 .PHONE: update
