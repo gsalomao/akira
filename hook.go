@@ -184,10 +184,10 @@ type OnPacketSendErrorHook interface {
 }
 
 // OnPacketSentHook is the hook interface that wraps the OnPacketSent method. The OnPacketSent method is called by the
-// server after the packet has been sent to the client. If this method returns an error, the server closes the client.
+// server after the packet has been sent to the client.
 type OnPacketSentHook interface {
 	Hook
-	OnPacketSent(c *Client, p Packet) error
+	OnPacketSent(c *Client, p Packet)
 }
 
 // OnConnectHook is the hook interface that wraps the OnConnect method. The OnConnect method is called by the server
@@ -528,9 +528,9 @@ func (h *hooks) onPacketSendError(c *Client, p Packet, err error) {
 	}
 }
 
-func (h *hooks) onPacketSent(c *Client, p Packet) error {
+func (h *hooks) onPacketSent(c *Client, p Packet) {
 	if !h.hasHook(onPacketSentHook) {
-		return nil
+		return
 	}
 
 	h.mutex.RLock()
@@ -538,14 +538,8 @@ func (h *hooks) onPacketSent(c *Client, p Packet) error {
 
 	for _, hook := range h.hooks[onPacketSentHook] {
 		hk := hook.(OnPacketSentHook)
-
-		err := hk.OnPacketSent(c, p)
-		if err != nil {
-			return err
-		}
+		hk.OnPacketSent(c, p)
 	}
-
-	return nil
 }
 
 func (h *hooks) onConnect(c *Client, p *packet.Connect) error {

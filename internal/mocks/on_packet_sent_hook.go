@@ -62,17 +62,8 @@ func (_c *MockOnPacketSentHook_Name_Call) RunAndReturn(run func() string) *MockO
 }
 
 // OnPacketSent provides a mock function with given fields: c, p
-func (_m *MockOnPacketSentHook) OnPacketSent(c *akira.Client, p akira.Packet) error {
-	ret := _m.Called(c, p)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(*akira.Client, akira.Packet) error); ok {
-		r0 = rf(c, p)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
+func (_m *MockOnPacketSentHook) OnPacketSent(c *akira.Client, p akira.Packet) {
+	_m.Called(c, p)
 }
 
 // MockOnPacketSentHook_OnPacketSent_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'OnPacketSent'
@@ -94,12 +85,12 @@ func (_c *MockOnPacketSentHook_OnPacketSent_Call) Run(run func(c *akira.Client, 
 	return _c
 }
 
-func (_c *MockOnPacketSentHook_OnPacketSent_Call) Return(_a0 error) *MockOnPacketSentHook_OnPacketSent_Call {
-	_c.Call.Return(_a0)
+func (_c *MockOnPacketSentHook_OnPacketSent_Call) Return() *MockOnPacketSentHook_OnPacketSent_Call {
+	_c.Call.Return()
 	return _c
 }
 
-func (_c *MockOnPacketSentHook_OnPacketSent_Call) RunAndReturn(run func(*akira.Client, akira.Packet) error) *MockOnPacketSentHook_OnPacketSent_Call {
+func (_c *MockOnPacketSentHook_OnPacketSent_Call) RunAndReturn(run func(*akira.Client, akira.Packet)) *MockOnPacketSentHook_OnPacketSent_Call {
 	_c.Call.Return(run)
 	return _c
 }

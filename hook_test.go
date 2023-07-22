@@ -49,8 +49,7 @@ func (h *hookSpy) OnPacketSend(_ *Client, _ Packet) error {
 	return nil
 }
 
-func (h *hookSpy) OnPacketSent(_ *Client, _ Packet) error {
-	return nil
+func (h *hookSpy) OnPacketSent(_ *Client, _ Packet) {
 }
 
 func BenchmarkHooksOnConnectionOpen(b *testing.B) {
@@ -191,7 +190,7 @@ func BenchmarkHooksOnPacketSent(b *testing.B) {
 		h := newHooks()
 
 		for i := 0; i < b.N; i++ {
-			_ = h.onPacketSent(nil, nil)
+			h.onPacketSent(nil, nil)
 		}
 	})
 
@@ -200,7 +199,7 @@ func BenchmarkHooksOnPacketSent(b *testing.B) {
 		_ = h.add(&hookSpy{})
 
 		for i := 0; i < b.N; i++ {
-			_ = h.onPacketSent(nil, nil)
+			h.onPacketSent(nil, nil)
 		}
 	})
 }

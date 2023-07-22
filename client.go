@@ -241,7 +241,8 @@ func (c *Client) sendPacket(p PacketEncodable) error {
 		return err
 	}
 
-	return c.Server.hooks.onPacketSent(c, p)
+	c.Server.hooks.onPacketSent(c, p)
+	return nil
 }
 
 func (c *Client) refreshDeadline() {

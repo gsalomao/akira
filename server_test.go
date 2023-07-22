@@ -678,36 +678,6 @@ func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketSendReturnsError() {
 	s.Require().ErrorIs(err, io.EOF)
 }
 
-func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketSentReturnsError() {
-	opts := akira.NewDefaultOptions()
-	srv, _ := akira.NewServer(opts)
-	defer srv.Close()
-
-	lsn, onConnectionStream := s.addListener(srv)
-
-	onPacketSent := mocks.NewMockOnPacketSentHook(s.T())
-	onPacketSent.EXPECT().Name().Return("onPacketSent")
-	onPacketSent.EXPECT().OnPacketSent(mock.Anything, mock.Anything).Return(assert.AnError)
-	_ = srv.AddHook(onPacketSent)
-
-	conn1, conn2 := net.Pipe()
-	defer func() { _ = conn1.Close() }()
-	_ = srv.Start()
-
-	onConnection := <-onConnectionStream
-	onConnection(lsn, conn2)
-
-	msg := []byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 2, 0, 100, 0, 2, 'a', 'b'}
-	_, _ = conn1.Write(msg)
-
-	reply := make([]byte, 4)
-	_, err := conn1.Read(reply)
-	s.Require().NoError(err)
-
-	_, err = conn1.Read(reply)
-	s.Require().ErrorIs(err, io.EOF)
-}
-
 func (s *ServerTestSuite) TestOnPacketSendErrorIsCalledWhenFailedToSendPacket() {
 	opts := akira.NewDefaultOptions()
 	srv, _ := akira.NewServer(opts)
@@ -794,12 +764,10 @@ func (s *ServerTestSuite) TestConnectPacket() {
 
 			onPacketSent := mocks.NewMockOnPacketSentHook(s.T())
 			onPacketSent.EXPECT().Name().Return("onPacketSent")
-			onPacketSent.EXPECT().OnPacketSent(mock.Anything, mock.Anything).
-				RunAndReturn(func(c *akira.Client, p akira.Packet) error {
-					s.Require().Equal(session, c.Session)
-					s.Require().Equal(packet.TypeConnAck, p.Type())
-					return nil
-				})
+			onPacketSent.EXPECT().OnPacketSent(mock.Anything, mock.Anything).Run(func(c *akira.Client, p akira.Packet) {
+				s.Require().Equal(session, c.Session)
+				s.Require().Equal(packet.TypeConnAck, p.Type())
+			})
 			_ = srv.AddHook(onPacketSent)
 
 			onConnect := mocks.NewMockOnConnectHook(s.T())
