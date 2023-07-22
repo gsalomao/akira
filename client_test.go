@@ -92,7 +92,7 @@ func (s *ClientsTestSuite) TestRemoveUnknownClient() {
 func (s *ClientsTestSuite) TestUpdate() {
 	s.clients.add(s.client)
 
-	s.client.Session = &Session{ClientID: []byte("abc")}
+	s.client.ID = []byte("abc")
 	s.client.setState(ClientConnected)
 
 	s.clients.update(s.client)
@@ -114,7 +114,7 @@ func (s *ClientsTestSuite) TestCloseAll() {
 		s.clients.add(cls[i])
 	}
 
-	cls[0].Session = &Session{ClientID: []byte("abc")}
+	cls[0].ID = []byte("abc")
 	cls[0].setState(ClientConnected)
 	s.clients.update(cls[0])
 

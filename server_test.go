@@ -739,7 +739,6 @@ func (s *ServerTestSuite) TestConnectPacket() {
 			store.EXPECT().SaveSession(mock.Anything, mock.Anything).
 				RunAndReturn(func(id []byte, ss *akira.Session) error {
 					s.Assert().Equal([]byte{'a', 'b'}, id)
-					s.Assert().Equal(id, ss.ClientID)
 					s.Assert().True(ss.Connected)
 					session = ss
 					return nil
@@ -835,7 +834,7 @@ func (s *ServerTestSuite) TestConnectPacketWithSessionPresent() {
 
 	for _, test := range testCases {
 		s.Run(test.name, func() {
-			session := &akira.Session{ClientID: []byte{'a', 'b'}, Connected: false}
+			session := &akira.Session{Connected: false}
 
 			store := mocks.NewMockSessionStore(s.T())
 			store.EXPECT().GetSession([]byte{'a', 'b'}).Return(session, nil)
@@ -874,7 +873,6 @@ func (s *ServerTestSuite) TestConnectPacketWithCleanSession() {
 	store.EXPECT().SaveSession(mock.Anything, mock.Anything).
 		RunAndReturn(func(id []byte, session *akira.Session) error {
 			s.Assert().Equal([]byte{'a', 'b'}, id)
-			s.Assert().Equal(id, session.ClientID)
 			s.Assert().True(session.Connected)
 			return nil
 		})

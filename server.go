@@ -437,18 +437,19 @@ func (s *Server) connect(c *Client, connect *packet.Connect) error {
 	}
 
 	if session == nil {
-		session = &Session{ClientID: connect.ClientID}
+		session = &Session{}
 	} else {
 		sessionPresent = true
 	}
 
+	c.ID = connect.ClientID
 	c.Session = session
 	c.Session.Connected = true
 	c.Session.Properties = sessionProperties(connect.Properties, &s.config)
 	c.Session.LastWill = lastWill(connect)
 	c.Connection.KeepAlive = sessionKeepAlive(connect.KeepAlive, s.config.MaxKeepAlive)
 
-	err = s.store.saveSession(session.ClientID, session)
+	err = s.store.saveSession(c.ID, session)
 	if err != nil {
 		// If the session store fails to save the session, the server replies to client indicating that the service
 		// is unavailable.

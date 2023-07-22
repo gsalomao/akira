@@ -39,6 +39,9 @@ type ClientState byte
 
 // Client represents a MQTT client.
 type Client struct {
+	// ID represents the client identifier.
+	ID []byte `json:"id"`
+
 	// Connection represents the client's connection.
 	Connection *Connection `json:"connection"`
 
@@ -71,9 +74,6 @@ type Connection struct {
 
 // Session represents the MQTT session.
 type Session struct {
-	// ClientID represents the client identifier.
-	ClientID []byte `json:"client_id"`
-
 	// Properties represents the properties of the session (MQTT V5.0).
 	Properties *SessionProperties `json:"properties,omitempty"`
 
@@ -254,7 +254,7 @@ func (c *clients) addLocked(client *Client) {
 	case ClientPending:
 		c.pending = append(c.pending, client)
 	case ClientConnected:
-		c.connected[string(client.Session.ClientID)] = client
+		c.connected[string(client.ID)] = client
 	default:
 	}
 }
