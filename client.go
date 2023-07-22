@@ -17,25 +17,11 @@ package akira
 import (
 	"math"
 	"net"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gsalomao/akira/packet"
 )
-
-const (
-	// ClientPending indicates that the network connection is open but the MQTT connection flow is pending.
-	ClientPending ClientState = iota
-
-	// ClientConnected indicates that the client is currently connected.
-	ClientConnected
-
-	// ClientClosed indicates that the client is closed and not able to receive or send any packet.
-	ClientClosed
-)
-
-// ClientState represents the client state.
-type ClientState byte
 
 // Client represents a MQTT client.
 type Client struct {
@@ -45,24 +31,32 @@ type Client struct {
 	// Connection represents the client's connection.
 	Connection *Connection `json:"connection"`
 
-	// Server represents the current server.
-	Server *Server `json:"-"`
-
 	// Session represents the client's session.
 	Session *Session `json:"session"`
 
-	mu        sync.RWMutex
-	closeOnce sync.Once
-	state     ClientState
+	connected atomic.Bool
+}
+
+// Connected returns whether the client is connected or not.
+func (c *Client) Connected() bool {
+	return c.connected.Load()
+}
+
+func (c *Client) refreshDeadline(keepAlive uint16) {
+	var deadline time.Time
+
+	if keepAlive > 0 {
+		timeout := math.Ceil(float64(keepAlive) * 1.5)
+		deadline = time.Now().Add(time.Duration(timeout) * time.Second)
+	}
+
+	_ = c.Connection.netConn.SetDeadline(deadline)
 }
 
 // Connection represents the network connection with the client.
 type Connection struct {
 	netConn  net.Conn
 	listener Listener
-
-	// Timestamp which the client connected.
-	ConnectedAt time.Time
 
 	// KeepAlive is a time interval, measured in seconds, that is permitted to elapse between the point at which
 	// the client finishes transmitting one control packet and the point it starts sending the next.
@@ -79,6 +73,9 @@ type Session struct {
 
 	// LastWill represents the MQTT Will Message to be published by the server.
 	LastWill *LastWill `json:"last_will,omitempty"`
+
+	// ConnectedAt indicates the timestamp, in milliseconds, of the last time the client has connected.
+	ConnectedAt int64 `json:"connected_at"`
 
 	// Connected indicates that the client associated with the session is connected.
 	Connected bool `json:"connected"`
@@ -144,133 +141,4 @@ type LastWill struct {
 
 	// Retain indicates whether the Will Message will be published as a retained message or not.
 	Retain bool `json:"retain"`
-}
-
-func newClient(nc net.Conn, s *Server, l Listener) *Client {
-	c := Client{
-		Connection: &Connection{
-			netConn:     nc,
-			listener:    l,
-			ConnectedAt: time.Now(),
-			KeepAlive:   s.config.ConnectTimeout,
-		},
-		Server: s,
-	}
-	return &c
-}
-
-// State returns the current client state.
-func (c *Client) State() ClientState {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	return c.state
-}
-
-func (c *Client) setState(s ClientState) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.state = s
-}
-
-func (c *Client) close(err error) {
-	c.closeOnce.Do(func() {
-		c.Server.hooks.onConnectionClose(c.Server, c.Connection.listener, err)
-
-		c.mu.Lock()
-		defer c.mu.Unlock()
-
-		c.state = ClientClosed
-		_ = c.Connection.netConn.Close()
-
-		c.Server.hooks.onConnectionClosed(c.Server, c.Connection.listener, err)
-	})
-}
-
-func (c *Client) refreshDeadline() {
-	var deadline time.Time
-
-	if c.Connection.KeepAlive > 0 {
-		timeout := math.Ceil(float64(c.Connection.KeepAlive) * 1.5)
-		deadline = time.Now().Add(time.Duration(timeout) * time.Second)
-	}
-
-	_ = c.Connection.netConn.SetDeadline(deadline)
-}
-
-type clients struct {
-	mutex     sync.RWMutex
-	pending   []*Client
-	connected map[string]*Client
-}
-
-func newClients() *clients {
-	c := clients{
-		pending:   make([]*Client, 0),
-		connected: make(map[string]*Client),
-	}
-	return &c
-}
-
-func (c *clients) add(client *Client) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	c.addLocked(client)
-}
-
-func (c *clients) remove(client *Client) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	c.removePendingLocked(client)
-}
-
-func (c *clients) update(client *Client) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	c.removePendingLocked(client)
-	c.addLocked(client)
-}
-
-func (c *clients) closeAll() {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	for _, client := range c.pending {
-		client.close(nil)
-		c.removePendingLocked(client)
-	}
-	for id, client := range c.connected {
-		client.close(nil)
-		delete(c.connected, id)
-	}
-}
-
-func (c *clients) addLocked(client *Client) {
-	switch client.State() {
-	case ClientPending:
-		c.pending = append(c.pending, client)
-	case ClientConnected:
-		c.connected[string(client.ID)] = client
-	default:
-	}
-}
-
-func (c *clients) removePendingLocked(client *Client) {
-	var i int
-	size := len(c.pending)
-
-	for ; i < size; i++ {
-		if c.pending[i] == client {
-			break
-		}
-	}
-
-	if i < size {
-		c.pending[i] = c.pending[size-1]
-		c.pending = c.pending[:size-1]
-	}
 }

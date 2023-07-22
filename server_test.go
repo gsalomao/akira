@@ -784,10 +784,10 @@ func (s *ServerTestSuite) TestConnectPacket() {
 			onConnected := mocks.NewMockOnConnectedHook(s.T())
 			onConnected.EXPECT().Name().Return("onConnected")
 			onConnected.EXPECT().OnConnected(mock.Anything).Run(func(c *akira.Client) {
-				s.Require().Equal(akira.ClientConnected, c.State())
+				s.Require().True(c.Connected())
 				s.Require().Equal(session, c.Session)
 				s.Require().NotNil(c.Connection)
-				s.Assert().WithinDuration(time.Now(), c.Connection.ConnectedAt, time.Second)
+				s.Assert().WithinDuration(time.Now(), time.UnixMilli(c.Session.ConnectedAt), time.Second)
 				close(connectedCh)
 			})
 			_ = srv.AddHook(onConnected)

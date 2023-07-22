@@ -116,7 +116,7 @@ func (h *loggingHook) OnConnectionClosed(_ *akira.Server, _ akira.Listener, _ er
 }
 
 func (h *loggingHook) OnPacketReceived(c *akira.Client, p akira.Packet) error {
-	if c.Session != nil {
+	if c.Connected() {
 		log.Printf("Received packet '%s' from client '%s'", p.Type(), c.ID)
 	} else {
 		log.Printf("Received packet '%s'", p.Type())

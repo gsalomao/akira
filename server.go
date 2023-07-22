@@ -24,6 +24,7 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/gsalomao/akira/packet"
 )
@@ -67,9 +68,9 @@ type Server struct {
 	store       store
 	listeners   *listeners
 	hooks       *hooks
-	clients     *clients
 	readBufPool sync.Pool
-	cancelCtx   context.CancelFunc
+	ctx         context.Context
+	cancelCtx   context.CancelCauseFunc
 	state       atomic.Uint32
 	wg          sync.WaitGroup
 	stopOnce    sync.Once
@@ -91,7 +92,6 @@ func NewServer(opts *Options) (s *Server, err error) {
 		store:     store{sessionStore: opts.SessionStore},
 		listeners: newListeners(),
 		hooks:     newHooks(),
-		clients:   newClients(),
 		readBufPool: sync.Pool{
 			New: func() any { return bufio.NewReaderSize(nil, s.config.ReadBufferSize) },
 		},
@@ -160,8 +160,8 @@ func (s *Server) Start() error {
 		return err
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	s.cancelCtx = cancel
+	s.stopOnce = sync.Once{}
+	s.ctx, s.cancelCtx = context.WithCancelCause(context.Background())
 
 	err = s.listeners.listenAll(s.handleConnection)
 	if err != nil {
@@ -169,9 +169,18 @@ func (s *Server) Start() error {
 		return err
 	}
 
+	s.wg.Add(1)
+	readyCh := make(chan struct{})
 	s.stopOnce = sync.Once{}
-	s.startDaemon(ctx)
 
+	go func() {
+		defer s.wg.Done()
+		close(readyCh)
+
+		s.backgroundLoop(s.ctx)
+	}()
+
+	<-readyCh
 	_ = s.setState(ServerRunning)
 	return nil
 }
@@ -258,61 +267,80 @@ func (s *Server) stop() {
 	s.stopOnce.Do(func() {
 		_ = s.setState(ServerStopping)
 		s.listeners.closeAll()
-		s.cancelCtx()
-		s.clients.closeAll()
+		s.cancelCtx(ErrServerStopped)
 	})
 }
 
-func (s *Server) startDaemon(ctx context.Context) {
-	readyCh := make(chan struct{})
-
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		close(readyCh)
-		<-ctx.Done()
-	}()
-
-	<-readyCh
-}
-
 func (s *Server) handleConnection(l Listener, nc net.Conn) {
-	client := newClient(nc, s, l)
+	client := &Client{
+		Connection: &Connection{
+			netConn:   nc,
+			listener:  l,
+			KeepAlive: s.config.ConnectTimeout,
+		},
+	}
 
 	if err := s.hooks.onConnectionOpen(s, l); err != nil {
-		client.close(err)
+		s.closeConnection(client.Connection, err)
 		return
 	}
 
-	s.clients.add(client)
-	s.wg.Add(1)
+	ctx, cancelCtx := context.WithCancelCause(s.ctx)
+	s.wg.Add(2)
 
+	// The inbound goroutine is responsible for receive and handle the received packets from client.
 	go func() {
 		defer s.wg.Done()
-		defer s.clients.remove(client)
 
-		var err error
-		defer func() { client.close(err) }()
-
-		for {
-			var pkt Packet
-
-			pkt, err = s.receivePacket(client)
-			if err != nil {
-				return
-			}
-			if pkt == nil {
-				continue
-			}
-
-			err = s.handlePacket(client, pkt)
-			if err != nil {
-				return
-			}
+		err := s.inboundLoop(client)
+		if err != nil {
+			cancelCtx(err)
 		}
 	}()
 
-	s.hooks.onConnectionOpened(s, client.Connection.listener)
+	// The outbound goroutine is responsible to send outbound packets to client.
+	go func() {
+		defer s.wg.Done()
+
+		err := s.outboundLoop(ctx)
+		if err != nil {
+			s.closeConnection(client.Connection, err)
+		}
+	}()
+
+	s.hooks.onConnectionOpened(s, l)
+}
+
+func (s *Server) closeConnection(c *Connection, err error) {
+	s.hooks.onConnectionClose(s, c.listener, err)
+	_ = c.netConn.Close()
+	s.hooks.onConnectionClosed(s, c.listener, err)
+}
+
+func (s *Server) inboundLoop(c *Client) error {
+	for {
+		p, err := s.receivePacket(c)
+		if err != nil {
+			return err
+		}
+		if p == nil {
+			continue
+		}
+
+		err = s.handlePacket(c, p)
+		if err != nil {
+			return err
+		}
+	}
+}
+
+func (s *Server) outboundLoop(ctx context.Context) error {
+	<-ctx.Done()
+	return context.Cause(ctx)
+}
+
+func (s *Server) backgroundLoop(ctx context.Context) {
+	<-ctx.Done()
 }
 
 func (s *Server) receivePacket(c *Client) (p Packet, err error) {
@@ -325,11 +353,11 @@ func (s *Server) receivePacket(c *Client) (p Packet, err error) {
 	defer s.readBufPool.Put(buf)
 
 	buf.Reset(c.Connection.netConn)
-	c.refreshDeadline()
+	c.refreshDeadline(c.Connection.KeepAlive)
 
 	p, _, err = readPacket(buf)
 	if err != nil {
-		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || c.State() == ClientClosed {
+		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
 			return nil, io.EOF
 		}
 		if errors.Is(err, os.ErrDeadlineExceeded) {
@@ -346,24 +374,6 @@ func (s *Server) receivePacket(c *Client) (p Packet, err error) {
 	}
 
 	return p, nil
-}
-
-func (s *Server) sendPacket(c *Client, p PacketEncodable) error {
-	err := s.hooks.onPacketSend(c, p)
-	if err != nil {
-		return err
-	}
-
-	err = writePacket(c.Connection.netConn, p)
-	if err != nil {
-		if !errors.Is(err, io.EOF) {
-			s.hooks.onPacketSendError(c, p, err)
-		}
-		return err
-	}
-
-	s.hooks.onPacketSent(c, p)
-	return nil
 }
 
 func (s *Server) handlePacket(c *Client, p Packet) error {
@@ -445,6 +455,7 @@ func (s *Server) connect(c *Client, connect *packet.Connect) error {
 	c.ID = connect.ClientID
 	c.Session = session
 	c.Session.Connected = true
+	c.Session.ConnectedAt = time.Now().UnixMilli()
 	c.Session.Properties = sessionProperties(connect.Properties, &s.config)
 	c.Session.LastWill = lastWill(connect)
 	c.Connection.KeepAlive = sessionKeepAlive(connect.KeepAlive, s.config.MaxKeepAlive)
@@ -463,8 +474,7 @@ func (s *Server) connect(c *Client, connect *packet.Connect) error {
 		return err
 	}
 
-	c.setState(ClientConnected)
-	s.clients.update(c)
+	c.connected.Store(true)
 	return nil
 }
 
@@ -482,4 +492,22 @@ func (s *Server) sendConnAck(c *Client, code packet.ReasonCode, present bool, co
 	}
 	connack := packet.ConnAck{Version: c.Connection.Version, Code: code, SessionPresent: present, Properties: props}
 	return s.sendPacket(c, &connack)
+}
+
+func (s *Server) sendPacket(c *Client, p PacketEncodable) error {
+	err := s.hooks.onPacketSend(c, p)
+	if err != nil {
+		return err
+	}
+
+	err = writePacket(c.Connection.netConn, p)
+	if err != nil {
+		if !errors.Is(err, io.EOF) {
+			s.hooks.onPacketSendError(c, p, err)
+		}
+		return err
+	}
+
+	s.hooks.onPacketSent(c, p)
+	return nil
 }
