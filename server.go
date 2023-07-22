@@ -28,9 +28,6 @@ import (
 	"github.com/gsalomao/akira/packet"
 )
 
-// ErrInvalidServerState indicates that the Server is not in a valid state for the operation.
-var ErrInvalidServerState = errors.New("invalid server state")
-
 const (
 	// ServerNotStarted indicates that the Server has not started yet.
 	ServerNotStarted ServerState = iota
@@ -53,6 +50,12 @@ const (
 	// ServerClosed indicates that the Server has closed.
 	ServerClosed
 )
+
+// ErrInvalidServerState indicates that the Server is not in a valid state for the operation.
+var ErrInvalidServerState = errors.New("invalid server state")
+
+// ErrServerStopped indicates that the Server has stopped.
+var ErrServerStopped = errors.New("server stopped")
 
 // ServerState represents the current state of the Server.
 type ServerState uint32
@@ -79,7 +82,6 @@ func NewServer(opts *Options) (s *Server, err error) {
 	if opts == nil {
 		opts = NewDefaultOptions()
 	}
-
 	if opts.Config == nil {
 		opts.Config = NewDefaultConfig()
 	}
@@ -123,7 +125,6 @@ func (s *Server) AddListener(l Listener) error {
 			return err
 		}
 	}
-
 	s.listeners.add(l)
 	return nil
 }
@@ -141,7 +142,6 @@ func (s *Server) AddHook(h Hook) error {
 			}
 		}
 	}
-
 	return s.hooks.add(h)
 }
 
@@ -151,7 +151,6 @@ func (s *Server) AddHook(h Hook) error {
 // If the Server is not in the ServerNotStarted or ServerStopped state, it returns ErrInvalidServerState.
 func (s *Server) Start() error {
 	state := s.State()
-
 	if state != ServerNotStarted && state != ServerStopped {
 		return ErrInvalidServerState
 	}
@@ -187,10 +186,13 @@ func (s *Server) Stop(ctx context.Context) error {
 	}
 
 	s.stop()
-
 	stoppedCh := make(chan struct{})
+
 	go func() {
 		s.wg.Wait()
+		// TODO: Make sure that the server doesn't end up in the stopped state when this goroutine sets the state to
+		// stopped after the server has been closed.
+		_ = s.setState(ServerStopped)
 		close(stoppedCh)
 	}()
 
@@ -198,28 +200,25 @@ func (s *Server) Stop(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-stoppedCh:
-		_ = s.setState(ServerStopped)
 		return nil
 	}
 }
 
 // Close closes the Server.
-// If the Server is in ServerRunning or ServerStopping state, it blocks until the Server has stopped.
+// If the Server is in ServerRunning state, it stops the server first before close it.
 // When the Server is closed, it cannot be started again.
 func (s *Server) Close() {
-	state := s.State()
-	if state != ServerRunning && state != ServerStopping {
+	switch s.State() {
+	case ServerNotStarted, ServerStopped, ServerFailed:
 		_ = s.setState(ServerClosed)
 		return
-	}
-
-	s.stop()
-	s.wg.Wait()
-
-	if state == ServerRunning {
+	case ServerRunning:
+		s.stop()
 		_ = s.setState(ServerStopped)
+	case ServerClosed:
+		return
+	default:
 	}
-
 	_ = s.setState(ServerClosed)
 }
 
@@ -232,32 +231,26 @@ func (s *Server) setState(state ServerState) error {
 	var err error
 
 	s.state.Store(uint32(state))
-
 	if state == ServerStarting {
 		err = s.hooks.onServerStart(s)
 		if err == nil {
 			err = s.hooks.onStart(s)
 		}
 	}
-
 	if state == ServerStopping {
 		s.hooks.onServerStop(s)
 		s.hooks.onStop(s)
 	}
-
 	if state == ServerStopped {
 		s.hooks.onServerStopped(s)
 	}
-
 	if state == ServerRunning {
 		s.hooks.onServerStarted(s)
 	}
-
 	if state == ServerFailed || err != nil {
 		s.state.Store(uint32(ServerFailed))
 		s.hooks.onServerStartFailed(s, err)
 	}
-
 	return err
 }
 
