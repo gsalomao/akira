@@ -19,7 +19,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"os"
 	"sync"
 	"sync/atomic"
 
@@ -226,15 +228,6 @@ func (s *Server) State() ServerState {
 	return ServerState(s.state.Load())
 }
 
-func (s *Server) stop() {
-	s.stopOnce.Do(func() {
-		_ = s.setState(ServerStopping)
-		s.listeners.closeAll()
-		s.cancelCtx()
-		s.clients.closeAll()
-	})
-}
-
 func (s *Server) setState(state ServerState) error {
 	var err error
 
@@ -266,6 +259,15 @@ func (s *Server) setState(state ServerState) error {
 	}
 
 	return err
+}
+
+func (s *Server) stop() {
+	s.stopOnce.Do(func() {
+		_ = s.setState(ServerStopping)
+		s.listeners.closeAll()
+		s.cancelCtx()
+		s.clients.closeAll()
+	})
 }
 
 func (s *Server) startDaemon(ctx context.Context) {
@@ -321,47 +323,92 @@ func (s *Server) handleConnection(l Listener, nc net.Conn) {
 }
 
 func (s *Server) receivePacket(c *Client) (p Packet, err error) {
+	err = s.hooks.onPacketReceive(c)
+	if err != nil {
+		return nil, err
+	}
+
 	buf := s.readBufPool.Get().(*bufio.Reader)
 	defer s.readBufPool.Put(buf)
 
 	buf.Reset(c.Connection.netConn)
 	c.refreshDeadline()
 
-	return c.receivePacket(buf)
+	p, _, err = readPacket(buf)
+	if err != nil {
+		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || c.State() == ClientClosed {
+			return nil, io.EOF
+		}
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			return nil, err
+		}
+
+		err = s.hooks.onPacketReceiveError(c, err)
+		return nil, err
+	}
+
+	err = s.hooks.onPacketReceived(c, p)
+	if err != nil {
+		return nil, err
+	}
+
+	return p, nil
+}
+
+func (s *Server) sendPacket(c *Client, p PacketEncodable) error {
+	err := s.hooks.onPacketSend(c, p)
+	if err != nil {
+		return err
+	}
+
+	err = writePacket(c.Connection.netConn, p)
+	if err != nil {
+		if !errors.Is(err, io.EOF) {
+			s.hooks.onPacketSendError(c, p, err)
+		}
+		return err
+	}
+
+	s.hooks.onPacketSent(c, p)
+	return nil
 }
 
 func (s *Server) handlePacket(c *Client, p Packet) error {
 	switch pkt := p.(type) {
 	case *packet.Connect:
-		// The first step must be to set the version of the MQTT connection as this information is required for further
-		// processing.
-		c.Connection.Version = pkt.Version
-
-		err := s.hooks.onConnect(c, pkt)
-		if err != nil {
-			var pktErr packet.Error
-			if errors.As(err, &pktErr) {
-				if pktErr.Code != packet.ReasonCodeSuccess && pktErr.Code != packet.ReasonCodeMalformedPacket {
-					_ = s.sendConnAck(c, pktErr.Code, false, nil)
-				}
-			}
-			return err
-		}
-
-		err = s.handlePacketConnect(c, pkt)
-		if err != nil {
-			s.hooks.onConnectError(c, pkt, err)
-			return err
-		}
-
-		s.hooks.onConnected(c)
-		return nil
+		return s.handlePacketConnect(c, pkt)
 	default:
 		return errors.New("unsupported packet")
 	}
 }
 
 func (s *Server) handlePacketConnect(c *Client, connect *packet.Connect) error {
+	// The first step must be to set the version of the MQTT connection as this information is required for further
+	// processing.
+	c.Connection.Version = connect.Version
+
+	err := s.hooks.onConnect(c, connect)
+	if err != nil {
+		var pktErr packet.Error
+		if errors.As(err, &pktErr) {
+			if pktErr.Code != packet.ReasonCodeSuccess && pktErr.Code != packet.ReasonCodeMalformedPacket {
+				_ = s.sendConnAck(c, pktErr.Code, false, nil)
+			}
+		}
+		return err
+	}
+
+	err = s.connect(c, connect)
+	if err != nil {
+		s.hooks.onConnectError(c, connect, err)
+		return err
+	}
+
+	s.hooks.onConnected(c)
+	return nil
+}
+
+func (s *Server) connect(c *Client, connect *packet.Connect) error {
 	var (
 		session        *Session
 		sessionPresent bool
@@ -440,5 +487,5 @@ func (s *Server) sendConnAck(c *Client, code packet.ReasonCode, present bool, co
 		props = connAckProperties(c, &s.config, connect)
 	}
 	connack := packet.ConnAck{Version: c.Connection.Version, Code: code, SessionPresent: present, Properties: props}
-	return c.sendPacket(&connack)
+	return s.sendPacket(c, &connack)
 }

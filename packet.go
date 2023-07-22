@@ -87,3 +87,19 @@ func readPacket(r *bufio.Reader) (Packet, int, error) {
 
 	return p, n, nil
 }
+
+func writePacket(w io.Writer, p PacketEncodable) error {
+	buf := make([]byte, p.Size())
+
+	_, err := p.Encode(buf)
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(buf)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

@@ -15,9 +15,6 @@
 package akira
 
 import (
-	"bufio"
-	"errors"
-	"io"
 	"math"
 	"net"
 	"sync"
@@ -189,60 +186,6 @@ func (c *Client) close(err error) {
 
 		c.Server.hooks.onConnectionClosed(c.Server, c.Connection.listener, err)
 	})
-}
-
-func (c *Client) receivePacket(r *bufio.Reader) (Packet, error) {
-	if err := c.Server.hooks.onPacketReceive(c); err != nil {
-		return nil, err
-	}
-
-	p, _, err := readPacket(r)
-	if err != nil {
-		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || c.State() == ClientClosed {
-			return nil, err
-		}
-
-		var netErr net.Error
-		if errors.As(err, &netErr) && netErr.Timeout() {
-			return nil, err
-		}
-
-		err = c.Server.hooks.onPacketReceiveError(c, err)
-		return nil, err
-	}
-
-	err = c.Server.hooks.onPacketReceived(c, p)
-	if err != nil {
-		return nil, err
-	}
-
-	return p, err
-}
-
-func (c *Client) sendPacket(p PacketEncodable) error {
-	err := c.Server.hooks.onPacketSend(c, p)
-	if err != nil {
-		return err
-	}
-
-	buf := make([]byte, p.Size())
-
-	_, err = p.Encode(buf)
-	if err != nil {
-		c.Server.hooks.onPacketSendError(c, p, err)
-		return err
-	}
-
-	_, err = c.Connection.netConn.Write(buf)
-	if err != nil {
-		if !errors.Is(err, io.EOF) {
-			c.Server.hooks.onPacketSendError(c, p, err)
-		}
-		return err
-	}
-
-	c.Server.hooks.onPacketSent(c, p)
-	return nil
 }
 
 func (c *Client) refreshDeadline() {
