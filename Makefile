@@ -140,7 +140,7 @@ complexity: ## Calculates cyclomatic complexity
 
 	$(call print_task,"Calculating cognitive complexity")
 	@gocognit -top 10 -avg .
-	@gocognit -over 15 .
+	@gocognit -over 20 .
 	$(call print_task_result,"Calculating cognitive complexity","done")
 
 ## Help

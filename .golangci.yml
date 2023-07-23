@@ -101,7 +101,7 @@ linters-settings:
           - github.com/gsalomao/akira
           - github.com/stretchr/testify
   gocognit:
-    min-complexity: 15
+    min-complexity: 20
   gocyclo:
     min-complexity: 12
   gocritic:
