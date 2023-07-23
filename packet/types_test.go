@@ -18,16 +18,15 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"testing"
 	"unicode/utf8"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"unsafe"
 )
 
 func TestPacketTypeString(t *testing.T) {
-	types := map[Type]string{
+	testCases := map[Type]string{
 		TypeReserved:    "RESERVED",
 		TypeConnect:     "CONNECT",
 		TypeConnAck:     "CONNACK",
@@ -47,10 +46,12 @@ func TestPacketTypeString(t *testing.T) {
 		TypeInvalid:     "INVALID",
 	}
 
-	for pt, n := range types {
+	for pt, n := range testCases {
 		t.Run(pt.String(), func(t *testing.T) {
 			name := pt.String()
-			require.Equal(t, n, name)
+			if name != n {
+				t.Fatalf("Unexpected name\nwant: %s\ngot:  %s", n, name)
+			}
 		})
 	}
 }
@@ -71,15 +72,17 @@ func TestSizeVarInteger(t *testing.T) {
 		{268435456, 0},
 	}
 
-	for _, test := range testCases {
-		t.Run(fmt.Sprint(test.val), func(t *testing.T) {
-			size := sizeVarInteger(test.val)
-			assert.Equal(t, test.size, size)
+	for _, tc := range testCases {
+		t.Run(fmt.Sprint(tc.val), func(t *testing.T) {
+			size := sizeVarInteger(tc.val)
+			if size != tc.size {
+				t.Fatalf("Unexpected size\nwant: %v\ngot:  %v", tc.size, size)
+			}
 		})
 	}
 }
 
-func TestReadVarIntegerSuccess(t *testing.T) {
+func TestReadVarInteger(t *testing.T) {
 	testCases := []struct {
 		data []byte
 		val  int
@@ -94,25 +97,33 @@ func TestReadVarIntegerSuccess(t *testing.T) {
 		{[]byte{0xff, 0xff, 0xff, 0x7f}, 268435455},
 	}
 
-	for _, test := range testCases {
-		t.Run(fmt.Sprint(test.val), func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(fmt.Sprint(tc.val), func(t *testing.T) {
 			var val int
-			reader := bufio.NewReader(bytes.NewReader(test.data))
+			reader := bufio.NewReader(bytes.NewReader(tc.data))
 
 			n, err := readVarInteger(reader, &val)
-			require.NoError(t, err)
-			assert.Equal(t, len(test.data), n)
-			assert.Equal(t, test.val, val)
+			if err != nil {
+				t.Fatalf("Unexpected error\n%s", err)
+			}
+			if n != len(tc.data) {
+				t.Fatalf("Unexpected number of bytes read\nwant: %v\ngot:  %v", len(tc.data), n)
+			}
+			if val != tc.val {
+				t.Fatalf("Unexpected value\nwant: %v\ngot:  %v", tc.val, val)
+			}
 		})
 	}
 }
 
-func TestReadVarIntegerReadError(t *testing.T) {
+func TestReadVarIntegerError(t *testing.T) {
 	var val int
 	reader := bufio.NewReader(bytes.NewReader(nil))
 
 	_, err := readVarInteger(reader, &val)
-	require.Error(t, err)
+	if err == nil {
+		t.Fatal("An error was expected")
+	}
 }
 
 func TestReadVarIntegerInvalidValue(t *testing.T) {
@@ -121,10 +132,12 @@ func TestReadVarIntegerInvalidValue(t *testing.T) {
 	reader := bufio.NewReader(bytes.NewReader(data))
 
 	_, err := readVarInteger(reader, &val)
-	require.ErrorIs(t, err, ErrMalformedPacket)
+	if !errors.Is(err, ErrMalformedPacket) {
+		t.Fatalf("Unexpected error\n%s", err)
+	}
 }
 
-func TestDecodeVarIntegerSuccess(t *testing.T) {
+func TestDecodeVarInteger(t *testing.T) {
 	testCases := []struct {
 		data []byte
 		val  int
@@ -139,34 +152,39 @@ func TestDecodeVarIntegerSuccess(t *testing.T) {
 		{[]byte{0xff, 0xff, 0xff, 0x7f}, 268435455},
 	}
 
-	for _, test := range testCases {
-		t.Run(fmt.Sprint(test.val), func(t *testing.T) {
+	for _, tc := range testCases {
+		t.Run(fmt.Sprint(tc.val), func(t *testing.T) {
 			var val int
 
-			n, err := decodeVarInteger(test.data, &val)
-			require.NoError(t, err)
-			assert.Equal(t, len(test.data), n)
-			assert.Equal(t, test.val, val)
+			n, err := decodeVarInteger(tc.data, &val)
+			if err != nil {
+				t.Fatalf("Unexpected error\n%s", err)
+			}
+			if n != len(tc.data) {
+				t.Fatalf("Unexpected number of bytes decoded\nwant: %v\ngot:  %v", len(tc.data), n)
+			}
+			if val != tc.val {
+				t.Fatalf("Unexpected value\nwant: %v\ngot:  %v", tc.val, val)
+			}
 		})
 	}
 }
 
-func TestDecodeVarIntegerReadError(t *testing.T) {
+func TestDecodeVarIntegerError(t *testing.T) {
 	var val int
 
 	_, err := decodeVarInteger(nil, &val)
-	require.Error(t, err)
+	if err == nil {
+		t.Fatal("An error was expected")
+	}
+
+	_, err = decodeVarInteger([]byte{0xff, 0xff, 0xff, 0x80}, &val)
+	if err == nil {
+		t.Fatal("An error was expected")
+	}
 }
 
-func TestDecodeVarIntegerInvalidValue(t *testing.T) {
-	var val int
-	data := []byte{0xff, 0xff, 0xff, 0x80}
-
-	_, err := decodeVarInteger(data, &val)
-	require.Error(t, err)
-}
-
-func TestDecodeStringSuccess(t *testing.T) {
+func TestDecodeString(t *testing.T) {
 	testCases := []struct {
 		data []byte
 		str  []byte
@@ -176,12 +194,18 @@ func TestDecodeStringSuccess(t *testing.T) {
 		{[]byte{0, 3, 'a', 'b', 'c'}, []byte("abc")},
 	}
 
-	for _, test := range testCases {
-		t.Run(string(test.str), func(t *testing.T) {
-			str, n, err := decodeString(test.data)
-			require.NoError(t, err)
-			assert.Equal(t, test.str, str)
-			assert.Equal(t, len(test.data), n)
+	for _, tc := range testCases {
+		t.Run(string(tc.str), func(t *testing.T) {
+			str, n, err := decodeString(tc.data)
+			if err != nil {
+				t.Fatalf("Unexpected error\n%s", err)
+			}
+			if n != len(tc.data) {
+				t.Fatalf("Unexpected number of bytes decoded\nwant: %v\ngot:  %v", len(tc.data), n)
+			}
+			if !bytes.Equal(str, tc.str) {
+				t.Fatalf("Unexpected string\nwant: %v\ngot:  %v", tc.str, str)
+			}
 		})
 	}
 }
@@ -189,11 +213,11 @@ func TestDecodeStringSuccess(t *testing.T) {
 func TestDecodeStringInvalid(t *testing.T) {
 	testCases := []rune{0x00, 0x1f, 0x7f, 0x9f, 0xd800, 0xdfff}
 
-	for _, test := range testCases {
+	for _, tc := range testCases {
 		code := make([]byte, 4)
 		cpLenBuf := make([]byte, 2)
 
-		codeLen := utf8.EncodeRune(code, test)
+		codeLen := utf8.EncodeRune(code, tc)
 		code = code[:codeLen]
 		binary.BigEndian.PutUint16(cpLenBuf, uint16(codeLen))
 
@@ -201,45 +225,57 @@ func TestDecodeStringInvalid(t *testing.T) {
 		data = append(data, cpLenBuf...)
 		data = append(data, code...)
 
-		t.Run(fmt.Sprint(test), func(t *testing.T) {
+		t.Run(fmt.Sprint(tc), func(t *testing.T) {
 			_, _, err := decodeString(data)
-			require.Error(t, err)
+			if err == nil {
+				t.Fatal("An error was expected")
+			}
 		})
 	}
 }
 
 func TestDecodeStringError(t *testing.T) {
 	_, _, err := decodeString([]byte{})
-	require.Error(t, err)
+	if err == nil {
+		t.Fatal("An error was expected")
+	}
 }
 
-func TestEncodeStringSuccess(t *testing.T) {
+func TestEncodeString(t *testing.T) {
 	testCases := []struct {
-		val string
-		str []byte
+		str  string
+		data []byte
 	}{
 		{"", []byte{0, 0}},
 		{"abc", []byte{0, 3, 'a', 'b', 'c'}},
 	}
 
-	for _, test := range testCases {
-		t.Run(test.val, func(t *testing.T) {
-			data := make([]byte, len(test.str))
+	for _, tc := range testCases {
+		t.Run(tc.str, func(t *testing.T) {
+			data := make([]byte, len(tc.data))
 
-			n, err := encodeString(data, []byte(test.val))
-			require.NoError(t, err)
-			assert.Equal(t, len(test.str), n)
-			assert.Equal(t, test.str, data)
+			n, err := encodeString(data, []byte(tc.str))
+			if err != nil {
+				t.Fatalf("Unexpected error\n%s", err)
+			}
+			if n != len(tc.data) {
+				t.Fatalf("Unexpected number of bytes encoded\nwant: %v\ngot:  %v", len(tc.data), n)
+			}
+			if !bytes.Equal(data, tc.data) {
+				t.Fatalf("Unexpected string\nwant: %v\ngot:  %v", tc.data, data)
+			}
 		})
 	}
 }
 
 func TestEncodeStringError(t *testing.T) {
 	_, err := encodeString(make([]byte, 10), []byte{0})
-	require.Error(t, err)
+	if err == nil {
+		t.Fatal("An error was expected")
+	}
 }
 
-func TestDecodeBinarySuccess(t *testing.T) {
+func TestDecodeBinary(t *testing.T) {
 	testCases := []struct {
 		data []byte
 		bin  []byte
@@ -249,45 +285,59 @@ func TestDecodeBinarySuccess(t *testing.T) {
 		{[]byte{0, 3, 'a', 'b', 'c'}, []byte("abc")},
 	}
 
-	for _, test := range testCases {
-		t.Run(string(test.bin), func(t *testing.T) {
-			bin, n, err := decodeBinary(test.data)
-			require.NoError(t, err)
-			assert.Equal(t, test.bin, bin)
-			assert.Equal(t, len(test.data), n)
+	for _, tc := range testCases {
+		t.Run(string(tc.bin), func(t *testing.T) {
+			bin, n, err := decodeBinary(tc.data)
+			if err != nil {
+				t.Fatalf("Unexpected error\n%s", err)
+			}
+			if n != len(tc.data) {
+				t.Fatalf("Unexpected number of bytes decoded\nwant: %v\ngot:  %v", len(tc.data), n)
+			}
+			if !bytes.Equal(bin, tc.bin) {
+				t.Fatalf("Unexpected bin\nwant: %v\ngot:  %v", tc.bin, bin)
+			}
 		})
 	}
 }
 
 func TestDecodeBinaryError(t *testing.T) {
 	_, _, err := decodeBinary([]byte{})
-	require.Error(t, err)
+	if err == nil {
+		t.Fatal("An error was expected")
+	}
 }
 
-func TestEncodeBinarySuccess(t *testing.T) {
+func TestEncodeBinary(t *testing.T) {
 	testCases := []struct {
 		name string
-		val  []byte
 		bin  []byte
+		data []byte
 	}{
 		{"Empty", []byte{}, []byte{0, 0}},
 		{"Non-Empty", []byte{0, 1, 2}, []byte{0, 3, 0, 1, 2}},
 	}
 
-	for _, test := range testCases {
-		t.Run(test.name, func(t *testing.T) {
-			data := make([]byte, len(test.bin))
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			data := make([]byte, len(tc.data))
 
-			n := encodeBinary(data, test.val)
-			assert.Equal(t, len(test.bin), n)
-			assert.Equal(t, test.bin, data)
+			n := encodeBinary(data, tc.bin)
+			if n != len(tc.data) {
+				t.Fatalf("Unexpected number of bytes encoded\nwant: %v\ngot:  %v", len(tc.data), n)
+			}
+			if !bytes.Equal(data, tc.data) {
+				t.Fatalf("Unexpected bin\nwant: %v\ngot:  %v", tc.data, data)
+			}
 		})
 	}
 }
 
 func TestDecodeUintErrorNoData(t *testing.T) {
 	_, err := decodeUint[uint8](nil)
-	require.Error(t, err)
+	if err == nil {
+		t.Fatal("An error was expected")
+	}
 }
 
 func TestDecodeUint8(t *testing.T) {
@@ -299,11 +349,15 @@ func TestDecodeUint8(t *testing.T) {
 		{[]byte{255}, 255},
 	}
 
-	for _, test := range testCases {
-		t.Run(fmt.Sprint(test.val), func(t *testing.T) {
-			val, err := decodeUint[uint8](test.data)
-			require.NoError(t, err)
-			assert.Equal(t, test.val, val)
+	for _, tc := range testCases {
+		t.Run(fmt.Sprint(tc.val), func(t *testing.T) {
+			val, err := decodeUint[uint8](tc.data)
+			if err != nil {
+				t.Fatalf("Unexpected error\n%s", err)
+			}
+			if val != tc.val {
+				t.Fatalf("Unexpected value\nwant: %v\ngot:  %v", tc.val, val)
+			}
 		})
 	}
 }
@@ -319,11 +373,15 @@ func TestDecodeUint16(t *testing.T) {
 		{[]byte{255, 255}, 65535},
 	}
 
-	for _, test := range testCases {
-		t.Run(fmt.Sprint(test.val), func(t *testing.T) {
-			val, err := decodeUint[uint16](test.data)
-			require.NoError(t, err)
-			assert.Equal(t, test.val, val)
+	for _, tc := range testCases {
+		t.Run(fmt.Sprint(tc.val), func(t *testing.T) {
+			val, err := decodeUint[uint16](tc.data)
+			if err != nil {
+				t.Fatalf("Unexpected error\n%s", err)
+			}
+			if val != tc.val {
+				t.Fatalf("Unexpected value\nwant: %v\ngot:  %v", tc.val, val)
+			}
 		})
 	}
 }
@@ -337,11 +395,15 @@ func TestDecodeUint32(t *testing.T) {
 		{[]byte{255, 255, 255, 255}, 4294967295},
 	}
 
-	for _, test := range testCases {
-		t.Run(fmt.Sprint(test.val), func(t *testing.T) {
-			val, err := decodeUint[uint32](test.data)
-			require.NoError(t, err)
-			assert.Equal(t, test.val, val)
+	for _, tc := range testCases {
+		t.Run(fmt.Sprint(tc.val), func(t *testing.T) {
+			val, err := decodeUint[uint32](tc.data)
+			if err != nil {
+				t.Fatalf("Unexpected error\n%s", err)
+			}
+			if val != tc.val {
+				t.Fatalf("Unexpected value\nwant: %v\ngot:  %v", tc.val, val)
+			}
 		})
 	}
 }
@@ -355,13 +417,17 @@ func TestEncodeUint8(t *testing.T) {
 		{255, []byte{255}},
 	}
 
-	for _, test := range testCases {
-		t.Run(fmt.Sprint(test.val), func(t *testing.T) {
-			data := make([]byte, len(test.data))
+	for _, tc := range testCases {
+		t.Run(fmt.Sprint(tc.val), func(t *testing.T) {
+			data := make([]byte, len(tc.data))
 
-			n := encodeUint(data, test.val)
-			assert.Equal(t, 1, n)
-			assert.Equal(t, test.data, data)
+			n := encodeUint(data, tc.val)
+			if n != int(unsafe.Sizeof(tc.val)) {
+				t.Fatalf("Unexpected number of bytes encoded\nwant: %v\ngot:  %v", int(unsafe.Sizeof(tc.val)), n)
+			}
+			if !bytes.Equal(data, tc.data) {
+				t.Fatalf("Unexpected data\nwant: %v\ngot:  %v", tc.data, data)
+			}
 		})
 	}
 }
@@ -377,13 +443,17 @@ func TestEncodeUint16(t *testing.T) {
 		{65535, []byte{255, 255}},
 	}
 
-	for _, test := range testCases {
-		t.Run(fmt.Sprint(test.val), func(t *testing.T) {
-			data := make([]byte, len(test.data))
+	for _, tc := range testCases {
+		t.Run(fmt.Sprint(tc.val), func(t *testing.T) {
+			data := make([]byte, len(tc.data))
 
-			n := encodeUint(data, test.val)
-			assert.Equal(t, 2, n)
-			assert.Equal(t, test.data, data)
+			n := encodeUint(data, tc.val)
+			if n != int(unsafe.Sizeof(tc.val)) {
+				t.Fatalf("Unexpected number of bytes encoded\nwant: %v\ngot:  %v", int(unsafe.Sizeof(tc.val)), n)
+			}
+			if !bytes.Equal(data, tc.data) {
+				t.Fatalf("Unexpected data\nwant: %v\ngot:  %v", tc.data, data)
+			}
 		})
 	}
 }
@@ -397,13 +467,17 @@ func TestEncodeUint32(t *testing.T) {
 		{4294967295, []byte{255, 255, 255, 255}},
 	}
 
-	for _, test := range testCases {
-		t.Run(fmt.Sprint(test.val), func(t *testing.T) {
-			data := make([]byte, len(test.data))
+	for _, tc := range testCases {
+		t.Run(fmt.Sprint(tc.val), func(t *testing.T) {
+			data := make([]byte, len(tc.data))
 
-			n := encodeUint(data, test.val)
-			assert.Equal(t, 4, n)
-			assert.Equal(t, test.data, data)
+			n := encodeUint(data, tc.val)
+			if n != int(unsafe.Sizeof(tc.val)) {
+				t.Fatalf("Unexpected number of bytes encoded\nwant: %v\ngot:  %v", int(unsafe.Sizeof(tc.val)), n)
+			}
+			if !bytes.Equal(data, tc.data) {
+				t.Fatalf("Unexpected data\nwant: %v\ngot:  %v", tc.data, data)
+			}
 		})
 	}
 }
