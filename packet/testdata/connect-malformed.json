@@ -1,0 +1,290 @@
+[
+	{
+		"name": "Invalid packet type",
+		"packet": [0, 0]
+	},
+	{
+		"name": "Invalid control flag",
+		"packet": [17, 0]
+	},
+	{
+		"name": "Invalid remaining length",
+		"packet": [16, 1]
+	},
+	{
+		"name": "Missing protocol name",
+		"packet": [16, 0]
+	},
+	{
+		"name": "Missing protocol version",
+		"packet": [16, 6, 0, 4, 77, 81, 84, 84]
+	},
+	{
+		"name": "Invalid protocol version",
+		"packet": [16, 7, 0, 4, 77, 81, 84, 84, 0]
+	},
+	{
+		"name": "Invalid protocol name",
+		"packet": [16, 7, 0, 4, 77, 81, 84, 84, 3]
+	},
+	{
+		"name": "Missing CONNECT flags",
+		"packet": [16, 7, 0, 4, 77, 81, 84, 84, 4]
+	},
+	{
+		"name": "Invalid CONNECT flags",
+		"packet": [16, 8, 0, 4, 77, 81, 84, 84, 4, 1]
+	},
+	{
+		"name": "Invalid WillFlag/WillQoS flags",
+		"packet": [16, 8, 0, 4, 77, 81, 84, 84, 4, 16]
+	},
+	{
+		"name": "Invalid WillQoS flag",
+		"packet": [16, 8, 0, 4, 77, 81, 84, 84, 4, 28]
+	},
+	{
+		"name": "Invalid WillFlag/WillRetain flags",
+		"packet": [16, 8, 0, 4, 77, 81, 84, 84, 4, 32]
+	},
+	{
+		"name": "Invalid username/password flags",
+		"packet": [16, 8, 0, 4, 77, 81, 84, 84, 4, 64]
+	},
+	{
+		"name": "Missing keep alive",
+		"packet": [16, 8, 0, 4, 77, 81, 84, 84, 4, 0]
+	},
+	{
+		"name": "Invalid keep alive",
+		"packet": [16, 9, 0, 4, 77, 81, 84, 84, 4, 0, 0]
+	},
+	{
+		"name": "Missing property length",
+		"packet": [16, 10, 0, 4, 77, 81, 84, 84, 5, 0, 0, 10]
+	},
+	{
+		"name": "Invalid property length",
+		"packet": [16, 14, 0, 4, 77, 81, 84, 84, 5, 0, 0, 10, 255, 255, 255, 128]
+	},
+	{
+		"name": "Missing properties",
+		"packet": [16, 11, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 1]
+	},
+	{
+		"name": "Invalid property",
+		"packet": [16, 12, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 1, 255]
+	},
+	{
+		"name": "Invalid properties - Invalid Session Expiry Interval",
+		"packet": [16, 12, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 1, 17]
+	},
+	{
+		"name": "Invalid properties - Duplicated Session Expiry Interval",
+		"packet": [16, 21, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 10, 17, 0, 0, 0, 10, 17, 0, 0, 0, 11]
+	},
+	{
+		"name": "Invalid properties - Invalid Receive Maximum",
+		"packet": [16, 12, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 1, 33]
+	},
+	{
+		"name": "Invalid properties - Invalid Receive Maximum value",
+		"packet": [16, 14, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 3, 33, 0, 0]
+	},
+	{
+		"name": "Invalid properties - Duplicated Receive Maximum",
+		"packet": [16, 17, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 6, 33, 0, 50, 33, 0, 51]
+	},
+	{
+		"name": "Invalid properties - Invalid Maximum Packet Size",
+		"packet": [16, 12, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 1, 39]
+	},
+	{
+		"name": "Invalid properties - Invalid Maximum Packet Size value",
+		"packet": [16, 16, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 5, 39, 0, 0, 0, 0]
+	},
+	{
+		"name": "Invalid properties - Duplicated Maximum Packet Size",
+		"packet": [16, 21, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 10, 39, 0, 0, 0, 1, 39, 0, 0, 0, 2]
+	},
+	{
+		"name": "Invalid properties - Invalid Topic Alias Maximum",
+		"packet": [16, 12, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 1, 34]
+	},
+	{
+		"name": "Invalid properties - Duplicated Topic Alias Maximum",
+		"packet": [16, 17, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 6, 34, 0, 1, 34, 0, 2]
+	},
+	{
+		"name": "Invalid properties - Invalid Request Response Info",
+		"packet": [16, 12, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 1, 25]
+	},
+	{
+		"name": "Invalid properties - Invalid Request Response Info value",
+		"packet": [16, 13, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 2, 25, 2]
+	},
+	{
+		"name": "Invalid properties - Duplicated Request Response Info",
+		"packet": [16, 15, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 4, 25, 0, 25, 1]
+	},
+	{
+		"name": "Invalid properties - Invalid Request Problem Info",
+		"packet": [16, 12, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 1, 23]
+	},
+	{
+		"name": "Invalid properties - Invalid Request Problem Info value",
+		"packet": [16, 13, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 2, 23, 2]
+	},
+	{
+		"name": "Invalid properties - Duplicated Request Problem Info",
+		"packet": [16, 15, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 4, 23, 0, 23, 1]
+	},
+	{
+		"name": "Invalid properties - Invalid User Property key",
+		"packet": [16, 12, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 1, 38]
+	},
+	{
+		"name": "Invalid properties - Invalid User Property value",
+		"packet": [16, 15, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 4, 38, 0, 1, 97]
+	},
+	{
+		"name": "Invalid properties - Invalid Authentication Method",
+		"packet": [16, 12, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 1, 21]
+	},
+	{
+		"name": "Invalid properties - Duplicated Authentication Method",
+		"packet": [16, 19, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 8, 21, 0, 1, 97, 21, 0, 1, 98]
+	},
+	{
+		"name": "Invalid properties - Invalid Authentication Data",
+		"packet": [16, 12, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 1, 22]
+	},
+	{
+		"name": "Invalid properties - Duplicated Authentication Data",
+		"packet": [16, 19, 0, 4, 77, 81, 84, 84, 5, 0, 0, 0, 8, 22, 0, 1, 10, 22, 0, 1, 11]
+	},
+	{
+		"name": "Missing client ID",
+		"packet": [16, 11, 0, 4, 77, 81, 84, 84, 5, 0, 0, 10, 0]
+	},
+	{
+		"name": "Empty client ID",
+		"packet": [16, 15, 0, 6, 77, 81, 73, 115, 100, 112, 3, 0, 0, 10, 0, 0, 0]
+	},
+	{
+		"name": "Invalid client ID",
+		"packet": [16, 13, 0, 4, 77, 81, 84, 84, 5, 0, 0, 10, 0, 0, 1]
+	},
+	{
+		"name": "Missing Will property length",
+		"packet": [16, 14, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97]
+	},
+	{
+		"name": "Invalid Will property length",
+		"packet": [16, 18, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97, 255, 255, 255, 128]
+	},
+	{
+		"name": "Missing Will properties",
+		"packet": [16, 15, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97, 1]
+	},
+	{
+		"name": "Invalid Will property",
+		"packet": [16, 16, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97, 1, 255]
+	},
+	{
+		"name": "Invalid Will properties - Invalid Will Delay Interval",
+		"packet": [16, 16, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97, 1, 24]
+	},
+	{
+		"name": "Invalid Will properties - Duplicated Will Delay Interval",
+		"packet": [16, 25, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97, 10, 24, 0, 0, 0, 1, 24, 0, 0, 0, 2]
+	},
+	{
+		"name": "Invalid Will properties - Invalid Payload Format Indicator",
+		"packet": [16, 16, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97, 1, 1]
+	},
+	{
+		"name": "Invalid Will properties - Invalid Payload Format Indicator value",
+		"packet": [16, 17, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97, 2, 1, 2]
+	},
+	{
+		"name": "Invalid Will properties - Duplicated Payload Format Indicator",
+		"packet": [16, 19, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97, 4, 1, 0, 1, 1]
+	},
+	{
+		"name": "Invalid Will properties - Invalid Message Expiry Interval",
+		"packet": [16, 16, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97, 1, 2]
+	},
+	{
+		"name": "Invalid Will properties - Duplicated Message Expiry Interval",
+		"packet": [16, 25, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97, 10, 2, 0, 0, 0, 1, 2, 0, 0, 0, 2]
+	},
+	{
+		"name": "Invalid Will properties - Invalid Content Type",
+		"packet": [16, 16, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97, 1, 3]
+	},
+	{
+		"name": "Invalid Will properties - Duplicated Content Type",
+		"packet": [16, 23, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97, 8, 3, 0, 1, 97, 3, 0, 1, 98]
+	},
+	{
+		"name": "Invalid Will properties - Invalid Response Topic",
+		"packet": [16, 16, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97, 1, 8]
+	},
+	{
+		"name": "Invalid Will properties - Invalid Response Topic value",
+		"packet": [16, 19, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97, 4, 8, 0, 1, 35]
+	},
+	{
+		"name": "Invalid Will properties - Duplicated Response Topic",
+		"packet": [16, 23, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97, 8, 8, 0, 1, 97, 8, 0, 1, 98]
+	},
+	{
+		"name": "Invalid Will properties - Invalid Correlation Data",
+		"packet": [16, 16, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97, 1, 9]
+	},
+	{
+		"name": "Invalid Will properties - Duplicated Correlation Data",
+		"packet": [16, 23, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97, 8, 9, 0, 1, 1, 9, 0, 1, 2]
+	},
+	{
+		"name": "Missing Will topic",
+		"packet": [16, 15, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97, 0]
+	},
+	{
+		"name": "Empty Will topic",
+		"packet": [16, 17, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97, 0, 0, 0]
+	},
+	{
+		"name": "Invalid Will topic",
+		"packet": [16, 17, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97, 0, 0, 1]
+	},
+	{
+		"name": "Invalid Will topic value",
+		"packet": [16, 18, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97, 0, 0, 1, 35]
+	},
+	{
+		"name": "Missing Will payload",
+		"packet": [16, 18, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97, 0, 0, 1, 97]
+	},
+	{
+		"name": "Invalid Will payload",
+		"packet": [16, 19, 0, 4, 77, 81, 84, 84, 5, 4, 0, 10, 0, 0, 1, 97, 0, 0, 1, 97, 0]
+	},
+	{
+		"name": "Missing username",
+		"packet": [16, 14, 0, 4, 77, 81, 84, 84, 5, 128, 0, 10, 0, 0, 1, 97]
+	},
+	{
+		"name": "Invalid username",
+		"packet": [16, 15, 0, 4, 77, 81, 84, 84, 5, 128, 0, 10, 0, 0, 1, 97, 0]
+	},
+	{
+		"name": "Missing password",
+		"packet": [16, 17, 0, 4, 77, 81, 84, 84, 5, 192, 0, 10, 0, 0, 1, 97, 0, 1, 97]
+	},
+	{
+		"name": "Invalid password",
+		"packet": [16, 18, 0, 4, 77, 81, 84, 84, 5, 192, 0, 10, 0, 0, 1, 97, 0, 1, 97, 0]
+	}
+]
