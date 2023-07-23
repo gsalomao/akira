@@ -24,17 +24,11 @@ func (h *hookSpy) Name() string {
 	return "hook-spy"
 }
 
-func (h *hookSpy) OnConnectionOpen(_ *Server, _ Listener) error {
+func (h *hookSpy) OnClientOpen(_ *Server, _ *Client) error {
 	return nil
 }
 
-func (h *hookSpy) OnConnectionOpened(_ *Server, _ Listener) {
-}
-
-func (h *hookSpy) OnConnectionClose(_ *Server, _ Listener, _ error) {
-}
-
-func (h *hookSpy) OnConnectionClosed(_ *Server, _ Listener, _ error) {
+func (h *hookSpy) OnClientClosed(_ *Server, _ *Client, _ error) {
 }
 
 func (h *hookSpy) OnPacketReceive(_ *Client) error {
@@ -52,12 +46,12 @@ func (h *hookSpy) OnPacketSend(_ *Client, _ Packet) error {
 func (h *hookSpy) OnPacketSent(_ *Client, _ Packet) {
 }
 
-func BenchmarkHooksOnConnectionOpen(b *testing.B) {
+func BenchmarkHooksOnClientOpen(b *testing.B) {
 	b.Run("No Hook", func(b *testing.B) {
 		h := newHooks()
 
 		for i := 0; i < b.N; i++ {
-			_ = h.onConnectionOpen(nil, nil)
+			_ = h.onClientOpen(nil, nil)
 		}
 	})
 
@@ -66,17 +60,17 @@ func BenchmarkHooksOnConnectionOpen(b *testing.B) {
 		_ = h.add(&hookSpy{})
 
 		for i := 0; i < b.N; i++ {
-			_ = h.onConnectionOpen(nil, nil)
+			_ = h.onClientOpen(nil, nil)
 		}
 	})
 }
 
-func BenchmarkHooksOnConnectionOpened(b *testing.B) {
+func BenchmarkHooksOnClientClosed(b *testing.B) {
 	b.Run("No Hook", func(b *testing.B) {
 		h := newHooks()
 
 		for i := 0; i < b.N; i++ {
-			h.onConnectionOpened(nil, nil)
+			h.onClientClosed(nil, nil, nil)
 		}
 	})
 
@@ -85,45 +79,7 @@ func BenchmarkHooksOnConnectionOpened(b *testing.B) {
 		_ = h.add(&hookSpy{})
 
 		for i := 0; i < b.N; i++ {
-			h.onConnectionOpened(nil, nil)
-		}
-	})
-}
-
-func BenchmarkHooksOnConnectionClose(b *testing.B) {
-	b.Run("No Hook", func(b *testing.B) {
-		h := newHooks()
-
-		for i := 0; i < b.N; i++ {
-			h.onConnectionClose(nil, nil, nil)
-		}
-	})
-
-	b.Run("With Hook", func(b *testing.B) {
-		h := newHooks()
-		_ = h.add(&hookSpy{})
-
-		for i := 0; i < b.N; i++ {
-			h.onConnectionClose(nil, nil, nil)
-		}
-	})
-}
-
-func BenchmarkHooksOnConnectionClosed(b *testing.B) {
-	b.Run("No Hook", func(b *testing.B) {
-		h := newHooks()
-
-		for i := 0; i < b.N; i++ {
-			h.onConnectionClosed(nil, nil, nil)
-		}
-	})
-
-	b.Run("With Hook", func(b *testing.B) {
-		h := newHooks()
-		_ = h.add(&hookSpy{})
-
-		for i := 0; i < b.N; i++ {
-			h.onConnectionClosed(nil, nil, nil)
+			h.onClientClosed(nil, nil, nil)
 		}
 	})
 }

@@ -30,10 +30,8 @@ const (
 	onServerStartedHook
 	onServerStopHook
 	onServerStoppedHook
-	onConnectionOpenHook
-	onConnectionOpenedHook
-	onConnectionCloseHook
-	onConnectionClosedHook
+	onClientOpenHook
+	onClientClosedHook
 	onPacketReceiveHook
 	onPacketReceiveErrorHook
 	onPacketReceivedHook
@@ -110,36 +108,20 @@ type OnServerStoppedHook interface {
 	OnServerStopped(s *Server)
 }
 
-// OnConnectionOpenHook is the hook interface that wraps the OnConnectionOpen method. The OnConnectionOpen method is
-// called by the server when a new connection is being opened. If this method returns any error, the connection is
+// OnClientOpenHook is the hook interface that wraps the OnClientOpen method. The OnClientOpen method is called by the
+// server when a client opens a new connection. If this method returns any error, the client and its connection are
 // closed.
-type OnConnectionOpenHook interface {
+type OnClientOpenHook interface {
 	Hook
-	OnConnectionOpen(s *Server, l Listener) error
+	OnClientOpen(s *Server, c *Client) error
 }
 
-// OnConnectionOpenedHook is the hook interface that wraps the OnConnectionOpened method. The OnConnectionOpened
-// method is called by the server when a new connection has opened. This method is called after the OnConnectionOpen
-// method.
-type OnConnectionOpenedHook interface {
+// OnClientClosedHook is the hook interface that wraps the OnClientClosed method. The OnClientClosed method is called
+// by the server when the client and its connection have closed. If the client was closed due to any error, the error
+// is passed as parameter.
+type OnClientClosedHook interface {
 	Hook
-	OnConnectionOpened(s *Server, l Listener)
-}
-
-// OnConnectionCloseHook is the hook interface that wraps the OnConnectionClose method. The OnConnectionClose method is
-// called by the server when the connection is being closed. If the connection is being closed due to any error, the
-// error is passed as parameter.
-type OnConnectionCloseHook interface {
-	Hook
-	OnConnectionClose(s *Server, l Listener, err error)
-}
-
-// OnConnectionClosedHook is the hook interface that wraps the OnConnectionClosed method. The OnConnectionClosed
-// method is called by the server when the connection has closed. This method is called after the OnConnectionClose
-// method. If the connection was closed due to any error, the error is passed as parameter.
-type OnConnectionClosedHook interface {
-	Hook
-	OnConnectionClosed(s *Server, l Listener, err error)
+	OnClientClosed(s *Server, c *Client, err error)
 }
 
 // OnPacketReceiveHook is the hook interface that wraps the OnPacketReceive method. The OnPacketReceive method is
@@ -223,10 +205,8 @@ var hooksRegistryFunc = map[hookType]func(*hooks, Hook, hookType){
 	onServerStartedHook:      registerHook[OnServerStartedHook],
 	onServerStopHook:         registerHook[OnServerStopHook],
 	onServerStoppedHook:      registerHook[OnServerStoppedHook],
-	onConnectionOpenHook:     registerHook[OnConnectionOpenHook],
-	onConnectionOpenedHook:   registerHook[OnConnectionOpenedHook],
-	onConnectionCloseHook:    registerHook[OnConnectionCloseHook],
-	onConnectionClosedHook:   registerHook[OnConnectionClosedHook],
+	onClientOpenHook:         registerHook[OnClientOpenHook],
+	onClientClosedHook:       registerHook[OnClientClosedHook],
 	onPacketReceiveHook:      registerHook[OnPacketReceiveHook],
 	onPacketReceiveErrorHook: registerHook[OnPacketReceiveErrorHook],
 	onPacketReceivedHook:     registerHook[OnPacketReceivedHook],
@@ -372,18 +352,18 @@ func (h *hooks) onServerStopped(s *Server) {
 	}
 }
 
-func (h *hooks) onConnectionOpen(s *Server, l Listener) error {
-	if !h.hasHook(onConnectionOpenHook) {
+func (h *hooks) onClientOpen(s *Server, c *Client) error {
+	if !h.hasHook(onClientOpenHook) {
 		return nil
 	}
 
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
-	for _, hook := range h.hooks[onConnectionOpenHook] {
-		hk := hook.(OnConnectionOpenHook)
+	for _, hook := range h.hooks[onClientOpenHook] {
+		hk := hook.(OnClientOpenHook)
 
-		err := hk.OnConnectionOpen(s, l)
+		err := hk.OnClientOpen(s, c)
 		if err != nil {
 			return err
 		}
@@ -392,45 +372,17 @@ func (h *hooks) onConnectionOpen(s *Server, l Listener) error {
 	return nil
 }
 
-func (h *hooks) onConnectionOpened(s *Server, l Listener) {
-	if !h.hasHook(onConnectionOpenedHook) {
+func (h *hooks) onClientClosed(s *Server, c *Client, err error) {
+	if !h.hasHook(onClientClosedHook) {
 		return
 	}
 
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
-	for _, hook := range h.hooks[onConnectionOpenedHook] {
-		hk := hook.(OnConnectionOpenedHook)
-		hk.OnConnectionOpened(s, l)
-	}
-}
-
-func (h *hooks) onConnectionClose(s *Server, l Listener, err error) {
-	if !h.hasHook(onConnectionCloseHook) {
-		return
-	}
-
-	h.mutex.RLock()
-	defer h.mutex.RUnlock()
-
-	for _, hook := range h.hooks[onConnectionCloseHook] {
-		hk := hook.(OnConnectionCloseHook)
-		hk.OnConnectionClose(s, l, err)
-	}
-}
-
-func (h *hooks) onConnectionClosed(s *Server, l Listener, err error) {
-	if !h.hasHook(onConnectionClosedHook) {
-		return
-	}
-
-	h.mutex.RLock()
-	defer h.mutex.RUnlock()
-
-	for _, hook := range h.hooks[onConnectionClosedHook] {
-		hk := hook.(OnConnectionClosedHook)
-		hk.OnConnectionClosed(s, l, err)
+	for _, hook := range h.hooks[onClientClosedHook] {
+		hk := hook.(OnClientClosedHook)
+		hk.OnClientClosed(s, c, err)
 	}
 }
 

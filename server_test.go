@@ -384,63 +384,54 @@ func (s *ServerTestSuite) TestCloseWhenServerNotStarted() {
 
 func (s *ServerTestSuite) TestHandleConnection() {
 	lsn, onConnectionStream := s.addListener(s.server)
+	clientOpenedCh := make(chan struct{})
 
-	onConnOpen := mocks.NewMockOnConnectionOpenHook(s.T())
-	onConnOpen.EXPECT().Name().Return("onConnOpen")
-	onConnOpen.EXPECT().OnConnectionOpen(s.server, lsn).Return(nil)
-	_ = s.server.AddHook(onConnOpen)
-
-	connOpenedCh := make(chan struct{})
-	onConnOpened := mocks.NewMockOnConnectionOpenedHook(s.T())
-	onConnOpened.EXPECT().Name().Return("onConnOpened")
-	onConnOpened.EXPECT().OnConnectionOpened(s.server, lsn).Run(func(_ *akira.Server, _ akira.Listener) {
-		close(connOpenedCh)
-	})
-	_ = s.server.AddHook(onConnOpened)
+	onClientOpen := mocks.NewMockOnClientOpenHook(s.T())
+	onClientOpen.EXPECT().Name().Return("onClientOpen")
+	onClientOpen.EXPECT().OnClientOpen(s.server, mock.Anything).
+		RunAndReturn(func(_ *akira.Server, _ *akira.Client) error {
+			close(clientOpenedCh)
+			return nil
+		})
+	_ = s.server.AddHook(onClientOpen)
 
 	onPacketRcv := mocks.NewMockOnPacketReceiveHook(s.T())
 	onPacketRcv.EXPECT().Name().Return("onPacketRcv")
 	onPacketRcv.EXPECT().OnPacketReceive(mock.Anything).Return(nil)
 	_ = s.server.AddHook(onPacketRcv)
 
-	onConnClose := mocks.NewMockOnConnectionCloseHook(s.T())
-	onConnClose.EXPECT().Name().Return("onConnClose")
-	onConnClose.EXPECT().OnConnectionClose(s.server, lsn, mock.Anything).
-		Run(func(_ *akira.Server, _ akira.Listener, err error) { s.Assert().ErrorIs(err, io.EOF) })
-	_ = s.server.AddHook(onConnClose)
-
-	connClosedCh := make(chan struct{})
-	onConnClosed := mocks.NewMockOnConnectionClosedHook(s.T())
-	onConnClosed.EXPECT().Name().Return("onConnClosed")
-	onConnClosed.EXPECT().OnConnectionClosed(s.server, lsn, mock.Anything).
-		Run(func(_ *akira.Server, _ akira.Listener, err error) {
+	clientClosedCh := make(chan struct{})
+	onClientClosed := mocks.NewMockOnClientClosedHook(s.T())
+	onClientClosed.EXPECT().Name().Return("onClientClosed")
+	onClientClosed.EXPECT().OnClientClosed(s.server, mock.Anything, mock.Anything).
+		Run(func(_ *akira.Server, _ *akira.Client, err error) {
 			s.Assert().ErrorIs(err, io.EOF)
-			close(connClosedCh)
+			close(clientClosedCh)
 		})
-	_ = s.server.AddHook(onConnClosed)
+	_ = s.server.AddHook(onClientClosed)
 	_ = s.server.Start()
 
 	conn1, conn2 := net.Pipe()
 	onConnection := <-onConnectionStream
 	onConnection(lsn, conn2)
-	<-connOpenedCh
+	<-clientOpenedCh
 
 	_ = conn1.Close()
-	<-connClosedCh
+	<-clientClosedCh
 }
 
 func (s *ServerTestSuite) TestHandleConnectionWithReadTimeout() {
 	lsn, onConnectionStream := s.addListener(s.server)
 
 	connClosedCh := make(chan struct{})
-	onConnClosed := mocks.NewMockOnConnectionClosedHook(s.T())
-	onConnClosed.EXPECT().Name().Return("onConnClosed")
-	onConnClosed.EXPECT().OnConnectionClosed(s.server, lsn, mock.Anything).
-		Run(func(_ *akira.Server, _ akira.Listener, err error) {
+	onClientClosed := mocks.NewMockOnClientClosedHook(s.T())
+	onClientClosed.EXPECT().Name().Return("onClientClosed")
+	onClientClosed.EXPECT().OnClientClosed(s.server, mock.Anything, mock.Anything).
+		Run(func(_ *akira.Server, _ *akira.Client, err error) {
 			s.Assert().ErrorIs(err, os.ErrDeadlineExceeded)
 			close(connClosedCh)
 		})
-	_ = s.server.AddHook(onConnClosed)
+	_ = s.server.AddHook(onClientClosed)
 	_ = s.server.Start()
 
 	conn1, conn2 := net.Pipe()
@@ -454,17 +445,17 @@ func (s *ServerTestSuite) TestHandleConnectionWithReadTimeout() {
 func (s *ServerTestSuite) TestHandleConnectionWithOnConnectionOpenReturningError() {
 	lsn, onConnectionStream := s.addListener(s.server)
 
-	onConnOpen := mocks.NewMockOnConnectionOpenHook(s.T())
-	onConnOpen.EXPECT().Name().Return("onConnOpen")
-	onConnOpen.EXPECT().OnConnectionOpen(s.server, lsn).Return(assert.AnError)
-	_ = s.server.AddHook(onConnOpen)
+	onClientOpen := mocks.NewMockOnClientOpenHook(s.T())
+	onClientOpen.EXPECT().Name().Return("onClientOpen")
+	onClientOpen.EXPECT().OnClientOpen(s.server, mock.Anything).Return(assert.AnError)
+	_ = s.server.AddHook(onClientOpen)
 
-	connClosedCh := make(chan struct{})
-	onConnClosed := mocks.NewMockOnConnectionClosedHook(s.T())
-	onConnClosed.EXPECT().Name().Return("onConnClosed")
-	onConnClosed.EXPECT().OnConnectionClosed(s.server, lsn, assert.AnError).
-		Run(func(_ *akira.Server, _ akira.Listener, _ error) { close(connClosedCh) })
-	_ = s.server.AddHook(onConnClosed)
+	clientClosedCh := make(chan struct{})
+	onClientClosed := mocks.NewMockOnClientClosedHook(s.T())
+	onClientClosed.EXPECT().Name().Return("onClientClosed")
+	onClientClosed.EXPECT().OnClientClosed(s.server, mock.Anything, assert.AnError).
+		Run(func(_ *akira.Server, _ *akira.Client, _ error) { close(clientClosedCh) })
+	_ = s.server.AddHook(onClientClosed)
 	_ = s.server.Start()
 
 	conn1, conn2 := net.Pipe()
@@ -472,7 +463,7 @@ func (s *ServerTestSuite) TestHandleConnectionWithOnConnectionOpenReturningError
 
 	onConnection := <-onConnectionStream
 	onConnection(lsn, conn2)
-	<-connClosedCh
+	<-clientClosedCh
 }
 
 func (s *ServerTestSuite) TestReceivePacket() {
@@ -514,12 +505,12 @@ func (s *ServerTestSuite) TestReceivePacket() {
 func (s *ServerTestSuite) TestCloseConnectionWhenReceiveInvalidPacket() {
 	lsn, onConnectionStream := s.addListener(s.server)
 
-	connClosedCh := make(chan struct{})
-	onConnClosed := mocks.NewMockOnConnectionClosedHook(s.T())
-	onConnClosed.EXPECT().Name().Return("onConnClosed")
-	onConnClosed.EXPECT().OnConnectionClosed(s.server, lsn, mock.Anything).
-		Run(func(_ *akira.Server, _ akira.Listener, _ error) { close(connClosedCh) })
-	_ = s.server.AddHook(onConnClosed)
+	clientClosedCh := make(chan struct{})
+	onClientClosed := mocks.NewMockOnClientClosedHook(s.T())
+	onClientClosed.EXPECT().Name().Return("onClientClosed")
+	onClientClosed.EXPECT().OnClientClosed(s.server, mock.Anything, mock.Anything).
+		Run(func(_ *akira.Server, _ *akira.Client, _ error) { close(clientClosedCh) })
+	_ = s.server.AddHook(onClientClosed)
 	_ = s.server.Start()
 
 	conn1, conn2 := net.Pipe()
@@ -530,7 +521,7 @@ func (s *ServerTestSuite) TestCloseConnectionWhenReceiveInvalidPacket() {
 
 	msg := []byte{0x10, 7, 0, 4, 'M', 'Q', 'T', 'T', 0}
 	_, _ = conn1.Write(msg)
-	<-connClosedCh
+	<-clientClosedCh
 }
 
 func (s *ServerTestSuite) TestCloseConnectionIfOnPacketReceiveErrorReturnsError() {
@@ -542,11 +533,11 @@ func (s *ServerTestSuite) TestCloseConnectionIfOnPacketReceiveErrorReturnsError(
 	_ = s.server.AddHook(onPacketRcvError)
 
 	connClosedCh := make(chan struct{})
-	onConnClosed := mocks.NewMockOnConnectionClosedHook(s.T())
-	onConnClosed.EXPECT().Name().Return("onConnClosed")
-	onConnClosed.EXPECT().OnConnectionClosed(s.server, lsn, assert.AnError).
-		Run(func(_ *akira.Server, _ akira.Listener, _ error) { close(connClosedCh) })
-	_ = s.server.AddHook(onConnClosed)
+	onClientClosed := mocks.NewMockOnClientClosedHook(s.T())
+	onClientClosed.EXPECT().Name().Return("onClientClosed")
+	onClientClosed.EXPECT().OnClientClosed(s.server, mock.Anything, assert.AnError).
+		Run(func(_ *akira.Server, _ *akira.Client, _ error) { close(connClosedCh) })
+	_ = s.server.AddHook(onClientClosed)
 	_ = s.server.Start()
 
 	conn1, conn2 := net.Pipe()
@@ -578,12 +569,12 @@ func (s *ServerTestSuite) TestKeepReceivingWhenOnPacketReceiveErrorDoesNotReturn
 		})
 	_ = s.server.AddHook(onPacketRcvError)
 
-	connClosedCh := make(chan struct{})
-	onConnClosed := mocks.NewMockOnConnectionClosedHook(s.T())
-	onConnClosed.EXPECT().Name().Return("onConnClosed")
-	onConnClosed.EXPECT().OnConnectionClosed(s.server, lsn, mock.Anything).
-		Run(func(_ *akira.Server, _ akira.Listener, _ error) { close(connClosedCh) })
-	_ = s.server.AddHook(onConnClosed)
+	clientClosedCh := make(chan struct{})
+	onClientClosed := mocks.NewMockOnClientClosedHook(s.T())
+	onClientClosed.EXPECT().Name().Return("onClientClosed")
+	onClientClosed.EXPECT().OnClientClosed(s.server, mock.Anything, mock.Anything).
+		Run(func(_ *akira.Server, _ *akira.Client, _ error) { close(clientClosedCh) })
+	_ = s.server.AddHook(onClientClosed)
 	_ = s.server.Start()
 
 	conn1, conn2 := net.Pipe()
@@ -596,7 +587,7 @@ func (s *ServerTestSuite) TestKeepReceivingWhenOnPacketReceiveErrorDoesNotReturn
 	<-receivedCh
 
 	_ = conn1.Close()
-	<-connClosedCh
+	<-clientClosedCh
 }
 
 func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketReceiveReturnsError() {
@@ -607,12 +598,12 @@ func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketReceiveReturnsError() {
 	onPacketRcv.EXPECT().OnPacketReceive(mock.Anything).Return(assert.AnError)
 	_ = s.server.AddHook(onPacketRcv)
 
-	connClosedCh := make(chan struct{})
-	onConnClosed := mocks.NewMockOnConnectionClosedHook(s.T())
-	onConnClosed.EXPECT().Name().Return("onConnClosed")
-	onConnClosed.EXPECT().OnConnectionClosed(s.server, lsn, assert.AnError).
-		Run(func(_ *akira.Server, _ akira.Listener, err error) { close(connClosedCh) })
-	_ = s.server.AddHook(onConnClosed)
+	clientClosedCh := make(chan struct{})
+	onClientClosed := mocks.NewMockOnClientClosedHook(s.T())
+	onClientClosed.EXPECT().Name().Return("onClientClosed")
+	onClientClosed.EXPECT().OnClientClosed(s.server, mock.Anything, assert.AnError).
+		Run(func(_ *akira.Server, _ *akira.Client, err error) { close(clientClosedCh) })
+	_ = s.server.AddHook(onClientClosed)
 	_ = s.server.Start()
 
 	conn1, conn2 := net.Pipe()
@@ -620,7 +611,7 @@ func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketReceiveReturnsError() {
 
 	onConnection := <-onConnectionStream
 	onConnection(lsn, conn2)
-	<-connClosedCh
+	<-clientClosedCh
 }
 
 func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketReceivedReturnsError() {
@@ -632,12 +623,12 @@ func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketReceivedReturnsError() 
 		RunAndReturn(func(_ *akira.Client, _ akira.Packet) error { return assert.AnError })
 	_ = s.server.AddHook(onPacketReceived)
 
-	connClosedCh := make(chan struct{})
-	onConnClosed := mocks.NewMockOnConnectionClosedHook(s.T())
-	onConnClosed.EXPECT().Name().Return("onConnClosed")
-	onConnClosed.EXPECT().OnConnectionClosed(s.server, lsn, assert.AnError).
-		Run(func(_ *akira.Server, _ akira.Listener, err error) { close(connClosedCh) })
-	_ = s.server.AddHook(onConnClosed)
+	clientClosedCh := make(chan struct{})
+	onClientClosed := mocks.NewMockOnClientClosedHook(s.T())
+	onClientClosed.EXPECT().Name().Return("onClientClosed")
+	onClientClosed.EXPECT().OnClientClosed(s.server, mock.Anything, assert.AnError).
+		Run(func(_ *akira.Server, _ *akira.Client, err error) { close(clientClosedCh) })
+	_ = s.server.AddHook(onClientClosed)
 	_ = s.server.Start()
 
 	conn1, conn2 := net.Pipe()
@@ -648,7 +639,7 @@ func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketReceivedReturnsError() 
 
 	msg := []byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 2, 0, 255, 0, 2, 'a', 'b'}
 	_, _ = conn1.Write(msg)
-	<-connClosedCh
+	<-clientClosedCh
 }
 
 func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketSendReturnsError() {

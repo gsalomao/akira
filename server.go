@@ -272,7 +272,7 @@ func (s *Server) stop() {
 }
 
 func (s *Server) handleConnection(l Listener, nc net.Conn) {
-	client := &Client{
+	c := &Client{
 		Connection: Connection{
 			netConn:   nc,
 			listener:  l,
@@ -280,8 +280,8 @@ func (s *Server) handleConnection(l Listener, nc net.Conn) {
 		},
 	}
 
-	if err := s.hooks.onConnectionOpen(s, l); err != nil {
-		s.closeConnection(&client.Connection, err)
+	if err := s.hooks.onClientOpen(s, c); err != nil {
+		s.closeClient(c, err)
 		return
 	}
 
@@ -292,7 +292,7 @@ func (s *Server) handleConnection(l Listener, nc net.Conn) {
 	go func() {
 		defer s.wg.Done()
 
-		err := s.inboundLoop(client)
+		err := s.inboundLoop(c)
 		if err != nil {
 			cancelCtx(err)
 		}
@@ -304,17 +304,14 @@ func (s *Server) handleConnection(l Listener, nc net.Conn) {
 
 		err := s.outboundLoop(ctx)
 		if err != nil {
-			s.closeConnection(&client.Connection, err)
+			s.closeClient(c, err)
 		}
 	}()
-
-	s.hooks.onConnectionOpened(s, l)
 }
 
-func (s *Server) closeConnection(c *Connection, err error) {
-	s.hooks.onConnectionClose(s, c.listener, err)
-	_ = c.netConn.Close()
-	s.hooks.onConnectionClosed(s, c.listener, err)
+func (s *Server) closeClient(c *Client, err error) {
+	_ = c.Connection.netConn.Close()
+	s.hooks.onClientClosed(s, c, err)
 }
 
 func (s *Server) inboundLoop(c *Client) error {

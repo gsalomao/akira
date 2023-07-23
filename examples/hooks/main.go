@@ -98,21 +98,13 @@ func (h *loggingHook) OnServerStopped(_ *akira.Server) {
 	log.Println("Server stopped")
 }
 
-func (h *loggingHook) OnConnectionOpen(_ *akira.Server, _ akira.Listener) error {
-	log.Println("Connection opening")
+func (h *loggingHook) OnClientOpen(_ *akira.Server, _ *akira.Client) error {
+	log.Println("Client opened")
 	return nil
 }
 
-func (h *loggingHook) OnConnectionOpened(_ *akira.Server, _ akira.Listener) {
-	log.Println("Connection opened")
-}
-
-func (h *loggingHook) OnConnectionClose(_ *akira.Server, _ akira.Listener, _ error) {
-	log.Println("Connection closing")
-}
-
-func (h *loggingHook) OnConnectionClosed(_ *akira.Server, _ akira.Listener, _ error) {
-	log.Println("Connection closed")
+func (h *loggingHook) OnClientClosed(_ *akira.Server, _ *akira.Client, _ error) {
+	log.Println("Client closed")
 }
 
 func (h *loggingHook) OnPacketReceived(c *akira.Client, p akira.Packet) error {
