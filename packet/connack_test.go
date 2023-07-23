@@ -15,22 +15,23 @@
 package packet
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/suite"
+	"github.com/gsalomao/akira/packet/testdata"
 )
 
-type ConnAckTestSuite struct {
-	suite.Suite
-}
-
-func (s *ConnAckTestSuite) TestType() {
+func TestConnAckType(t *testing.T) {
 	var p ConnAck
-	s.Require().Equal(TypeConnAck, p.Type())
+	tp := p.Type()
+	if tp != TypeConnAck {
+		t.Fatalf("Unexpected type\nwant: %s\ngot:  %s", TypeConnAck, tp)
+	}
 }
 
-func (s *ConnAckTestSuite) TestSize() {
+func TestConnAckSize(t *testing.T) {
 	testCases := []struct {
 		name   string
 		packet ConnAck
@@ -38,10 +39,10 @@ func (s *ConnAckTestSuite) TestSize() {
 	}{
 		{name: "V3.1", packet: ConnAck{Version: MQTT31}, size: 4},
 		{name: "V3.1.1", packet: ConnAck{Version: MQTT311}, size: 4},
-		{name: "V5.0, no properties", packet: ConnAck{Version: MQTT50}, size: 5},
-		{name: "V5.0, empty properties", packet: ConnAck{Version: MQTT50, Properties: &ConnAckProperties{}}, size: 5},
+		{name: "V5.0 No Properties", packet: ConnAck{Version: MQTT50}, size: 5},
+		{name: "V5.0 Empty Properties", packet: ConnAck{Version: MQTT50, Properties: &ConnAckProperties{}}, size: 5},
 		{
-			name: "V5.0, with properties",
+			name: "V5.0 With Properties",
 			packet: ConnAck{
 				Version: MQTT50,
 				Properties: &ConnAckProperties{
@@ -53,172 +54,131 @@ func (s *ConnAckTestSuite) TestSize() {
 		},
 	}
 
-	for _, test := range testCases {
-		s.Run(test.name, func() {
-			size := test.packet.Size()
-			s.Assert().Equal(test.size, size)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			size := tc.packet.Size()
+			if size != tc.size {
+				t.Fatalf("Unexpected size\nwant: %v\ngot:  %v", tc.size, size)
+			}
 		})
 	}
 }
 
-func (s *ConnAckTestSuite) TestEncode() {
+func TestConnAckEncode(t *testing.T) {
 	testCases := []struct {
-		name   string
-		packet ConnAck
-		data   []byte
+		name    string
+		fixture string
+		connack ConnAck
 	}{
+		{"V3.1 Accepted", "V3 Accepted", ConnAck{Version: MQTT31}},
+		{"V3.1 Ignores Session present", "V3 Accepted", ConnAck{Version: MQTT31, SessionPresent: true}},
 		{
-			name:   "V3.1, accepted",
-			packet: ConnAck{Version: MQTT31, Code: ReasonCodeSuccess},
-			data:   []byte{0x20, 2, 0, 0},
+			"V3.1.1 Client ID rejected", "V3 Client ID rejected",
+			ConnAck{Version: MQTT311, Code: ReasonCodeV3IdentifierRejected},
 		},
+		{"V3.1.1 Session present", "V3.1.1 Session Present", ConnAck{Version: MQTT311, SessionPresent: true}},
 		{
-			name:   "V3.1, accepted and ignore session present",
-			packet: ConnAck{Version: MQTT31, SessionPresent: true, Code: ReasonCodeSuccess},
-			data:   []byte{0x20, 2, 0, 0},
+			"V3.1.1 Client ID rejected ignores session present", "V3 Client ID rejected",
+			ConnAck{Version: MQTT311, Code: ReasonCodeV3IdentifierRejected, SessionPresent: true},
 		},
+		{"V5.0 Success", "V5.0 Success", ConnAck{Version: MQTT50}},
+		{"V5.0 Malformed", "V5.0 Malformed", ConnAck{Version: MQTT50, Code: ReasonCodeMalformedPacket}},
 		{
-			name:   "V3.1, rejected",
-			packet: ConnAck{Version: MQTT31, Code: ReasonCodeV3IdentifierRejected},
-			data:   []byte{0x20, 2, 0, 2},
-		},
-		{
-			name:   "V3.1.1, accepted",
-			packet: ConnAck{Version: MQTT311, Code: ReasonCodeSuccess},
-			data:   []byte{0x20, 2, 0, 0},
-		},
-		{
-			name:   "V3.1.1, accepted with session present",
-			packet: ConnAck{Version: MQTT311, SessionPresent: true, Code: ReasonCodeSuccess},
-			data:   []byte{0x20, 2, 1, 0},
-		},
-		{
-			name:   "V3.1.1, rejected",
-			packet: ConnAck{Version: MQTT311, Code: ReasonCodeV3IdentifierRejected},
-			data:   []byte{0x20, 2, 0, 2},
-		},
-		{
-			name:   "V3.1.1, rejected and ignore session present",
-			packet: ConnAck{Version: MQTT311, Code: ReasonCodeV3IdentifierRejected},
-			data:   []byte{0x20, 2, 0, 2},
-		},
-		{
-			name:   "V5.0, no properties",
-			packet: ConnAck{Version: MQTT50, Code: ReasonCodeSuccess},
-			data:   []byte{0x20, 3, 0, 0, 0},
-		},
-		{
-			name: "V5.0, with properties",
-			packet: ConnAck{
+			"V5.0 Properties", "V5.0 Properties",
+			ConnAck{
 				Version: MQTT50,
-				Code:    ReasonCodeMalformedPacket,
+				Code:    ReasonCodeClientIDNotValid,
 				Properties: &ConnAckProperties{
-					Flags:                 PropertyFlags(0).Set(PropertySessionExpiryInterval),
-					SessionExpiryInterval: 10,
+					Flags: PropertyFlags(0).
+						Set(PropertySessionExpiryInterval).
+						Set(PropertyReceiveMaximum).
+						Set(PropertyMaximumQoS).
+						Set(PropertyRetainAvailable).
+						Set(PropertyMaximumPacketSize).
+						Set(PropertyAssignedClientID).
+						Set(PropertyTopicAliasMaximum).
+						Set(PropertyReasonString).
+						Set(PropertyUserProperty).
+						Set(PropertyWildcardSubscriptionAvailable).
+						Set(PropertySubscriptionIDAvailable).
+						Set(PropertySharedSubscriptionAvailable).
+						Set(PropertyServerKeepAlive).
+						Set(PropertyResponseInfo).
+						Set(PropertyServerReference).
+						Set(PropertyAuthenticationMethod).
+						Set(PropertyAuthenticationData),
+					SessionExpiryInterval:         1,
+					ReceiveMaximum:                2,
+					MaximumQoS:                    byte(QoS1),
+					RetainAvailable:               true,
+					MaximumPacketSize:             200,
+					AssignedClientID:              []byte("a"),
+					TopicAliasMaximum:             1,
+					ReasonString:                  []byte("a"),
+					UserProperties:                []UserProperty{{[]byte("a"), []byte("b")}},
+					WildcardSubscriptionAvailable: true,
+					SubscriptionIDAvailable:       true,
+					SharedSubscriptionAvailable:   true,
+					ServerKeepAlive:               1,
+					ResponseInfo:                  []byte("a"),
+					ServerReference:               []byte("a"),
+					AuthenticationMethod:          []byte("a"),
+					AuthenticationData:            []byte("a"),
 				},
 			},
-			data: []byte{0x20, 8, 0, 0x81, 5, 0x11, 0, 0, 0, 10},
 		},
 	}
 
-	for _, test := range testCases {
-		s.Run(test.name, func() {
-			data := make([]byte, test.packet.Size())
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fixture, err := testdata.FixtureWithName("connack.json", tc.fixture)
+			if err != nil {
+				t.Fatalf("Unexpected error while getting fixture\n%s", err)
+			}
 
-			n, err := test.packet.Encode(data)
-			s.Require().NoError(err)
-			s.Assert().Equal(len(test.data), n)
-			s.Assert().Equal(test.data, data)
+			var n int
+			pkt := make([]byte, tc.connack.Size())
+
+			n, err = tc.connack.Encode(pkt)
+			if err != nil {
+				t.Fatalf("Unexpected error\n%s", err)
+			}
+			if n != tc.connack.Size() {
+				t.Fatalf("Unexpected number of bytes encoded\nwant: %v\ngot:  %v", tc.connack.Size(), n)
+			}
+			if !bytes.Equal(pkt, fixture.Packet) {
+				t.Fatalf("Unexpected encoded packet\nwant: %v\ngot:  %v %+v", fixture.Packet, pkt, tc.connack)
+			}
 		})
 	}
 }
 
-func (s *ConnAckTestSuite) TestEncodeError() {
+func TestConnAckEncodeErrorBufferTooSmall(t *testing.T) {
 	packet := ConnAck{Version: MQTT50, Code: ReasonCodeSuccess}
 
 	n, err := packet.Encode(nil)
-	s.Require().Error(err)
-	s.Assert().Zero(n)
-}
-
-func (s *ConnAckTestSuite) TestEncodeErrorWhenPacketInvalid() {
-	data := make([]byte, 10)
-	packet := ConnAck{}
-
-	n, err := packet.Encode(data)
-	s.Require().Error(err)
-	s.Assert().Zero(n)
-}
-
-func (s *ConnAckTestSuite) TestValidateWithValidVersion() {
-	testCases := []Version{MQTT31, MQTT311, MQTT50}
-
-	for _, test := range testCases {
-		s.Run(test.String(), func() {
-			connack := ConnAck{Version: test}
-			err := connack.Validate()
-			s.Require().NoError(err)
-		})
+	if err == nil {
+		t.Fatal("An error was expected")
+	}
+	if n != 0 {
+		t.Fatalf("Unexpected number of bytes encoded\nwant: %v\ngot:  %v", 0, n)
 	}
 }
 
-func (s *ConnAckTestSuite) TestValidateWithInvalidVersion() {
+func TestConnAckEncodeMalformedVersion(t *testing.T) {
 	connack := ConnAck{}
-	err := connack.Validate()
-	s.Require().Error(err)
-}
+	data := make([]byte, connack.Size())
 
-func (s *ConnAckTestSuite) TestValidateWithValidReasonCode() {
-	testCases := []struct {
-		version Version
-		code    ReasonCode
-	}{
-		{MQTT31, ReasonCodeSuccess},
-		{MQTT31, ReasonCodeV3UnacceptableProtocolVersion},
-		{MQTT31, ReasonCodeV3IdentifierRejected},
-		{MQTT31, ReasonCodeV3ServerUnavailable},
-		{MQTT31, ReasonCodeV3BadUsernameOrPassword},
-		{MQTT31, ReasonCodeV3NotAuthorized},
-		{MQTT311, ReasonCodeSuccess},
-		{MQTT311, ReasonCodeV3UnacceptableProtocolVersion},
-		{MQTT311, ReasonCodeV3IdentifierRejected},
-		{MQTT311, ReasonCodeV3ServerUnavailable},
-		{MQTT311, ReasonCodeV3BadUsernameOrPassword},
-		{MQTT311, ReasonCodeV3NotAuthorized},
-		{MQTT50, ReasonCodeSuccess},
-		{MQTT50, ReasonCodeUnspecifiedError},
-		{MQTT50, ReasonCodeMalformedPacket},
-		{MQTT50, ReasonCodeProtocolError},
-		{MQTT50, ReasonCodeImplementationSpecificError},
-		{MQTT50, ReasonCodeUnsupportedProtocolVersion},
-		{MQTT50, ReasonCodeClientIDNotValid},
-		{MQTT50, ReasonCodeBadUsernameOrPassword},
-		{MQTT50, ReasonCodeNotAuthorized},
-		{MQTT50, ReasonCodeServerUnavailable},
-		{MQTT50, ReasonCodeServerBusy},
-		{MQTT50, ReasonCodeBanned},
-		{MQTT50, ReasonCodeBadAuthenticationMethod},
-		{MQTT50, ReasonCodeTopicNameInvalid},
-		{MQTT50, ReasonCodePacketTooLarge},
-		{MQTT50, ReasonCodeQuotaExceeded},
-		{MQTT50, ReasonCodePayloadFormatInvalid},
-		{MQTT50, ReasonCodeRetainNotSupported},
-		{MQTT50, ReasonCodeQoSNotSupported},
-		{MQTT50, ReasonCodeUseAnotherServer},
-		{MQTT50, ReasonCodeServerMoved},
-		{MQTT50, ReasonCodeConnectionRateExceeded},
+	n, err := connack.Encode(data)
+	if !errors.Is(err, ErrMalformedPacket) {
+		t.Fatalf("Unexpected error\nwant: %s\ngot:  %s", ErrMalformedPacket, err)
 	}
-
-	for _, test := range testCases {
-		s.Run(fmt.Sprintf("V%s-0x%.2X", test.version.String(), test.code), func() {
-			connack := ConnAck{Version: test.version, Code: test.code}
-			err := connack.Validate()
-			s.Require().NoError(err)
-		})
+	if n != 0 {
+		t.Fatalf("Unexpected number of bytes encoded\nwant: %v\ngot:  %v", 0, n)
 	}
 }
 
-func (s *ConnAckTestSuite) TestValidateWithInvalidReasonCode() {
+func TestConnAckEncodeMalformedReasonCode(t *testing.T) {
 	testCases := []struct {
 		version Version
 		code    ReasonCode
@@ -241,7 +201,6 @@ func (s *ConnAckTestSuite) TestValidateWithInvalidReasonCode() {
 		{MQTT31, ReasonCodePayloadFormatInvalid},
 		{MQTT31, ReasonCodeRetainNotSupported},
 		{MQTT31, ReasonCodeQoSNotSupported},
-		{MQTT31, ReasonCodeUseAnotherServer},
 		{MQTT31, ReasonCodeServerMoved},
 		{MQTT31, ReasonCodeConnectionRateExceeded},
 		{MQTT311, ReasonCodeUnspecifiedError},
@@ -262,7 +221,6 @@ func (s *ConnAckTestSuite) TestValidateWithInvalidReasonCode() {
 		{MQTT311, ReasonCodePayloadFormatInvalid},
 		{MQTT311, ReasonCodeRetainNotSupported},
 		{MQTT311, ReasonCodeQoSNotSupported},
-		{MQTT311, ReasonCodeUseAnotherServer},
 		{MQTT311, ReasonCodeServerMoved},
 		{MQTT311, ReasonCodeConnectionRateExceeded},
 		{MQTT50, ReasonCodeV3UnacceptableProtocolVersion},
@@ -272,26 +230,97 @@ func (s *ConnAckTestSuite) TestValidateWithInvalidReasonCode() {
 		{MQTT50, ReasonCodeV3NotAuthorized},
 	}
 
-	for _, test := range testCases {
-		s.Run(fmt.Sprintf("V%s-0x%.2X", test.version.String(), test.code), func() {
-			connack := ConnAck{Version: test.version, Code: test.code}
-			err := connack.Validate()
-			s.Require().Error(err)
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("V%s-0x%.2X", tc.version.String(), tc.code), func(t *testing.T) {
+			connack := ConnAck{Version: tc.version, Code: tc.code}
+			data := make([]byte, connack.Size())
+
+			n, err := connack.Encode(data)
+			if !errors.Is(err, ErrMalformedPacket) {
+				t.Fatalf("Unexpected error\nwant: %s\ngot:  %s", ErrMalformedPacket, err)
+			}
+			if n != 0 {
+				t.Fatalf("Unexpected number of bytes encoded\nwant: %v\ngot:  %v", 0, n)
+			}
 		})
 	}
 }
 
-func (s *ConnAckTestSuite) TestValidateWithInvalidProperties() {
-	connack := ConnAck{
-		Version:    MQTT50,
-		Properties: &ConnAckProperties{Flags: PropertyFlags(0).Set(PropertyReasonString)},
+func TestConnAckEncodeMalformedProperty(t *testing.T) {
+	testCases := []struct {
+		name string
+		prop ConnAckProperties
+	}{
+		{"Invalid property", ConnAckProperties{Flags: PropertyFlags(0).Set(PropertyReasonString)}},
+		{"Invalid Maximum QoS", ConnAckProperties{Flags: PropertyFlags(0).Set(PropertyMaximumQoS), MaximumQoS: 3}},
+		{"Missing Assigned Client ID", ConnAckProperties{Flags: PropertyFlags(0).Set(PropertyAssignedClientID)}},
+		{"Missing Reason String", ConnAckProperties{Flags: PropertyFlags(0).Set(PropertyReasonString)}},
+		{"Missing User Property", ConnAckProperties{Flags: PropertyFlags(0).Set(PropertyUserProperty)}},
+		{"Missing Response Info", ConnAckProperties{Flags: PropertyFlags(0).Set(PropertyResponseInfo)}},
+		{"Missing Server Reference", ConnAckProperties{Flags: PropertyFlags(0).Set(PropertyServerReference)}},
+		{"Missing Authentication Method", ConnAckProperties{Flags: PropertyFlags(0).Set(PropertyAuthenticationMethod)}},
+		{"Missing Authentication Data", ConnAckProperties{Flags: PropertyFlags(0).Set(PropertyAuthenticationData)}},
+		{
+			"Invalid Assigned Client ID",
+			ConnAckProperties{Flags: PropertyFlags(0).Set(PropertyAssignedClientID), AssignedClientID: []byte{0}},
+		},
+		{
+			"Invalid Reason String",
+			ConnAckProperties{Flags: PropertyFlags(0).Set(PropertyReasonString), ReasonString: []byte{0}},
+		},
+		{
+			"Invalid User Property key",
+			ConnAckProperties{
+				Flags:          PropertyFlags(0).Set(PropertyUserProperty),
+				UserProperties: []UserProperty{{[]byte{0}, []byte("b")}},
+			},
+		},
+		{
+			"Invalid User Property value",
+			ConnAckProperties{
+				Flags:          PropertyFlags(0).Set(PropertyUserProperty),
+				UserProperties: []UserProperty{{[]byte("a"), []byte{0}}},
+			},
+		},
+		{
+			"Invalid Response Info",
+			ConnAckProperties{Flags: PropertyFlags(0).Set(PropertyResponseInfo), ResponseInfo: []byte{0}},
+		},
+		{
+			"Invalid Server Reference",
+			ConnAckProperties{Flags: PropertyFlags(0).Set(PropertyServerReference), ServerReference: []byte{0}},
+		},
+		{
+			"Invalid Authentication Method",
+			ConnAckProperties{
+				Flags:                PropertyFlags(0).Set(PropertyAuthenticationMethod),
+				AuthenticationMethod: []byte{0},
+			},
+		},
+		{
+			"Invalid Authentication Data",
+			ConnAckProperties{
+				Flags:              PropertyFlags(0).Set(PropertyAuthenticationData),
+				AuthenticationData: []byte{0},
+			},
+		},
 	}
-	err := connack.Validate()
-	s.Require().Error(err)
-}
 
-func TestConnAckTestSuite(t *testing.T) {
-	suite.Run(t, new(ConnAckTestSuite))
+	for _, tc := range testCases {
+		props := tc.prop
+		t.Run(tc.name, func(t *testing.T) {
+			connack := ConnAck{Version: MQTT50, Properties: &props}
+			data := make([]byte, connack.Size())
+
+			n, err := connack.Encode(data)
+			if !errors.Is(err, ErrMalformedPacket) {
+				t.Fatalf("Unexpected error\nwant: %s\ngot:  %s", ErrMalformedPacket, err)
+			}
+			if n != 0 {
+				t.Fatalf("Unexpected number of bytes encoded\nwant: %v\ngot:  %v", 0, n)
+			}
+		})
+	}
 }
 
 func BenchmarkConnAckEncode(b *testing.B) {
@@ -299,13 +328,15 @@ func BenchmarkConnAckEncode(b *testing.B) {
 		name   string
 		packet ConnAck
 	}{
+		{"V3.1", ConnAck{Version: MQTT31}},
+		{"V3.1.1", ConnAck{Version: MQTT311}},
+		{"V5.0", ConnAck{Version: MQTT50}},
 		{
-			name:   "V3",
-			packet: ConnAck{Version: MQTT311, Code: ReasonCodeSuccess},
-		},
-		{
-			name:   "V5",
-			packet: ConnAck{Version: MQTT50, Code: ReasonCodeSuccess},
+			"V5.0 Properties",
+			ConnAck{
+				Version:    MQTT50,
+				Properties: &ConnAckProperties{Flags: PropertyFlags(0).Set(PropertyMaximumQoS)},
+			},
 		},
 	}
 
@@ -317,353 +348,29 @@ func BenchmarkConnAckEncode(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				_, err := test.packet.Encode(data)
 				if err != nil {
-					b.Fatal(err)
+					b.Fatalf("Unexpected error\n%s", err)
 				}
 			}
 		})
 	}
 }
 
-type ConnAckPropertiesTestSuite struct {
-	suite.Suite
-}
+func TestConnAckPropertiesOnNil(t *testing.T) {
+	var p *ConnAckProperties
 
-func (s *ConnAckPropertiesTestSuite) TestHas() {
-	testCases := []struct {
-		props  *ConnAckProperties
-		id     PropertyID
-		result bool
-	}{
-		{&ConnAckProperties{}, PropertyUserProperty, true},
-		{&ConnAckProperties{}, PropertyAssignedClientID, true},
-		{&ConnAckProperties{}, PropertyReasonString, true},
-		{&ConnAckProperties{}, PropertyResponseInfo, true},
-		{&ConnAckProperties{}, PropertyServerReference, true},
-		{&ConnAckProperties{}, PropertyAuthenticationMethod, true},
-		{&ConnAckProperties{}, PropertyAuthenticationData, true},
-		{&ConnAckProperties{}, PropertySessionExpiryInterval, true},
-		{&ConnAckProperties{}, PropertyMaximumPacketSize, true},
-		{&ConnAckProperties{}, PropertyReceiveMaximum, true},
-		{&ConnAckProperties{}, PropertyTopicAliasMaximum, true},
-		{&ConnAckProperties{}, PropertyServerKeepAlive, true},
-		{&ConnAckProperties{}, PropertyMaximumQoS, true},
-		{&ConnAckProperties{}, PropertyRetainAvailable, true},
-		{&ConnAckProperties{}, PropertyWildcardSubscriptionAvailable, true},
-		{&ConnAckProperties{}, PropertySubscriptionIDAvailable, true},
-		{&ConnAckProperties{}, PropertySharedSubscriptionAvailable, true},
-		{nil, 0, false},
+	size := p.size()
+	if size != 0 {
+		t.Fatalf("Unexpected size\nwant: %v\ngot:  %v", 0, size)
 	}
 
-	for _, test := range testCases {
-		s.Run(fmt.Sprint(test.id), func() {
-			test.props.Set(test.id)
-			s.Require().Equal(test.result, test.props.Has(test.id))
-		})
-	}
-}
-
-func (s *ConnAckPropertiesTestSuite) TestSize() {
-	var flags PropertyFlags
-	flags = flags.Set(PropertyUserProperty)
-	flags = flags.Set(PropertyAssignedClientID)
-	flags = flags.Set(PropertyReasonString)
-	flags = flags.Set(PropertyResponseInfo)
-	flags = flags.Set(PropertyServerReference)
-	flags = flags.Set(PropertyAuthenticationMethod)
-	flags = flags.Set(PropertyAuthenticationData)
-	flags = flags.Set(PropertySessionExpiryInterval)
-	flags = flags.Set(PropertyMaximumPacketSize)
-	flags = flags.Set(PropertyReceiveMaximum)
-	flags = flags.Set(PropertyTopicAliasMaximum)
-	flags = flags.Set(PropertyServerKeepAlive)
-	flags = flags.Set(PropertyMaximumQoS)
-	flags = flags.Set(PropertyRetainAvailable)
-	flags = flags.Set(PropertyWildcardSubscriptionAvailable)
-	flags = flags.Set(PropertySubscriptionIDAvailable)
-	flags = flags.Set(PropertySharedSubscriptionAvailable)
-
-	props := ConnAckProperties{
-		Flags:                flags,
-		UserProperties:       []UserProperty{{[]byte("a"), []byte("b")}},
-		AssignedClientID:     []byte("c"),
-		ReasonString:         []byte("d"),
-		ResponseInfo:         []byte("e"),
-		ServerReference:      []byte("f"),
-		AuthenticationMethod: []byte("auth"),
-		AuthenticationData:   []byte("data"),
+	p.Set(PropertyUserProperty)
+	if p.Has(PropertyUserProperty) {
+		t.Fatalf("Property should not be set on nil")
 	}
 
-	size := props.size()
-	s.Assert().Equal(66, size)
-}
-
-func (s *ConnAckPropertiesTestSuite) TestSizeOnNil() {
-	var props *ConnAckProperties
-
-	size := props.size()
-	s.Assert().Equal(0, size)
-}
-
-func (s *ConnAckPropertiesTestSuite) TestEncodeSuccess() {
-	testCases := []struct {
-		name  string
-		props *ConnAckProperties
-		data  []byte
-	}{
-		{"Nil", nil, []byte{0}},
-		{"Empty", &ConnAckProperties{}, []byte{0}},
-		{
-			"Session Expiry Interval",
-			&ConnAckProperties{
-				Flags:                 PropertyFlags(0).Set(PropertySessionExpiryInterval),
-				SessionExpiryInterval: 256,
-			},
-			[]byte{5, 0x11, 0, 0, 1, 0},
-		},
-		{
-			"Receive Maximum",
-			&ConnAckProperties{
-				Flags:          PropertyFlags(0).Set(PropertyReceiveMaximum),
-				ReceiveMaximum: 256,
-			},
-			[]byte{3, 0x21, 1, 0},
-		},
-		{
-			"Maximum QoS",
-			&ConnAckProperties{Flags: PropertyFlags(0).Set(PropertyMaximumQoS), MaximumQoS: 1},
-			[]byte{2, 0x24, 1},
-		},
-		{
-			"Retain Available",
-			&ConnAckProperties{
-				Flags:           PropertyFlags(0).Set(PropertyRetainAvailable),
-				RetainAvailable: true,
-			},
-			[]byte{2, 0x25, 1},
-		},
-		{
-			"Maximum Packet Size",
-			&ConnAckProperties{
-				Flags:             PropertyFlags(0).Set(PropertyMaximumPacketSize),
-				MaximumPacketSize: 4294967295,
-			},
-			[]byte{5, 0x27, 0xff, 0xff, 0xff, 0xff},
-		},
-		{
-			"Assigned Client Identifier",
-			&ConnAckProperties{
-				Flags:            PropertyFlags(0).Set(PropertyAssignedClientID),
-				AssignedClientID: []byte("abc"),
-			},
-			[]byte{6, 0x12, 0, 3, 'a', 'b', 'c'},
-		},
-		{
-			"Topic Alias Maximum",
-			&ConnAckProperties{
-				Flags:             PropertyFlags(0).Set(PropertyTopicAliasMaximum),
-				TopicAliasMaximum: 256,
-			},
-			[]byte{3, 0x22, 1, 0},
-		},
-		{
-			"Reason String",
-			&ConnAckProperties{
-				Flags:        PropertyFlags(0).Set(PropertyReasonString),
-				ReasonString: []byte("abc"),
-			},
-			[]byte{6, 0x1f, 0, 3, 'a', 'b', 'c'},
-		},
-		{
-			"User PropertyID",
-			&ConnAckProperties{
-				Flags: PropertyFlags(0).Set(PropertyUserProperty),
-				UserProperties: []UserProperty{
-					{[]byte("a"), []byte("b")},
-					{[]byte("c"), []byte("d")},
-				},
-			},
-			[]byte{14, 0x26, 0, 1, 'a', 0, 1, 'b', 0x26, 0, 1, 'c', 0, 1, 'd'},
-		},
-		{
-			"Wildcard Subscription Available",
-			&ConnAckProperties{
-				Flags:                         PropertyFlags(0).Set(PropertyWildcardSubscriptionAvailable),
-				WildcardSubscriptionAvailable: true,
-			},
-			[]byte{2, 0x28, 1},
-		},
-		{
-			"Subscription Identifiers Available",
-			&ConnAckProperties{
-				Flags:                   PropertyFlags(0).Set(PropertySubscriptionIDAvailable),
-				SubscriptionIDAvailable: true,
-			},
-			[]byte{2, 0x29, 1},
-		},
-		{
-			"Shared Subscription Available",
-			&ConnAckProperties{
-				Flags:                       PropertyFlags(0).Set(PropertySharedSubscriptionAvailable),
-				SharedSubscriptionAvailable: true,
-			},
-			[]byte{2, 0x2a, 1},
-		},
-		{
-			"Server Keep Alive",
-			&ConnAckProperties{
-				Flags:           PropertyFlags(0).Set(PropertyServerKeepAlive),
-				ServerKeepAlive: 30,
-			},
-			[]byte{3, 0x13, 0, 30},
-		},
-		{
-			"Response Information",
-			&ConnAckProperties{
-				Flags:        PropertyFlags(0).Set(PropertyResponseInfo),
-				ResponseInfo: []byte("abc"),
-			},
-			[]byte{6, 0x1a, 0, 3, 'a', 'b', 'c'},
-		},
-		{
-			"Server Reference",
-			&ConnAckProperties{
-				Flags:           PropertyFlags(0).Set(PropertyServerReference),
-				ServerReference: []byte("abc"),
-			},
-			[]byte{6, 0x1c, 0, 3, 'a', 'b', 'c'},
-		},
-		{
-			"Authentication Method",
-			&ConnAckProperties{
-				Flags:                PropertyFlags(0).Set(PropertyAuthenticationMethod),
-				AuthenticationMethod: []byte("abc"),
-			},
-			[]byte{6, 0x15, 0, 3, 'a', 'b', 'c'},
-		},
-		{
-			"Authentication Data",
-			&ConnAckProperties{
-				Flags:              PropertyFlags(0).Set(PropertyAuthenticationData),
-				AuthenticationData: []byte("abc"),
-			},
-			[]byte{6, 0x16, 0, 3, 'a', 'b', 'c'},
-		},
+	p = &ConnAckProperties{}
+	p.Set(PropertyUserProperty)
+	if !p.Has(PropertyUserProperty) {
+		t.Fatalf("Property should be set on nil")
 	}
-
-	for _, test := range testCases {
-		s.Run(test.name, func() {
-			data := make([]byte, len(test.data))
-
-			n, err := test.props.encode(data)
-			s.Require().NoError(err)
-			s.Assert().Equal(len(test.data), n)
-			s.Assert().Equal(test.data, data)
-		})
-	}
-}
-
-func (s *ConnAckPropertiesTestSuite) TestEncodeError() {
-	testCases := []struct {
-		name  string
-		props *ConnAckProperties
-	}{
-		{
-			"Invalid Assigned Client ID",
-			&ConnAckProperties{
-				Flags:            PropertyFlags(0).Set(PropertyAssignedClientID),
-				AssignedClientID: []byte{0},
-			},
-		},
-		{
-			"Invalid Reason String",
-			&ConnAckProperties{
-				Flags:        PropertyFlags(0).Set(PropertyReasonString),
-				ReasonString: []byte{0},
-			},
-		},
-		{
-			"Invalid User Properties - Key",
-			&ConnAckProperties{
-				Flags:          PropertyFlags(0).Set(PropertyUserProperty),
-				UserProperties: []UserProperty{{[]byte{0}, []byte("b")}},
-			},
-		},
-		{
-			"Invalid User Properties - Value",
-			&ConnAckProperties{
-				Flags:          PropertyFlags(0).Set(PropertyUserProperty),
-				UserProperties: []UserProperty{{[]byte("a"), []byte{0}}},
-			},
-		},
-		{
-			"Invalid Response Info",
-			&ConnAckProperties{
-				Flags:        PropertyFlags(0).Set(PropertyResponseInfo),
-				ResponseInfo: []byte{0},
-			},
-		},
-		{
-			"Invalid Server Reference",
-			&ConnAckProperties{
-				Flags:           PropertyFlags(0).Set(PropertyServerReference),
-				ServerReference: []byte{0},
-			},
-		},
-		{
-			"Invalid Authentication Method",
-			&ConnAckProperties{
-				Flags:                PropertyFlags(0).Set(PropertyAuthenticationMethod),
-				AuthenticationMethod: []byte{0},
-			},
-		},
-		{
-			"Invalid Authentication Data",
-			&ConnAckProperties{
-				Flags:              PropertyFlags(0).Set(PropertyAuthenticationData),
-				AuthenticationData: []byte{0},
-			},
-		},
-	}
-
-	for _, test := range testCases {
-		s.Run(test.name, func() {
-			data := make([]byte, 10)
-
-			_, err := test.props.encode(data)
-			s.Require().Error(err)
-		})
-	}
-}
-
-func (s *ConnAckPropertiesTestSuite) TestValidateWithMissingProperty() {
-	testCases := []struct {
-		name string
-		id   PropertyID
-	}{
-		{"Assigned client ID", PropertyAssignedClientID},
-		{"Reason string", PropertyReasonString},
-		{"Reason info", PropertyResponseInfo},
-		{"Server reference", PropertyServerReference},
-		{"Authentication method", PropertyAuthenticationMethod},
-		{"Authentication data", PropertyAuthenticationData},
-		{"User property", PropertyUserProperty},
-	}
-
-	for _, test := range testCases {
-		s.Run(test.name, func() {
-			props := ConnAckProperties{Flags: PropertyFlags(0).Set(test.id)}
-			err := props.Validate()
-			s.Require().Error(err)
-		})
-	}
-}
-
-func (s *ConnAckPropertiesTestSuite) TestValidateWithInvalidMaximumQoS() {
-	props := ConnAckProperties{Flags: PropertyFlags(0).Set(PropertyMaximumQoS), MaximumQoS: 3}
-	err := props.Validate()
-	s.Require().Error(err)
-}
-
-func TestConnAckPropertiesTestSuite(t *testing.T) {
-	suite.Run(t, new(ConnAckPropertiesTestSuite))
 }
