@@ -100,6 +100,9 @@ func (p *ConnAck) Encode(buf []byte) (n int, err error) {
 		var size int
 
 		size, err = p.Properties.encode(buf[n:])
+		if err != nil {
+			return 0, fmt.Errorf("%w: invalid properties", ErrMalformedPacket)
+		}
 		n += size
 	}
 
@@ -207,17 +210,18 @@ type ConnAckProperties struct {
 
 // Has returns whether the property is present or not.
 func (p *ConnAckProperties) Has(id PropertyID) bool {
-	if p != nil {
-		return p.Flags.Has(id)
+	if p == nil {
+		return false
 	}
-	return false
+	return p.Flags.Has(id)
 }
 
 // Set sets the property indicating that it's present.
 func (p *ConnAckProperties) Set(id PropertyID) {
-	if p != nil {
-		p.Flags = p.Flags.Set(id)
+	if p == nil {
+		return
 	}
+	p.Flags = p.Flags.Set(id)
 }
 
 // Validate validates if the properties are valid.
