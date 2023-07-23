@@ -281,7 +281,8 @@ func (s *Server) handleConnection(l Listener, nc net.Conn) {
 	}
 
 	if err := s.hooks.onClientOpen(s, c); err != nil {
-		s.closeClient(c, err)
+		_ = c.Connection.netConn.Close()
+		s.hooks.onClientClosed(s, c, err)
 		return
 	}
 
@@ -304,14 +305,11 @@ func (s *Server) handleConnection(l Listener, nc net.Conn) {
 
 		err := s.outboundLoop(ctx)
 		if err != nil {
-			s.closeClient(c, err)
+			_ = c.Connection.netConn.Close()
+			<-ctx.Done()
+			s.hooks.onClientClosed(s, c, err)
 		}
 	}()
-}
-
-func (s *Server) closeClient(c *Client, err error) {
-	_ = c.Connection.netConn.Close()
-	s.hooks.onClientClosed(s, c, err)
 }
 
 func (s *Server) inboundLoop(c *Client) error {

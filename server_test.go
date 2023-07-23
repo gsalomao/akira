@@ -337,7 +337,7 @@ func (s *ServerTestSuite) TestStopClosesAllClients() {
 	s.Assert().Equal(akira.ServerStopped, s.server.State())
 }
 
-func (s *ServerTestSuite) TestStopReturnsErrorWhenCancelled() {
+func (s *ServerTestSuite) TestStopReturnsErrorWhenCancelled() { // TODO: Check why this test is failing sporadically.
 	_ = s.server.Start()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
