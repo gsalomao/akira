@@ -17,202 +17,111 @@ package packet
 import (
 	"bufio"
 	"bytes"
-	"fmt"
+	"errors"
 	"io"
+	"reflect"
 	"testing"
-
-	"github.com/stretchr/testify/suite"
 )
 
-type FixedHeaderTestSuite struct {
-	suite.Suite
-	header FixedHeader
-}
-
-func (s *FixedHeaderTestSuite) SetupTest() {
-	s.header = FixedHeader{}
-}
-
-func (s *FixedHeaderTestSuite) TestReadPacketType() {
+func TestFixedHeaderRead(t *testing.T) {
 	testCases := []struct {
-		data       []byte
-		packetType Type
+		data   []byte
+		header FixedHeader
 	}{
-		{[]byte{0x10, 0x00}, TypeConnect},
-		{[]byte{0x20, 0x00}, TypeConnAck},
-		{[]byte{0x30, 0x00}, TypePublish},
-		{[]byte{0x40, 0x00}, TypePubAck},
-		{[]byte{0x50, 0x00}, TypePubRec},
-		{[]byte{0x60, 0x00}, TypePubRel},
-		{[]byte{0x70, 0x00}, TypePubComp},
-		{[]byte{0x80, 0x00}, TypeSubscribe},
-		{[]byte{0x90, 0x00}, TypeSubAck},
-		{[]byte{0xa0, 0x00}, TypeUnsubscribe},
-		{[]byte{0xb0, 0x00}, TypeUnsubAck},
-		{[]byte{0xc0, 0x00}, TypePingReq},
-		{[]byte{0xd0, 0x00}, TypePingResp},
-		{[]byte{0xe0, 0x00}, TypeDisconnect},
-		{[]byte{0xf0, 0x00}, TypeAuth},
+		{[]byte{0x10, 0x00}, FixedHeader{PacketType: TypeConnect}},
+		{[]byte{0x20, 0x7F}, FixedHeader{PacketType: TypeConnAck, RemainingLength: 127}},
+		{[]byte{0x30, 0x80, 0x01}, FixedHeader{PacketType: TypePublish, RemainingLength: 128}},
+		{[]byte{0x40, 0xFF, 0x7F}, FixedHeader{PacketType: TypePubAck, RemainingLength: 16383}},
+		{[]byte{0x50, 0x80, 0x80, 0x01}, FixedHeader{PacketType: TypePubRec, RemainingLength: 16384}},
+		{[]byte{0x60, 0xFF, 0xFF, 0x7F}, FixedHeader{PacketType: TypePubRel, RemainingLength: 2097151}},
+		{[]byte{0x70, 0x80, 0x80, 0x80, 0x01}, FixedHeader{PacketType: TypePubComp, RemainingLength: 2097152}},
+		{[]byte{0x80, 0xFF, 0xFF, 0xFF, 0x7F}, FixedHeader{PacketType: TypeSubscribe, RemainingLength: 268435455}},
+		{[]byte{0x91, 0x01}, FixedHeader{PacketType: TypeSubAck, RemainingLength: 1, Flags: 1}},
+		{[]byte{0xA2, 0x02}, FixedHeader{PacketType: TypeUnsubscribe, RemainingLength: 2, Flags: 2}},
+		{[]byte{0xB3, 0x03}, FixedHeader{PacketType: TypeUnsubAck, RemainingLength: 3, Flags: 3}},
+		{[]byte{0xC4, 0x04}, FixedHeader{PacketType: TypePingReq, RemainingLength: 4, Flags: 4}},
+		{[]byte{0xD5, 0x05}, FixedHeader{PacketType: TypePingResp, RemainingLength: 5, Flags: 5}},
+		{[]byte{0xE6, 0x06}, FixedHeader{PacketType: TypeDisconnect, RemainingLength: 6, Flags: 6}},
+		{[]byte{0xF7, 0x07}, FixedHeader{PacketType: TypeAuth, RemainingLength: 7, Flags: 7}},
 	}
 
-	for _, test := range testCases {
-		s.Run(test.packetType.String(), func() {
+	for _, tc := range testCases {
+		t.Run(tc.header.PacketType.String(), func(t *testing.T) {
 			var header FixedHeader
-			reader := bufio.NewReader(bytes.NewReader(test.data))
+			reader := bufio.NewReader(bytes.NewReader(tc.data))
 
 			n, err := header.Read(reader)
-			s.Require().NoError(err)
-			s.Assert().Equal(len(test.data), n)
-			s.Assert().Equal(test.packetType, header.PacketType)
+			if err != nil {
+				t.Fatalf("Unexpected error\n%s", err)
+			}
+			if n != len(tc.data) {
+				t.Fatalf("Unexpexted number of bytes read\nwant: %v\ngot:  %v", len(tc.data), n)
+			}
+
+			if !reflect.DeepEqual(tc.header, header) {
+				t.Fatalf("Unexpected header\nwant: %+v\ngot:  %+v", tc.header, header)
+			}
 		})
 	}
 }
 
-func (s *FixedHeaderTestSuite) TestReadFlags() {
-	for i := 0; i < 0x0F; i++ {
-		s.Run(fmt.Sprint(i), func() {
-			var header FixedHeader
-			data := []byte{byte(i), 0x00}
-			reader := bufio.NewReader(bytes.NewReader(data))
-
-			n, err := header.Read(reader)
-			s.Require().NoError(err)
-			s.Assert().Equal(len(data), n)
-			s.Assert().Equal(byte(i), header.Flags)
-		})
-	}
-}
-
-func (s *FixedHeaderTestSuite) TestReadRemainingLength() {
-	testCases := []struct {
-		data      []byte
-		remaining int
-	}{
-		{[]byte{0x00, 0x7f}, 127},
-		{[]byte{0x00, 0xff, 0x7f}, 16383},
-		{[]byte{0x00, 0xff, 0xff, 0x7f}, 2097151},
-		{[]byte{0x00, 0xff, 0xff, 0xff, 0x7f}, 268435455},
-	}
-
-	for _, test := range testCases {
-		s.Run(fmt.Sprint(test.remaining), func() {
-			var header FixedHeader
-			reader := bufio.NewReader(bytes.NewReader(test.data))
-
-			n, err := header.Read(reader)
-			s.Require().NoError(err)
-			s.Assert().Equal(len(test.data), n)
-			s.Assert().Equal(test.remaining, header.RemainingLength)
-		})
-	}
-}
-
-func (s *FixedHeaderTestSuite) TestReadError() {
+func TestFixedHeaderReadError(t *testing.T) {
 	testCases := []struct {
 		name string
 		data []byte
 		err  error
 	}{
-		{"PacketTypeError", []byte{}, io.EOF},
-		{"RemainingLengthError", []byte{0x00}, io.EOF},
+		{"Missing packet type", []byte{}, io.EOF},
+		{"Missing remaining length", []byte{0x00}, io.EOF},
+		{"Invalid remaining length", []byte{0x10, 0xff, 0xff, 0xff, 0x80}, ErrMalformedPacket},
 	}
 
-	for _, test := range testCases {
-		s.Run(test.name, func() {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			var header FixedHeader
-			reader := bufio.NewReader(bytes.NewReader(test.data))
+			reader := bufio.NewReader(bytes.NewReader(tc.data))
 
 			n, err := header.Read(reader)
-			s.Require().ErrorIs(err, test.err)
-			s.Assert().Equal(len(test.data), n)
+			if !errors.Is(err, tc.err) {
+				t.Fatalf("Unexpected error\nwant: %s\ngot:  %s", tc.err, err)
+			}
+			if n != len(tc.data) {
+				t.Fatalf("Unexpexted number of bytes read\nwant: %v\ngot:  %v", len(tc.data), n)
+			}
 		})
 	}
 }
 
-func (s *FixedHeaderTestSuite) TestReadMalformedPacket() {
-	var header FixedHeader
-	data := []byte{0x10, 0xff, 0xff, 0xff, 0x80}
-	reader := bufio.NewReader(bytes.NewReader(data))
-
-	n, err := header.Read(reader)
-
-	var code Error
-	s.Require().ErrorIs(err, ErrMalformedPacket)
-	s.Require().ErrorAs(err, &code)
-	s.Assert().Equal(len(data), n)
-	s.Assert().Equal(ReasonCodeMalformedPacket, code.Code)
-}
-
-func (s *FixedHeaderTestSuite) TestEncodePacketType() {
+func TestFixedHeaderEncode(t *testing.T) {
 	testCases := []struct {
-		packetType Type
-		data       []byte
+		header FixedHeader
+		data   []byte
 	}{
-		{TypeConnect, []byte{0x10, 0x00}},
-		{TypeConnAck, []byte{0x20, 0x00}},
-		{TypePublish, []byte{0x30, 0x00}},
-		{TypePubAck, []byte{0x40, 0x00}},
-		{TypePubRec, []byte{0x50, 0x00}},
-		{TypePubRel, []byte{0x60, 0x00}},
-		{TypePubComp, []byte{0x70, 0x00}},
-		{TypeSubscribe, []byte{0x80, 0x00}},
-		{TypeSubAck, []byte{0x90, 0x00}},
-		{TypeUnsubscribe, []byte{0xa0, 0x00}},
-		{TypeUnsubAck, []byte{0xb0, 0x00}},
-		{TypePingReq, []byte{0xc0, 0x00}},
-		{TypePingResp, []byte{0xd0, 0x00}},
-		{TypeDisconnect, []byte{0xe0, 0x00}},
-		{TypeAuth, []byte{0xf0, 0x00}},
+		{FixedHeader{PacketType: TypeConnect}, []byte{0x10, 0x00}},
+		{FixedHeader{PacketType: TypeConnAck, RemainingLength: 127}, []byte{0x20, 0x7F}},
+		{FixedHeader{PacketType: TypePublish, RemainingLength: 128}, []byte{0x30, 0x80, 0x01}},
+		{FixedHeader{PacketType: TypePubAck, RemainingLength: 16383}, []byte{0x40, 0xFF, 0x7F}},
+		{FixedHeader{PacketType: TypePubRec, RemainingLength: 16384}, []byte{0x50, 0x80, 0x80, 0x01}},
+		{FixedHeader{PacketType: TypePubRel, RemainingLength: 2097151}, []byte{0x60, 0xFF, 0xFF, 0x7F}},
+		{FixedHeader{PacketType: TypePubComp, RemainingLength: 2097152}, []byte{0x70, 0x80, 0x80, 0x80, 0x01}},
+		{FixedHeader{PacketType: TypeSubscribe, RemainingLength: 268435455}, []byte{0x80, 0xFF, 0xFF, 0xFF, 0x7F}},
+		{FixedHeader{PacketType: TypeSubAck, RemainingLength: 1, Flags: 1}, []byte{0x91, 0x01}},
+		{FixedHeader{PacketType: TypeUnsubscribe, RemainingLength: 2, Flags: 2}, []byte{0xA2, 0x02}},
+		{FixedHeader{PacketType: TypeUnsubAck, RemainingLength: 3, Flags: 3}, []byte{0xB3, 0x03}},
+		{FixedHeader{PacketType: TypePingReq, RemainingLength: 4, Flags: 4}, []byte{0xC4, 0x04}},
+		{FixedHeader{PacketType: TypePingResp, RemainingLength: 5, Flags: 5}, []byte{0xD5, 0x05}},
+		{FixedHeader{PacketType: TypeDisconnect, RemainingLength: 6, Flags: 6}, []byte{0xE6, 0x06}},
+		{FixedHeader{PacketType: TypeAuth, RemainingLength: 7, Flags: 7}, []byte{0xF7, 0x07}},
 	}
 
-	for _, test := range testCases {
-		s.Run(test.packetType.String(), func() {
-			header := FixedHeader{PacketType: test.packetType}
-			data := make([]byte, 2)
+	for _, tc := range testCases {
+		t.Run(tc.header.PacketType.String(), func(t *testing.T) {
+			data := make([]byte, len(tc.data))
 
-			n := header.encode(data)
-			s.Assert().Equal(len(test.data), n)
-			s.Assert().Equal(test.data, data)
+			n := tc.header.encode(data)
+			if n != len(tc.data) {
+				t.Fatalf("Unexpected number of bytes encoded\nwant: %v\ngot:  %v", len(tc.data), n)
+			}
 		})
 	}
-}
-
-func (s *FixedHeaderTestSuite) TestEncodeFlags() {
-	for i := 0; i < 0x0F; i++ {
-		s.Run(fmt.Sprint(i), func() {
-			header := FixedHeader{Flags: byte(i)}
-			data := make([]byte, 2)
-
-			n := header.encode(data)
-			s.Assert().Equal(len(data), n)
-			s.Assert().Equal(data[0], header.Flags)
-		})
-	}
-}
-
-func (s *FixedHeaderTestSuite) TestEncodeRemainingLength() {
-	testCases := []struct {
-		remaining int
-		data      []byte
-	}{
-		{127, []byte{0x00, 0x7f}},
-		{16383, []byte{0x00, 0xff, 0x7f}},
-		{2097151, []byte{0x00, 0xff, 0xff, 0x7f}},
-		{268435455, []byte{0x00, 0xff, 0xff, 0xff, 0x7f}},
-	}
-
-	for _, test := range testCases {
-		s.Run(fmt.Sprint(test.remaining), func() {
-			header := FixedHeader{RemainingLength: test.remaining}
-			data := make([]byte, len(test.data))
-
-			n := header.encode(data)
-			s.Assert().Equal(len(test.data), n)
-			s.Assert().Equal(test.data, data)
-		})
-	}
-}
-
-func TestFixedHeaderTestSuite(t *testing.T) {
-	suite.Run(t, new(FixedHeaderTestSuite))
 }
