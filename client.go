@@ -29,10 +29,10 @@ type Client struct {
 	ID []byte `json:"id"`
 
 	// Connection represents the client's connection.
-	Connection *Connection `json:"connection"`
+	Connection Connection `json:"connection"`
 
 	// Session represents the client's session.
-	Session *Session `json:"session"`
+	Session Session `json:"session"`
 
 	connected atomic.Bool
 }

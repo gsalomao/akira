@@ -273,7 +273,7 @@ func (s *Server) stop() {
 
 func (s *Server) handleConnection(l Listener, nc net.Conn) {
 	client := &Client{
-		Connection: &Connection{
+		Connection: Connection{
 			netConn:   nc,
 			listener:  l,
 			KeepAlive: s.config.ConnectTimeout,
@@ -281,7 +281,7 @@ func (s *Server) handleConnection(l Listener, nc net.Conn) {
 	}
 
 	if err := s.hooks.onConnectionOpen(s, l); err != nil {
-		s.closeConnection(client.Connection, err)
+		s.closeConnection(&client.Connection, err)
 		return
 	}
 
@@ -304,7 +304,7 @@ func (s *Server) handleConnection(l Listener, nc net.Conn) {
 
 		err := s.outboundLoop(ctx)
 		if err != nil {
-			s.closeConnection(client.Connection, err)
+			s.closeConnection(&client.Connection, err)
 		}
 	}()
 
@@ -401,7 +401,7 @@ func (s *Server) handlePacketConnect(c *Client, connect *packet.Connect) error {
 		return err
 	}
 
-	err = s.connect(c, connect)
+	err = s.connectClient(c, connect)
 	if err != nil {
 		s.hooks.onConnectError(c, connect, err)
 		return err
@@ -411,9 +411,8 @@ func (s *Server) handlePacketConnect(c *Client, connect *packet.Connect) error {
 	return nil
 }
 
-func (s *Server) connect(c *Client, connect *packet.Connect) error {
+func (s *Server) connectClient(c *Client, connect *packet.Connect) error {
 	var (
-		session        *Session
 		sessionPresent bool
 		err            error
 	)
@@ -436,7 +435,10 @@ func (s *Server) connect(c *Client, connect *packet.Connect) error {
 	if connect.Flags.CleanSession() {
 		err = s.store.deleteSession(connect.ClientID)
 	} else {
-		session, err = s.store.getSession(connect.ClientID)
+		err = s.store.readSession(connect.ClientID, &c.Session)
+		if err == nil {
+			sessionPresent = true
+		}
 	}
 	if err != nil && !errors.Is(err, ErrSessionNotFound) {
 		// If the session store fails to get the session, or to delete the session, the server replies to client
@@ -446,21 +448,14 @@ func (s *Server) connect(c *Client, connect *packet.Connect) error {
 		return fmt.Errorf("%w: %s", pErr, err.Error())
 	}
 
-	if session == nil {
-		session = &Session{}
-	} else {
-		sessionPresent = true
-	}
-
 	c.ID = connect.ClientID
-	c.Session = session
 	c.Session.Connected = true
 	c.Session.ConnectedAt = time.Now().UnixMilli()
 	c.Session.Properties = sessionProperties(connect.Properties, &s.config)
 	c.Session.LastWill = lastWill(connect)
 	c.Connection.KeepAlive = sessionKeepAlive(connect.KeepAlive, s.config.MaxKeepAlive)
 
-	err = s.store.saveSession(c.ID, session)
+	err = s.store.saveSession(c.ID, &c.Session)
 	if err != nil {
 		// If the session store fails to save the session, the server replies to client indicating that the service
 		// is unavailable.

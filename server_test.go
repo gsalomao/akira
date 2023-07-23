@@ -735,7 +735,7 @@ func (s *ServerTestSuite) TestConnectPacket() {
 			var session *akira.Session
 
 			store := mocks.NewMockSessionStore(s.T())
-			store.EXPECT().GetSession([]byte{'a', 'b'}).Return(nil, nil)
+			store.EXPECT().ReadSession([]byte{'a', 'b'}, mock.Anything).Return(akira.ErrSessionNotFound)
 			store.EXPECT().SaveSession(mock.Anything, mock.Anything).
 				RunAndReturn(func(id []byte, ss *akira.Session) error {
 					s.Assert().Equal([]byte{'a', 'b'}, id)
@@ -755,7 +755,7 @@ func (s *ServerTestSuite) TestConnectPacket() {
 			onPacketSend.EXPECT().Name().Return("onPacketSend")
 			onPacketSend.EXPECT().OnPacketSend(mock.Anything, mock.Anything).
 				RunAndReturn(func(c *akira.Client, p akira.Packet) error {
-					s.Require().Equal(session, c.Session)
+					s.Require().Equal(*session, c.Session)
 					s.Require().Equal(packet.TypeConnAck, p.Type())
 					return nil
 				})
@@ -764,7 +764,7 @@ func (s *ServerTestSuite) TestConnectPacket() {
 			onPacketSent := mocks.NewMockOnPacketSentHook(s.T())
 			onPacketSent.EXPECT().Name().Return("onPacketSent")
 			onPacketSent.EXPECT().OnPacketSent(mock.Anything, mock.Anything).Run(func(c *akira.Client, p akira.Packet) {
-				s.Require().Equal(session, c.Session)
+				s.Require().Equal(*session, c.Session)
 				s.Require().Equal(packet.TypeConnAck, p.Type())
 			})
 			_ = srv.AddHook(onPacketSent)
@@ -785,7 +785,7 @@ func (s *ServerTestSuite) TestConnectPacket() {
 			onConnected.EXPECT().Name().Return("onConnected")
 			onConnected.EXPECT().OnConnected(mock.Anything).Run(func(c *akira.Client) {
 				s.Require().True(c.Connected())
-				s.Require().Equal(session, c.Session)
+				s.Require().Equal(*session, c.Session)
 				s.Require().NotNil(c.Connection)
 				s.Assert().WithinDuration(time.Now(), time.UnixMilli(c.Session.ConnectedAt), time.Second)
 				close(connectedCh)
@@ -837,8 +837,12 @@ func (s *ServerTestSuite) TestConnectPacketWithSessionPresent() {
 			session := &akira.Session{Connected: false}
 
 			store := mocks.NewMockSessionStore(s.T())
-			store.EXPECT().GetSession([]byte{'a', 'b'}).Return(session, nil)
-			store.EXPECT().SaveSession([]byte{'a', 'b'}, session).
+			store.EXPECT().ReadSession([]byte{'a', 'b'}, mock.Anything).
+				RunAndReturn(func(_ []byte, s *akira.Session) error {
+					s.Connected = session.Connected
+					return nil
+				})
+			store.EXPECT().SaveSession([]byte{'a', 'b'}, mock.Anything).
 				RunAndReturn(func(_ []byte, session *akira.Session) error {
 					s.Assert().True(session.Connected)
 					return nil
@@ -1301,7 +1305,7 @@ func (s *ServerTestSuite) TestConnectPacketWithGetSessionReturningError() {
 	for _, test := range testCases {
 		s.Run(test.name, func() {
 			store := mocks.NewMockSessionStore(s.T())
-			store.EXPECT().GetSession([]byte{'a', 'b'}).Return(nil, assert.AnError)
+			store.EXPECT().ReadSession([]byte{'a', 'b'}, mock.Anything).Return(assert.AnError)
 
 			opts := akira.NewDefaultOptions()
 			opts.SessionStore = store

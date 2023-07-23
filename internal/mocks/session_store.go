@@ -62,56 +62,45 @@ func (_c *MockSessionStore_DeleteSession_Call) RunAndReturn(run func([]byte) err
 	return _c
 }
 
-// GetSession provides a mock function with given fields: clientID
-func (_m *MockSessionStore) GetSession(clientID []byte) (*akira.Session, error) {
-	ret := _m.Called(clientID)
+// ReadSession provides a mock function with given fields: clientID, s
+func (_m *MockSessionStore) ReadSession(clientID []byte, s *akira.Session) error {
+	ret := _m.Called(clientID, s)
 
-	var r0 *akira.Session
-	var r1 error
-	if rf, ok := ret.Get(0).(func([]byte) (*akira.Session, error)); ok {
-		return rf(clientID)
-	}
-	if rf, ok := ret.Get(0).(func([]byte) *akira.Session); ok {
-		r0 = rf(clientID)
+	var r0 error
+	if rf, ok := ret.Get(0).(func([]byte, *akira.Session) error); ok {
+		r0 = rf(clientID, s)
 	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*akira.Session)
-		}
+		r0 = ret.Error(0)
 	}
 
-	if rf, ok := ret.Get(1).(func([]byte) error); ok {
-		r1 = rf(clientID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
+	return r0
 }
 
-// MockSessionStore_GetSession_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetSession'
-type MockSessionStore_GetSession_Call struct {
+// MockSessionStore_ReadSession_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReadSession'
+type MockSessionStore_ReadSession_Call struct {
 	*mock.Call
 }
 
-// GetSession is a helper method to define mock.On call
+// ReadSession is a helper method to define mock.On call
 //   - clientID []byte
-func (_e *MockSessionStore_Expecter) GetSession(clientID interface{}) *MockSessionStore_GetSession_Call {
-	return &MockSessionStore_GetSession_Call{Call: _e.mock.On("GetSession", clientID)}
+//   - s *akira.Session
+func (_e *MockSessionStore_Expecter) ReadSession(clientID interface{}, s interface{}) *MockSessionStore_ReadSession_Call {
+	return &MockSessionStore_ReadSession_Call{Call: _e.mock.On("ReadSession", clientID, s)}
 }
 
-func (_c *MockSessionStore_GetSession_Call) Run(run func(clientID []byte)) *MockSessionStore_GetSession_Call {
+func (_c *MockSessionStore_ReadSession_Call) Run(run func(clientID []byte, s *akira.Session)) *MockSessionStore_ReadSession_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].([]byte))
+		run(args[0].([]byte), args[1].(*akira.Session))
 	})
 	return _c
 }
 
-func (_c *MockSessionStore_GetSession_Call) Return(s *akira.Session, err error) *MockSessionStore_GetSession_Call {
-	_c.Call.Return(s, err)
+func (_c *MockSessionStore_ReadSession_Call) Return(_a0 error) *MockSessionStore_ReadSession_Call {
+	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockSessionStore_GetSession_Call) RunAndReturn(run func([]byte) (*akira.Session, error)) *MockSessionStore_GetSession_Call {
+func (_c *MockSessionStore_ReadSession_Call) RunAndReturn(run func([]byte, *akira.Session) error) *MockSessionStore_ReadSession_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -167,7 +167,7 @@ func lastWill(connect *packet.Connect) *LastWill {
 func connAckProperties(c *Client, conf *Config, connect *packet.Connect) *packet.ConnAckProperties {
 	var props *packet.ConnAckProperties
 
-	if hasSessionExpiryInterval(c.Session, connect) {
+	if hasSessionExpiryInterval(&c.Session, connect) {
 		props = newIfNotExists(props)
 		props.SessionExpiryInterval = c.Session.Properties.SessionExpiryInterval
 		props.Set(packet.PropertySessionExpiryInterval)
