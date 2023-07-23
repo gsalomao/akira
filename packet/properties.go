@@ -83,7 +83,7 @@ func decodeProperties[T any](buf []byte) (p *T, n int, err error) {
 
 	n, err = decodeVarInteger(buf, &remaining)
 	if err != nil {
-		return nil, n, fmt.Errorf("%w: invalid property length", ErrMalformedPacket)
+		return nil, n, fmt.Errorf("%w: invalid property length: %s", ErrMalformedPacket, err.Error())
 	}
 	if remaining == 0 {
 		return nil, n, nil

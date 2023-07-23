@@ -123,12 +123,9 @@ func (p *Connect) Size() int {
 // Decode decodes the CONNECT Packet from buf and header. This method returns the number of bytes read
 // from buf and the error, if it fails to read the packet correctly.
 func (p *Connect) Decode(buf []byte, h FixedHeader) (n int, err error) {
-	if h.PacketType != TypeConnect {
-		return 0, fmt.Errorf("%w: invalid packet type", ErrMalformedPacket)
-	}
-
-	if h.Flags != 0 {
-		return 0, fmt.Errorf("%w: invalid control flags", ErrMalformedPacket)
+	err = p.validateHeader(buf, h)
+	if err != nil {
+		return 0, err
 	}
 
 	var cnt int
@@ -145,11 +142,11 @@ func (p *Connect) Decode(buf []byte, h FixedHeader) (n int, err error) {
 	}
 	n += cnt
 
-	p.KeepAlive, err = decodeUint[uint16](buf[n:])
+	cnt, err = p.decodeKeepAlive(buf[n:])
 	if err != nil {
-		return 0, fmt.Errorf("%w: invalid keep alive", ErrMalformedPacket)
+		return 0, err
 	}
-	n += 2
+	n += cnt
 
 	cnt, err = p.decodeProperties(buf[n:])
 	if err != nil {
@@ -190,12 +187,25 @@ func (p *Connect) Decode(buf []byte, h FixedHeader) (n int, err error) {
 	return n, nil
 }
 
+func (p *Connect) validateHeader(buf []byte, h FixedHeader) error {
+	if h.PacketType != TypeConnect {
+		return fmt.Errorf("%w: invalid packet type", ErrMalformedPacket)
+	}
+	if h.Flags != 0 {
+		return fmt.Errorf("%w: invalid control flags", ErrMalformedPacket)
+	}
+	if len(buf) != h.RemainingLength {
+		return fmt.Errorf("%w: buffer length does not match remaining length", ErrMalformedPacket)
+	}
+	return nil
+}
+
 func (p *Connect) decodeVersion(buf []byte) (int, error) {
 	name, n, err := decodeString(buf)
 	if err != nil {
 		return n, fmt.Errorf("%w: mssing protocol name", ErrMalformedPacket)
 	}
-	if n >= len(buf) {
+	if n == len(buf) {
 		return n, fmt.Errorf("%w: missing protocol version", ErrMalformedPacket)
 	}
 
@@ -227,18 +237,32 @@ func (p *Connect) decodeFlags(buf []byte) (int, error) {
 	willQos := p.Flags.WillQoS()
 
 	if !willFlags && willQos != QoS0 {
-		return n, fmt.Errorf("%w: invalid connect flags - will qos", ErrMalformedPacket)
+		return n, fmt.Errorf("%w: invalid connect flags - will qos without will flag", ErrMalformedPacket)
 	}
 	if willQos > QoS2 {
 		return n, fmt.Errorf("%w: invalid connect flags - will qos", ErrMalformedPacket)
 	}
 	if !willFlags && p.Flags.WillRetain() {
-		return n, fmt.Errorf("%w: invalid connect flags - will retain", ErrMalformedPacket)
+		return n, fmt.Errorf("%w: invalid connect flags - will retain without will flag", ErrMalformedPacket)
 	}
 	if p.Version != MQTT50 && p.Flags.Password() && !p.Flags.Username() {
-		return n, fmt.Errorf("%w: invalid connect flags - username/password flags", ErrMalformedPacket)
+		return n, fmt.Errorf("%w: invalid connect flags - password without username", ErrMalformedPacket)
 	}
 	return n, nil
+}
+
+func (p *Connect) decodeKeepAlive(buf []byte) (int, error) {
+	if len(buf) == 0 {
+		return 0, fmt.Errorf("%w: missing keep alive", ErrMalformedPacket)
+	}
+
+	var err error
+
+	p.KeepAlive, err = decodeUint[uint16](buf)
+	if err != nil {
+		return 0, fmt.Errorf("%w: invalid keep alive", ErrMalformedPacket)
+	}
+	return 2, nil
 }
 
 func (p *Connect) decodeProperties(buf []byte) (int, error) {
@@ -257,6 +281,10 @@ func (p *Connect) decodeProperties(buf []byte) (int, error) {
 }
 
 func (p *Connect) decodeClientID(buf []byte) (int, error) {
+	if len(buf) == 0 {
+		return 0, fmt.Errorf("%w: missing client identifier", ErrMalformedPacket)
+	}
+
 	id, n, err := decodeString(buf)
 	if err != nil {
 		return n, fmt.Errorf("%w: invalid client identifier", ErrMalformedPacket)
@@ -280,12 +308,18 @@ func (p *Connect) decodeWillProperties(buf []byte) (int, error) {
 	var err error
 
 	p.WillProperties, n, err = decodeProperties[WillProperties](buf)
-	return n, err
+	if err != nil {
+		return n, fmt.Errorf("will properties: %w", err)
+	}
+	return n, nil
 }
 
 func (p *Connect) decodeWill(buf []byte) (int, error) {
 	if !p.Flags.WillFlag() {
 		return 0, nil
+	}
+	if len(buf) == 0 {
+		return 0, fmt.Errorf("%w: missing will topic", ErrMalformedPacket)
 	}
 
 	topic, n, err := decodeString(buf)
@@ -298,6 +332,10 @@ func (p *Connect) decodeWill(buf []byte) (int, error) {
 
 	var payload []byte
 	var size int
+
+	if len(buf[n:]) == 0 {
+		return 0, fmt.Errorf("%w: missing will payload", ErrMalformedPacket)
+	}
 
 	payload, size, err = decodeString(buf[n:])
 	n += size
@@ -318,6 +356,9 @@ func (p *Connect) decodeUsername(buf []byte) (int, error) {
 	if !p.Flags.Username() {
 		return 0, nil
 	}
+	if len(buf) == 0 {
+		return 0, fmt.Errorf("%w: missing username", ErrMalformedPacket)
+	}
 
 	username, n, err := decodeString(buf)
 	if err != nil {
@@ -333,6 +374,9 @@ func (p *Connect) decodeUsername(buf []byte) (int, error) {
 func (p *Connect) decodePassword(buf []byte) (int, error) {
 	if !p.Flags.Password() {
 		return 0, nil
+	}
+	if len(buf) == 0 {
+		return 0, fmt.Errorf("%w: missing password", ErrMalformedPacket)
 	}
 
 	password, n, err := decodeBinary(buf)
@@ -423,17 +467,18 @@ type ConnectProperties struct {
 
 // Has returns whether the property is present or not.
 func (p *ConnectProperties) Has(id PropertyID) bool {
-	if p != nil {
-		return p.Flags.Has(id)
+	if p == nil {
+		return false
 	}
-	return false
+	return p.Flags.Has(id)
 }
 
 // Set sets the property indicating that it's present.
 func (p *ConnectProperties) Set(id PropertyID) {
-	if p != nil {
-		p.Flags = p.Flags.Set(id)
+	if p == nil {
+		return
 	}
+	p.Flags = p.Flags.Set(id)
 }
 
 func (p *ConnectProperties) size() int {
@@ -541,17 +586,18 @@ type WillProperties struct {
 
 // Has returns whether the property is present or not.
 func (p *WillProperties) Has(id PropertyID) bool {
-	if p != nil {
-		return p.Flags.Has(id)
+	if p == nil {
+		return false
 	}
-	return false
+	return p.Flags.Has(id)
 }
 
 // Set sets the property indicating that it's present.
 func (p *WillProperties) Set(id PropertyID) {
-	if p != nil {
-		p.Flags = p.Flags.Set(id)
+	if p == nil {
+		return
 	}
+	p.Flags = p.Flags.Set(id)
 }
 
 func (p *WillProperties) size() int {

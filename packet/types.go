@@ -224,7 +224,7 @@ func decodeVarInteger(buf []byte, val *int) (int, error) {
 
 	for {
 		if n >= len(buf) {
-			return n, errors.New("invalid variable integer")
+			return n, errors.New("not enough bytes to variable integer")
 		}
 
 		b := buf[n]
@@ -248,7 +248,7 @@ func decodeUint[T integer](data []byte) (T, error) {
 	var v T
 
 	if int(unsafe.Sizeof(v)) > len(data) {
-		return v, errors.New("unsupported integer size")
+		return v, errors.New("not enough bytes to decode integer")
 	}
 
 	switch any(v).(type) {
@@ -278,14 +278,16 @@ func decodeBool(data []byte) (bool, error) {
 }
 
 func decodeBinary(data []byte) (bin []byte, n int, err error) {
-	length, err := decodeUint[uint16](data)
+	var length uint16
+
+	length, err = decodeUint[uint16](data)
 	if err != nil {
 		return nil, 0, fmt.Errorf("invalid binary length: %w", err)
 	}
 	n = 2
 
 	if int(length) > len(data)-n {
-		return nil, n, errors.New("invalid binary length")
+		return nil, n, errors.New("not enough bytes to binary")
 	}
 
 	bin = data[n : n+int(length)]
