@@ -235,6 +235,7 @@ func BenchmarkConnectDecode(b *testing.B) {
 	for idx := range fixtures {
 		fx := fixtures[idx]
 		b.Run(fx.Name, func(b *testing.B) {
+			var p Connect
 			var header FixedHeader
 			var n int
 
@@ -244,7 +245,6 @@ func BenchmarkConnectDecode(b *testing.B) {
 			}
 
 			for i := 0; i < b.N; i++ {
-				var p Connect
 				_, err = p.Decode(fx.Packet[n:], header)
 				if err != nil {
 					b.Fatalf("Unexpected error while decoding packet\n%s", err)
