@@ -22,8 +22,8 @@ import (
 	"github.com/gsalomao/akira"
 )
 
-// TCPListener is a Listener responsible for listen and accept TCP connections.
-type TCPListener struct {
+// TCP is a Listener responsible for listen and accept TCP connections.
+type TCP struct {
 	address   string
 	listener  net.Listener
 	tlsConfig *tls.Config
@@ -31,64 +31,65 @@ type TCPListener struct {
 	wg        sync.WaitGroup
 }
 
-// NewTCPListener creates a new instance of the TCPListener.
-func NewTCPListener(address string, tlsConfig *tls.Config) *TCPListener {
-	return &TCPListener{address: address, tlsConfig: tlsConfig}
+// NewTCP creates a new instance of the TCP.
+func NewTCP(address string, tlsConfig *tls.Config) *TCP {
+	return &TCP{address: address, tlsConfig: tlsConfig}
 }
 
 // Listen starts the listener. When the listener starts listening, it starts to accept any incoming TCP connection,
 // and calls f with the new TCP connection. If the listener fails to start listening, it returns the error.
 // This function does not block the caller and returns immediately after the listener is ready to accept incoming
 // connections.
-func (l *TCPListener) Listen(f akira.OnConnectionFunc) error {
+func (t *TCP) Listen(f akira.OnConnectionFunc) error {
 	var err error
 
-	if l.tlsConfig == nil {
-		l.listener, err = net.Listen("tcp", l.address)
+	if t.tlsConfig == nil {
+		t.listener, err = net.Listen("tcp", t.address)
 	} else {
-		l.listener, err = tls.Listen("tcp", l.address, l.tlsConfig)
+		t.listener, err = tls.Listen("tcp", t.address, t.tlsConfig)
 	}
 	if err != nil {
 		return err
 	}
 
-	l.handle = f
-	l.wg.Add(1)
-	listening := make(chan struct{})
+	t.handle = f
+	t.wg.Add(1)
+	ready := make(chan struct{})
 
 	go func() {
-		defer l.wg.Done()
-		close(listening)
+		defer t.wg.Done()
+		close(ready)
 
 		for {
 			var c net.Conn
 
-			c, err = l.listener.Accept()
+			c, err = t.listener.Accept()
 			if err != nil {
 				break
 			}
 
 			if f != nil {
-				f(l, c)
+				f(t, c)
 			}
 		}
 	}()
 
+	<-ready
 	return nil
 }
 
 // Close closes the listener. Once the listener is closed, it does not accept any other incoming TCP connection. This
 // function blocks and returns only after the listener has closed.
-func (l *TCPListener) Close() error {
-	if l.listener == nil {
+func (t *TCP) Close() error {
+	if t.listener == nil {
 		return nil
 	}
 
-	err := l.listener.Close()
+	err := t.listener.Close()
 	if err != nil {
 		return err
 	}
 
-	l.wg.Wait()
+	t.wg.Wait()
 	return nil
 }

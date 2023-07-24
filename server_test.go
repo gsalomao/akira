@@ -1572,7 +1572,7 @@ func BenchmarkHandleConnect(b *testing.B) {
 	srv, _ := akira.NewServer(akira.NewDefaultOptions())
 	defer srv.Close()
 
-	err := srv.AddListener(listener.NewTCPListener(":1883", nil))
+	err := srv.AddListener(listener.NewTCP(":1883", nil))
 	if err != nil {
 		b.Fatalf("Unexpected error: %s", err)
 	}

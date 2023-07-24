@@ -35,7 +35,7 @@ func main() {
 	}
 	defer server.Close()
 
-	tcp := listener.NewTCPListener(":1883", nil)
+	tcp := listener.NewTCP(":1883", nil)
 	defer func() { _ = tcp.Close() }()
 
 	err = server.AddListener(tcp)
