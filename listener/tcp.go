@@ -24,7 +24,6 @@ import (
 
 // TCPListener is a Listener responsible for listen and accept TCP connections.
 type TCPListener struct {
-	name      string
 	address   string
 	listener  net.Listener
 	tlsConfig *tls.Config
@@ -33,18 +32,8 @@ type TCPListener struct {
 }
 
 // NewTCPListener creates a new instance of the TCPListener.
-func NewTCPListener(name, address string, tlsConfig *tls.Config) *TCPListener {
-	l := TCPListener{
-		name:      name,
-		address:   address,
-		tlsConfig: tlsConfig,
-	}
-	return &l
-}
-
-// Name returns the name of the listener.
-func (l *TCPListener) Name() string {
-	return l.name
+func NewTCPListener(address string, tlsConfig *tls.Config) *TCPListener {
+	return &TCPListener{address: address, tlsConfig: tlsConfig}
 }
 
 // Listen starts the listener. When the listener starts listening, it starts to accept any incoming TCP connection,

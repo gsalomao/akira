@@ -28,16 +28,16 @@ type TCPListenerTestSuite struct {
 	suite.Suite
 }
 
-func (s *TCPListenerTestSuite) TestNewTCPListenerSuccess() {
-	lsn := NewTCPListener("tcp1", ":1883", nil)
+func (s *TCPListenerTestSuite) TestNewTCPListener() {
+	lsn := NewTCPListener(":1883", nil)
 	s.Require().NotNil(lsn)
 	defer func() { _ = lsn.Close() }()
 
-	s.Assert().Equal("tcp1", lsn.Name())
+	s.Assert().Equal(":1883", lsn.address)
 }
 
-func (s *TCPListenerTestSuite) TestListenSuccess() {
-	lsn := NewTCPListener("tcp1", ":1883", nil)
+func (s *TCPListenerTestSuite) TestListen() {
+	lsn := NewTCPListener(":1883", nil)
 	defer func() { _ = lsn.Close() }()
 
 	err := lsn.Listen(func(akira.Listener, net.Conn) {})
@@ -55,7 +55,7 @@ func (s *TCPListenerTestSuite) TestListenWithTLSConfigSuccess() {
 	s.Require().NoError(err)
 
 	tlsConfig := tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{x509}}
-	lsn := NewTCPListener("tcp1", ":1883", &tlsConfig)
+	lsn := NewTCPListener(":1883", &tlsConfig)
 	defer func() { _ = lsn.Close() }()
 
 	err = lsn.Listen(func(akira.Listener, net.Conn) {})
@@ -63,7 +63,7 @@ func (s *TCPListenerTestSuite) TestListenWithTLSConfigSuccess() {
 }
 
 func (s *TCPListenerTestSuite) TestListenError() {
-	lsn := NewTCPListener("tcp1", ":abc", nil)
+	lsn := NewTCPListener(":abc", nil)
 	defer func() { _ = lsn.Close() }()
 
 	err := lsn.Listen(func(akira.Listener, net.Conn) {})
@@ -71,7 +71,7 @@ func (s *TCPListenerTestSuite) TestListenError() {
 }
 
 func (s *TCPListenerTestSuite) TestListenOnConnection() {
-	lsn := NewTCPListener("tcp1", ":1883", nil)
+	lsn := NewTCPListener(":1883", nil)
 	defer func() { _ = lsn.Close() }()
 
 	var nc net.Conn
@@ -94,7 +94,7 @@ func (s *TCPListenerTestSuite) TestListenOnConnection() {
 }
 
 func (s *TCPListenerTestSuite) TestClose() {
-	lsn := NewTCPListener("tcp1", ":1883", nil)
+	lsn := NewTCPListener(":1883", nil)
 	_ = lsn.Listen(func(akira.Listener, net.Conn) {})
 
 	err := lsn.Close()
@@ -102,7 +102,7 @@ func (s *TCPListenerTestSuite) TestClose() {
 }
 
 func (s *TCPListenerTestSuite) TestCloseWhenNotListening() {
-	lsn := NewTCPListener("tcp1", ":1883", nil)
+	lsn := NewTCPListener(":1883", nil)
 
 	err := lsn.Close()
 	s.Require().NoError(err)
