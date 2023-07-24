@@ -21,93 +21,132 @@ import (
 	"testing"
 
 	"github.com/gsalomao/akira"
-	"github.com/stretchr/testify/suite"
 )
 
-type TCPTestSuite struct {
-	suite.Suite
+func TestTCPListen(t *testing.T) {
+	tcp := NewTCP(":1883", nil)
+	if tcp == nil {
+		t.Fatal("A TCP listener was expected")
+	}
+
+	err := tcp.Listen(func(_ akira.Listener, _ net.Conn) {})
+	if err != nil {
+		t.Fatalf("Unexpected error\n%s", err)
+	}
+	_ = tcp.Close()
 }
 
-func (s *TCPTestSuite) TestNewTCP() {
-	lsn := NewTCP(":1883", nil)
-	s.Require().NotNil(lsn)
-	defer func() { _ = lsn.Close() }()
-
-	s.Assert().Equal(":1883", lsn.address)
-}
-
-func (s *TCPTestSuite) TestListen() {
-	lsn := NewTCP(":1883", nil)
-	defer func() { _ = lsn.Close() }()
-
-	err := lsn.Listen(func(akira.Listener, net.Conn) {})
-	s.Require().NoError(err)
-}
-
-func (s *TCPTestSuite) TestListenWithTLSConfigSuccess() {
-	cert, err := os.ReadFile("testdata/test.crt")
-	s.Require().NoError(err)
+func TestTCPListenWithTLSConfig(t *testing.T) {
+	crt, err := os.ReadFile("testdata/test.crt")
+	if err != nil {
+		t.Fatalf("Unexpected error\n%s", err)
+	}
+	if len(crt) == 0 {
+		t.Fatal("A certificate was expected")
+	}
 
 	key, err := os.ReadFile("testdata/test.key")
-	s.Require().NoError(err)
+	if err != nil {
+		t.Fatalf("Unexpected error\n%s", err)
+	}
+	if len(key) == 0 {
+		t.Fatal("A key was expected")
+	}
 
-	x509, err := tls.X509KeyPair(cert, key)
-	s.Require().NoError(err)
+	cert, err := tls.X509KeyPair(crt, key)
+	if err != nil {
+		t.Fatalf("Unexpected error\n%s", err)
+	}
 
-	tlsConfig := tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{x509}}
-	lsn := NewTCP(":1883", &tlsConfig)
-	defer func() { _ = lsn.Close() }()
+	tlsConfig := tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{cert}}
 
-	err = lsn.Listen(func(akira.Listener, net.Conn) {})
-	s.Require().NoError(err)
+	tcp := NewTCP(":1883", &tlsConfig)
+	if tcp == nil {
+		t.Fatal("A TCP listener was expected")
+	}
+
+	err = tcp.Listen(func(_ akira.Listener, _ net.Conn) {})
+	if err != nil {
+		t.Fatalf("Unexpected error\n%s", err)
+	}
+	_ = tcp.Close()
 }
 
-func (s *TCPTestSuite) TestListenError() {
-	lsn := NewTCP(":abc", nil)
-	defer func() { _ = lsn.Close() }()
+func TestTCPListenError(t *testing.T) {
+	tcp := NewTCP(":abc", nil)
+	if tcp == nil {
+		t.Fatal("A TCP listener was expected")
+	}
 
-	err := lsn.Listen(func(akira.Listener, net.Conn) {})
-	s.Require().Error(err)
+	err := tcp.Listen(func(akira.Listener, net.Conn) {})
+	if err == nil {
+		t.Fatal("An error was expected")
+	}
 }
 
-func (s *TCPTestSuite) TestListenOnConnection() {
-	lsn := NewTCP(":1883", nil)
-	defer func() { _ = lsn.Close() }()
+func TestTCPListenOnConnection(t *testing.T) {
+	tcp := NewTCP(":1883", nil)
+	if tcp == nil {
+		t.Fatal("A TCP listener was expected")
+	}
 
+	var lsn akira.Listener
 	var nc net.Conn
-	doneCh := make(chan struct{})
+	done := make(chan struct{})
 
-	_ = lsn.Listen(func(lsn akira.Listener, c net.Conn) {
-		s.Require().Equal(lsn, lsn)
-		s.Require().NotNil(c)
+	err := tcp.Listen(func(l akira.Listener, c net.Conn) {
+		lsn = l
 		nc = c
-		close(doneCh)
+		close(done)
 	})
+	if err != nil {
+		t.Fatalf("Unexpected error\n%s", err)
+	}
+	defer func() { _ = tcp.Close() }()
 
-	conn, err := net.Dial("tcp", ":1883")
-	s.Require().NotNil(conn)
-	s.Require().NoError(err)
-	defer func() { _ = conn.Close() }()
+	client, err := net.Dial("tcp", ":1883")
+	if err != nil {
+		t.Fatalf("Unexpected error\n%s", err)
+	}
+	if client == nil {
+		t.Fatal("A client was expected")
+	}
+	defer func() { _ = client.Close() }()
 
-	<-doneCh
-	s.Require().NotNil(nc)
+	<-done
+	if lsn == nil {
+		t.Fatal("A listener was expected")
+	}
+	if nc == nil {
+		t.Fatal("A network connection was expected")
+	}
 }
 
-func (s *TCPTestSuite) TestClose() {
-	lsn := NewTCP(":1883", nil)
-	_ = lsn.Listen(func(akira.Listener, net.Conn) {})
+func TestTCPClose(t *testing.T) {
+	tcp := NewTCP(":1883", nil)
+	if tcp == nil {
+		t.Fatal("A TCP listener was expected")
+	}
 
-	err := lsn.Close()
-	s.Require().NoError(err)
+	err := tcp.Listen(func(_ akira.Listener, _ net.Conn) {})
+	if err != nil {
+		t.Fatalf("Unexpected error\n%s", err)
+	}
+
+	err = tcp.Close()
+	if err != nil {
+		t.Fatalf("Unexpected error\n%s", err)
+	}
 }
 
-func (s *TCPTestSuite) TestCloseWhenNotListening() {
-	lsn := NewTCP(":1883", nil)
+func TestTCPCloseWhenNotListening(t *testing.T) {
+	tcp := NewTCP(":1883", nil)
+	if tcp == nil {
+		t.Fatal("A TCP listener was expected")
+	}
 
-	err := lsn.Close()
-	s.Require().NoError(err)
-}
-
-func TestTCPTestSuite(t *testing.T) {
-	suite.Run(t, new(TCPTestSuite))
+	err := tcp.Close()
+	if err != nil {
+		t.Fatalf("Unexpected error\n%s", err)
+	}
 }
