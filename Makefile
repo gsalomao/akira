@@ -103,6 +103,8 @@ coverage: ## Run unit tests with coverage report
 	@rm -rf ${COVERAGE_DIR}
 	@mkdir -p ${COVERAGE_DIR}
 	@go test -timeout 10s -cover -covermode=atomic -race -coverprofile=$(COVERAGE_DIR)/coverage.out ./...
+	@cat ${COVERAGE_DIR}/coverage.out | grep -v "_mock.go" > ${COVERAGE_DIR}/coverage.final.out
+	@mv ${COVERAGE_DIR}/coverage.final.out ${COVERAGE_DIR}/coverage.out
 	$(call print_task_result,"Running unit tests","done")
 
 	$(call print_task,"Generating coverage report")
