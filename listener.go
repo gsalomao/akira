@@ -15,21 +15,20 @@
 package akira
 
 import (
-	"net"
 	"sync"
 )
 
-// OnConnectionFunc is the function which the Listener must call when a new connection has been opened.
-type OnConnectionFunc func(Listener, net.Conn)
+// Handler is the function which the Listener must call when a new connection has been opened.
+type Handler func(c *Connection) error
 
 // Listener is an interface which all network listeners must implement. A network listener is responsible for listen
 // for network connections and notify any incoming connection.
 type Listener interface {
 	// Listen starts the listener. When the listener starts listening, it starts to accept any incoming connection,
-	// and calls f with the new connection. If the listener fails to start listening, it returns the error.
+	// and calls the Handler with the new connection. If the listener fails to start listening, it returns the error.
 	// This function does not block the caller and returns immediately after the listener is ready to accept incoming
 	// connections.
-	Listen(f OnConnectionFunc) error
+	Listen(h Handler) error
 
 	// Close closes the listener. Once the listener is closed, it does not accept any incoming connection. This
 	// function blocks and returns only after the listener has closed.
@@ -37,7 +36,7 @@ type Listener interface {
 }
 
 type listeners struct {
-	mutex    sync.RWMutex
+	mu       sync.RWMutex
 	internal []Listener
 }
 
@@ -47,18 +46,18 @@ func newListeners() *listeners {
 }
 
 func (l *listeners) add(lsn Listener) {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
+	l.mu.Lock()
+	defer l.mu.Unlock()
 
 	l.internal = append(l.internal, lsn)
 }
 
-func (l *listeners) listenAll(f OnConnectionFunc) error {
-	l.mutex.RLock()
-	defer l.mutex.RUnlock()
+func (l *listeners) listenAll(h Handler) error {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 
 	for _, lsn := range l.internal {
-		err := lsn.Listen(f)
+		err := lsn.Listen(h)
 		if err != nil {
 			return err
 		}
@@ -68,8 +67,8 @@ func (l *listeners) listenAll(f OnConnectionFunc) error {
 }
 
 func (l *listeners) closeAll() {
-	l.mutex.RLock()
-	defer l.mutex.RUnlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 
 	for _, lsn := range l.internal {
 		_ = lsn.Close()

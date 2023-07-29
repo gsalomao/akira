@@ -15,6 +15,7 @@
 package listener
 
 import (
+	"context"
 	"crypto/tls"
 	"net"
 	"sync"
@@ -27,7 +28,6 @@ type TCP struct {
 	address   string
 	listener  net.Listener
 	tlsConfig *tls.Config
-	handle    akira.OnConnectionFunc
 	wg        sync.WaitGroup
 }
 
@@ -37,10 +37,10 @@ func NewTCP(address string, tlsConfig *tls.Config) *TCP {
 }
 
 // Listen starts the listener. When the listener starts listening, it starts to accept any incoming TCP connection,
-// and calls f with the new TCP connection. If the listener fails to start listening, it returns the error.
+// and calls the Handler with the new connection. If the listener fails to start listening, it returns the error.
 // This function does not block the caller and returns immediately after the listener is ready to accept incoming
 // connections.
-func (t *TCP) Listen(f akira.OnConnectionFunc) error {
+func (t *TCP) Listen(h akira.Handler) error {
 	var err error
 
 	if t.tlsConfig == nil {
@@ -52,29 +52,26 @@ func (t *TCP) Listen(f akira.OnConnectionFunc) error {
 		return err
 	}
 
-	t.handle = f
+	ctx, cancel := context.WithCancel(context.Background())
 	t.wg.Add(1)
-	ready := make(chan struct{})
 
 	go func() {
 		defer t.wg.Done()
-		close(ready)
+		cancel()
 
 		for {
-			var c net.Conn
+			var nc net.Conn
 
-			c, err = t.listener.Accept()
+			nc, err = t.listener.Accept()
 			if err != nil {
 				break
 			}
 
-			if f != nil {
-				f(t, c)
-			}
+			_ = h(akira.NewConnection(t, nc))
 		}
 	}()
 
-	<-ready
+	<-ctx.Done()
 	return nil
 }
 

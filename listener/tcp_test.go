@@ -24,16 +24,13 @@ import (
 )
 
 func TestTCPListen(t *testing.T) {
-	tcp := NewTCP(":1883", nil)
-	if tcp == nil {
-		t.Fatal("A TCP listener was expected")
-	}
+	tcp := newTCP(t)
 
-	err := tcp.Listen(func(_ akira.Listener, _ net.Conn) {})
+	err := tcp.Listen(func(_ *akira.Connection) error { return nil })
 	if err != nil {
 		t.Fatalf("Unexpected error\n%s", err)
 	}
-	_ = tcp.Close()
+	closeTCP(t, tcp)
 }
 
 func TestTCPListenWithTLSConfig(t *testing.T) {
@@ -65,44 +62,40 @@ func TestTCPListenWithTLSConfig(t *testing.T) {
 		t.Fatal("A TCP listener was expected")
 	}
 
-	err = tcp.Listen(func(_ akira.Listener, _ net.Conn) {})
+	err = tcp.Listen(func(_ *akira.Connection) error { return nil })
 	if err != nil {
 		t.Fatalf("Unexpected error\n%s", err)
 	}
-	_ = tcp.Close()
+	closeTCP(t, tcp)
 }
 
-func TestTCPListenError(t *testing.T) {
+func TestTCPListenErrorInvalidAddress(t *testing.T) {
 	tcp := NewTCP(":abc", nil)
 	if tcp == nil {
 		t.Fatal("A TCP listener was expected")
 	}
 
-	err := tcp.Listen(func(akira.Listener, net.Conn) {})
+	err := tcp.Listen(func(_ *akira.Connection) error { return nil })
 	if err == nil {
 		t.Fatal("An error was expected")
 	}
 }
 
-func TestTCPListenOnConnection(t *testing.T) {
-	tcp := NewTCP(":1883", nil)
-	if tcp == nil {
-		t.Fatal("A TCP listener was expected")
-	}
+func TestTCPListenCallsHandlerWhenAcceptsConnection(t *testing.T) {
+	tcp := newTCP(t)
 
-	var lsn akira.Listener
-	var nc net.Conn
+	var conn *akira.Connection
 	done := make(chan struct{})
 
-	err := tcp.Listen(func(l akira.Listener, c net.Conn) {
-		lsn = l
-		nc = c
+	err := tcp.Listen(func(c *akira.Connection) error {
+		conn = c
 		close(done)
+		return nil
 	})
 	if err != nil {
 		t.Fatalf("Unexpected error\n%s", err)
 	}
-	defer func() { _ = tcp.Close() }()
+	defer closeTCP(t, tcp)
 
 	client, err := net.Dial("tcp", ":1883")
 	if err != nil {
@@ -114,39 +107,73 @@ func TestTCPListenOnConnection(t *testing.T) {
 	defer func() { _ = client.Close() }()
 
 	<-done
-	if lsn == nil {
-		t.Fatal("A listener was expected")
-	}
-	if nc == nil {
-		t.Fatal("A network connection was expected")
+	if conn == nil {
+		t.Fatal("A Connection was expected")
 	}
 }
 
 func TestTCPClose(t *testing.T) {
-	tcp := NewTCP(":1883", nil)
-	if tcp == nil {
-		t.Fatal("A TCP listener was expected")
-	}
+	tcp := newTCP(t)
+	listenTCP(t, tcp)
 
-	err := tcp.Listen(func(_ akira.Listener, _ net.Conn) {})
-	if err != nil {
-		t.Fatalf("Unexpected error\n%s", err)
-	}
-
-	err = tcp.Close()
+	err := tcp.Close()
 	if err != nil {
 		t.Fatalf("Unexpected error\n%s", err)
 	}
 }
 
 func TestTCPCloseWhenNotListening(t *testing.T) {
-	tcp := NewTCP(":1883", nil)
-	if tcp == nil {
-		t.Fatal("A TCP listener was expected")
-	}
+	tcp := newTCP(t)
 
 	err := tcp.Close()
 	if err != nil {
 		t.Fatalf("Unexpected error\n%s", err)
+	}
+}
+
+func TestTCPCloseTwiceReturnsError(t *testing.T) {
+	tcp := newTCP(t)
+	listenTCP(t, tcp)
+	closeTCP(t, tcp)
+
+	err := tcp.Close()
+	if err == nil {
+		t.Fatal("An error was expected")
+	}
+}
+
+func TestTCPListenAfterClosed(t *testing.T) {
+	tcp := newTCP(t)
+	listenTCP(t, tcp)
+	closeTCP(t, tcp)
+
+	err := tcp.Listen(func(_ *akira.Connection) error { return nil })
+	if err != nil {
+		t.Fatalf("Unexpected error\n%s", err)
+	}
+}
+
+func newTCP(tb testing.TB) *TCP {
+	tb.Helper()
+	tcp := NewTCP(":1883", nil)
+	if tcp == nil {
+		tb.Fatal("A TCP listener was expected")
+	}
+	return tcp
+}
+
+func listenTCP(tb testing.TB, tcp *TCP) {
+	tb.Helper()
+	err := tcp.Listen(func(_ *akira.Connection) error { return nil })
+	if err != nil {
+		tb.Fatalf("Unexpected error\n%s", err)
+	}
+}
+
+func closeTCP(tb testing.TB, tcp *TCP) {
+	tb.Helper()
+	err := tcp.Close()
+	if err != nil {
+		tb.Fatalf("Unexpected error\n%s", err)
 	}
 }
