@@ -18,68 +18,78 @@ import (
 	"testing"
 )
 
-type hookSpy struct{}
-
-func (h *hookSpy) Name() string {
-	return "hook-spy"
-}
-
-func (h *hookSpy) OnClientOpen(_ *Server, _ *Client) error {
-	return nil
-}
-
-func (h *hookSpy) OnClientClosed(_ *Server, _ *Client, _ error) {
-}
-
-func (h *hookSpy) OnPacketReceive(_ *Client) error {
-	return nil
-}
-
-func (h *hookSpy) OnPacketReceived(_ *Client, _ Packet) error {
-	return nil
-}
-
-func (h *hookSpy) OnPacketSend(_ *Client, _ Packet) error {
-	return nil
-}
-
-func (h *hookSpy) OnPacketSent(_ *Client, _ Packet) {
-}
-
-func BenchmarkHooksOnClientOpen(b *testing.B) {
+func BenchmarkHooksOnConnectionOpen(b *testing.B) {
 	b.Run("No Hook", func(b *testing.B) {
 		h := newHooks()
 
 		for i := 0; i < b.N; i++ {
-			_ = h.onClientOpen(nil, nil)
+			_ = h.onConnectionOpen(nil)
 		}
 	})
 
 	b.Run("With Hook", func(b *testing.B) {
 		h := newHooks()
-		_ = h.add(&hookSpy{})
+		_ = h.add(&mockOnConnectionOpenHook{})
 
 		for i := 0; i < b.N; i++ {
-			_ = h.onClientOpen(nil, nil)
+			_ = h.onConnectionOpen(nil)
 		}
 	})
 }
 
-func BenchmarkHooksOnClientClosed(b *testing.B) {
+func BenchmarkHooksOnClientOpened(b *testing.B) {
 	b.Run("No Hook", func(b *testing.B) {
 		h := newHooks()
 
 		for i := 0; i < b.N; i++ {
-			h.onClientClosed(nil, nil, nil)
+			h.onClientOpened(nil)
 		}
 	})
 
 	b.Run("With Hook", func(b *testing.B) {
 		h := newHooks()
-		_ = h.add(&hookSpy{})
+		_ = h.add(&mockOnClientOpenedHook{})
 
 		for i := 0; i < b.N; i++ {
-			h.onClientClosed(nil, nil, nil)
+			h.onClientOpened(nil)
+		}
+	})
+}
+
+func BenchmarkHooksOnClientClose(b *testing.B) {
+	b.Run("No Hook", func(b *testing.B) {
+		h := newHooks()
+
+		for i := 0; i < b.N; i++ {
+			h.onClientClose(nil, nil)
+		}
+	})
+
+	b.Run("With Hook", func(b *testing.B) {
+		h := newHooks()
+		_ = h.add(&mockOnClientCloseHook{})
+
+		for i := 0; i < b.N; i++ {
+			h.onClientClose(nil, nil)
+		}
+	})
+}
+
+func BenchmarkHooksOnConnectionClosed(b *testing.B) {
+	b.Run("No Hook", func(b *testing.B) {
+		h := newHooks()
+
+		for i := 0; i < b.N; i++ {
+			h.onConnectionClosed(nil, nil)
+		}
+	})
+
+	b.Run("With Hook", func(b *testing.B) {
+		h := newHooks()
+		_ = h.add(&mockOnConnectionClosedHook{})
+
+		for i := 0; i < b.N; i++ {
+			h.onConnectionClosed(nil, nil)
 		}
 	})
 }
@@ -95,7 +105,7 @@ func BenchmarkHooksOnPacketReceive(b *testing.B) {
 
 	b.Run("With Hook", func(b *testing.B) {
 		h := newHooks()
-		_ = h.add(&hookSpy{})
+		_ = h.add(&mockOnPacketReceiveHook{})
 
 		for i := 0; i < b.N; i++ {
 			_ = h.onPacketReceive(nil)
@@ -114,7 +124,7 @@ func BenchmarkHooksOnPacketReceived(b *testing.B) {
 
 	b.Run("With Hook", func(b *testing.B) {
 		h := newHooks()
-		_ = h.add(&hookSpy{})
+		_ = h.add(&mockOnPacketReceivedHook{})
 
 		for i := 0; i < b.N; i++ {
 			_ = h.onPacketReceived(nil, nil)
@@ -133,7 +143,7 @@ func BenchmarkHooksOnPacketSend(b *testing.B) {
 
 	b.Run("With Hook", func(b *testing.B) {
 		h := newHooks()
-		_ = h.add(&hookSpy{})
+		_ = h.add(&mockOnPacketSendHook{})
 
 		for i := 0; i < b.N; i++ {
 			_ = h.onPacketSend(nil, nil)
@@ -152,7 +162,7 @@ func BenchmarkHooksOnPacketSent(b *testing.B) {
 
 	b.Run("With Hook", func(b *testing.B) {
 		h := newHooks()
-		_ = h.add(&hookSpy{})
+		_ = h.add(&mockOnPacketSentHook{})
 
 		for i := 0; i < b.N; i++ {
 			h.onPacketSent(nil, nil)
