@@ -77,34 +77,34 @@ func (h *loggingHook) Name() string {
 	return "logging"
 }
 
-func (h *loggingHook) OnServerStart(_ *akira.Server) error {
+func (h *loggingHook) OnServerStart() error {
 	log.Println("Server starting")
 	return nil
 }
 
-func (h *loggingHook) OnServerStarted(_ *akira.Server) {
+func (h *loggingHook) OnServerStarted() {
 	log.Println("Server started")
 }
 
-func (h *loggingHook) OnServerStartFailed(_ *akira.Server, err error) {
+func (h *loggingHook) OnServerStartFailed(err error) {
 	log.Println("Failed to start server: " + err.Error())
 }
 
-func (h *loggingHook) OnServerStop(_ *akira.Server) {
+func (h *loggingHook) OnServerStop() {
 	log.Println("Server stopping")
 }
 
-func (h *loggingHook) OnServerStopped(_ *akira.Server) {
+func (h *loggingHook) OnServerStopped() {
 	log.Println("Server stopped")
 }
 
-func (h *loggingHook) OnClientOpen(_ *akira.Server, _ *akira.Client) error {
-	log.Println("Client opened")
+func (h *loggingHook) OnConnectionOpen(_ *akira.Connection) error {
+	log.Println("Connection opened")
 	return nil
 }
 
-func (h *loggingHook) OnClientClosed(_ *akira.Server, _ *akira.Client, _ error) {
-	log.Println("Client closed")
+func (h *loggingHook) OnConnectionClosed(_ *akira.Connection, _ error) {
+	log.Println("Connection closed")
 }
 
 func (h *loggingHook) OnPacketReceived(c *akira.Client, p akira.Packet) error {
@@ -121,7 +121,7 @@ func (h *loggingHook) OnConnect(_ *akira.Client, p *packet.Connect) error {
 	return nil
 }
 
-func (h *loggingHook) OnConnectError(_ *akira.Client, p *packet.Connect, err error) {
+func (h *loggingHook) OnConnectFailed(_ *akira.Client, p *packet.Connect, err error) {
 	log.Printf("Failed to connect client '%s': %s\n", p.ClientID, err)
 }
 

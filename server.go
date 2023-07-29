@@ -136,7 +136,7 @@ func (s *Server) AddListener(l Listener) error {
 func (s *Server) AddHook(h Hook) error {
 	if s.State() == ServerRunning {
 		if hook, ok := h.(OnStartHook); ok {
-			err := hook.OnStart(s)
+			err := hook.OnStart()
 			if err != nil {
 				return err
 			}
@@ -155,8 +155,9 @@ func (s *Server) Start() error {
 		return ErrInvalidServerState
 	}
 
-	err := s.setState(ServerStarting)
+	err := s.setState(ServerStarting, nil)
 	if err != nil {
+		_ = s.setState(ServerFailed, err)
 		return err
 	}
 
@@ -165,7 +166,7 @@ func (s *Server) Start() error {
 
 	err = s.listeners.listenAll(s.handleConnection)
 	if err != nil {
-		_ = s.setState(ServerFailed)
+		_ = s.setState(ServerFailed, err)
 		return err
 	}
 
@@ -181,7 +182,7 @@ func (s *Server) Start() error {
 	}()
 
 	<-readyCh
-	_ = s.setState(ServerRunning)
+	_ = s.setState(ServerRunning, nil)
 	return nil
 }
 
@@ -201,7 +202,7 @@ func (s *Server) Stop(ctx context.Context) error {
 		s.wg.Wait()
 		// TODO: Make sure that the server doesn't end up in the stopped state when this goroutine sets the state to
 		// stopped after the server has been closed.
-		_ = s.setState(ServerStopped)
+		_ = s.setState(ServerStopped, nil)
 		close(stoppedCh)
 	}()
 
@@ -219,16 +220,16 @@ func (s *Server) Stop(ctx context.Context) error {
 func (s *Server) Close() {
 	switch s.State() {
 	case ServerNotStarted, ServerStopped, ServerFailed:
-		_ = s.setState(ServerClosed)
+		_ = s.setState(ServerClosed, nil)
 		return
 	case ServerRunning:
 		s.stop()
-		_ = s.setState(ServerStopped)
+		_ = s.setState(ServerStopped, nil)
 	case ServerClosed:
 		return
 	default:
 	}
-	_ = s.setState(ServerClosed)
+	_ = s.setState(ServerClosed, nil)
 }
 
 // State returns the current ServerState.
@@ -236,36 +237,32 @@ func (s *Server) State() ServerState {
 	return ServerState(s.state.Load())
 }
 
-func (s *Server) setState(state ServerState) error {
-	var err error
-
+func (s *Server) setState(state ServerState, err error) error {
 	s.state.Store(uint32(state))
-	if state == ServerStarting {
-		err = s.hooks.onServerStart(s)
+	switch state {
+	case ServerStarting:
+		err = s.hooks.onServerStart()
 		if err == nil {
-			err = s.hooks.onStart(s)
+			err = s.hooks.onStart()
 		}
-	}
-	if state == ServerStopping {
-		s.hooks.onServerStop(s)
-		s.hooks.onStop(s)
-	}
-	if state == ServerStopped {
-		s.hooks.onServerStopped(s)
-	}
-	if state == ServerRunning {
-		s.hooks.onServerStarted(s)
-	}
-	if state == ServerFailed || err != nil {
-		s.state.Store(uint32(ServerFailed))
-		s.hooks.onServerStartFailed(s, err)
+	case ServerStopping:
+		s.hooks.onServerStop()
+		s.hooks.onStop()
+	case ServerStopped:
+		s.hooks.onServerStopped()
+	case ServerRunning:
+		s.hooks.onServerStarted()
+	case ServerFailed:
+		s.hooks.onServerStartFailed(err)
+	default:
+		err = ErrInvalidServerState
 	}
 	return err
 }
 
 func (s *Server) stop() {
 	s.stopOnce.Do(func() {
-		_ = s.setState(ServerStopping)
+		_ = s.setState(ServerStopping, nil)
 		s.listeners.closeAll()
 		s.cancelCtx(ErrServerStopped)
 	})

@@ -30,18 +30,20 @@ const (
 	onServerStartedHook
 	onServerStopHook
 	onServerStoppedHook
-	onClientOpenHook
-	onClientClosedHook
+	onConnectionOpenHook
+	onClientOpenedHook
+	onClientCloseHook
+	onConnectionClosedHook
 	onPacketReceiveHook
-	onPacketReceiveErrorHook
+	onPacketReceiveFailedHook
 	onPacketReceivedHook
 	onPacketSendHook
-	onPacketSendErrorHook
+	onPacketSendFailedHook
 	onPacketSentHook
 	onConnectHook
-	onConnectErrorHook
+	onConnectFailedHook
 	onConnectedHook
-	numOfHookTypes
+	maxHooks
 )
 
 // ErrHookAlreadyExists indicates that the Hook already exists based on its name.
@@ -59,93 +61,94 @@ type Hook interface {
 }
 
 // OnStartHook is the hook interface that wraps the OnStart method. The OnStart method is called by the server to
-// start the hook. If this method returns any error, the server considers that the hook failed to start.
+// start the hook, and it's called after the server has started. If this method returns any error, the server
+// considers that the hook failed to start.
 type OnStartHook interface {
-	Hook
-	OnStart(s *Server) error
+	OnStart() error
 }
 
 // OnStopHook is the hook interface that wraps the OnStop method. The OnStop method is called by the server to stop
 // the hook.
 type OnStopHook interface {
-	Hook
-	OnStop(s *Server)
+	OnStop()
 }
 
 // OnServerStartHook is the hook interface that wraps the OnServerStart method. The OnServerStart method is called by
 // the server when it is starting. When this method is called, the server is in ServerStarting state. If this method
 // returns any error, the start process fails.
 type OnServerStartHook interface {
-	Hook
-	OnServerStart(s *Server) error
+	OnServerStart() error
 }
 
 // OnServerStartFailedHook is the hook interface that wraps the OnServerStartFailed method. The OnServerStartFailed
 // method is called by the server when it has failed to start.
 type OnServerStartFailedHook interface {
-	Hook
-	OnServerStartFailed(s *Server, err error)
+	OnServerStartFailed(err error)
 }
 
 // OnServerStartedHook is the hook interface that wraps the OnServerStarted method. The OnServerStarted method is
 // called by the server when it has started with success.
 type OnServerStartedHook interface {
-	Hook
-	OnServerStarted(s *Server)
+	OnServerStarted()
 }
 
 // OnServerStopHook is the hook interface that wraps the OnServerStop method. The OnServerStop method is called by the
 // server when it is stopping.
 type OnServerStopHook interface {
-	Hook
-	OnServerStop(s *Server)
+	OnServerStop()
 }
 
 // OnServerStoppedHook is the hook interface that wraps the OnServerStopped method. The OnServerStopped method is
 // called by the server when it has stopped.
 type OnServerStoppedHook interface {
-	Hook
-	OnServerStopped(s *Server)
+	OnServerStopped()
 }
 
-// OnClientOpenHook is the hook interface that wraps the OnClientOpen method. The OnClientOpen method is called by the
-// server when a client opens a new connection. If this method returns any error, the client and its connection are
+// OnConnectionOpenHook is the hook interface that wraps the OnConnectionOpen method. The OnConnectionOpen method is
+// called by the server when a new network connection was opened. If this method returns any error, the connection is
 // closed.
-type OnClientOpenHook interface {
-	Hook
-	OnClientOpen(s *Server, c *Client) error
+type OnConnectionOpenHook interface {
+	OnConnectionOpen(c *Connection) error
 }
 
-// OnClientClosedHook is the hook interface that wraps the OnClientClosed method. The OnClientClosed method is called
-// by the server when the client and its connection have closed. If the client was closed due to any error, the error
-// is passed as parameter.
-type OnClientClosedHook interface {
-	Hook
-	OnClientClosed(s *Server, c *Client, err error)
+// OnClientOpenedHook is the hook interface that wraps the OnClientOpened method. The OnClientOpened method is called
+// by the server when the client opened the connection, and after the network connection has been opened with success.
+type OnClientOpenedHook interface {
+	OnClientOpened(c *Client)
+}
+
+// OnClientCloseHook is the hook interface that wraps the OnClientClose method. The OnClientClose method is called by
+// the server when the client is being closed, but before the network connection is closed. If the client is being
+// closed due to an error, this error is passed as parameter.
+type OnClientCloseHook interface {
+	OnClientClose(c *Client, err error)
+}
+
+// OnConnectionClosedHook is the hook interface that wraps the OnConnectionClosed method. The OnConnectionClosed
+// method is called by the server after the network connection was closed. If the connection was closed due to ab
+// error, this error is passed as parameter.
+type OnConnectionClosedHook interface {
+	OnConnectionClosed(c *Connection, err error)
 }
 
 // OnPacketReceiveHook is the hook interface that wraps the OnPacketReceive method. The OnPacketReceive method is
 // called by the server before try to receive any packet. If this method returns an error, the server doesn't try
 // to receive a new packet and the client is closed.
 type OnPacketReceiveHook interface {
-	Hook
 	OnPacketReceive(c *Client) error
 }
 
-// OnPacketReceiveErrorHook is the hook interface that wraps the OnPacketReceiveError method. The OnPacketReceiveError
-// method is called by the server when it fails to receive a packet from the client for any reason other than the
-// network connection closed. If this method returns an error, the server closes the client. Otherwise, it tries to
-// receive a new packet again.
-type OnPacketReceiveErrorHook interface {
-	Hook
-	OnPacketReceiveError(c *Client, err error) error
+// OnPacketReceiveFailedHook is the hook interface that wraps the OnPacketReceiveFailed method. The
+// OnPacketReceiveFailed method is called by the server when it fails to receive a packet from the client for any
+// reason other than the network connection closed. After the server calls this method, it closes the client.
+type OnPacketReceiveFailedHook interface {
+	OnPacketReceiveFailed(c *Client, err error)
 }
 
 // OnPacketReceivedHook is the hook interface that wraps the OnPacketReceived method. The OnPacketReceived method is
 // called by the server when a new packet is received. If this method returns an error, the server discards the
-// received packet.
+// packet and closes the client.
 type OnPacketReceivedHook interface {
-	Hook
 	OnPacketReceived(c *Client, p Packet) error
 }
 
@@ -153,22 +156,19 @@ type OnPacketReceivedHook interface {
 // server before the packet has been sent to the client. If this method returns an error, the server discards the
 // packet and closes the client.
 type OnPacketSendHook interface {
-	Hook
 	OnPacketSend(c *Client, p Packet) error
 }
 
-// OnPacketSendErrorHook is the hook interface that wraps the OnPacketSendError method. The OnPacketSendError method
-// is called by the server when it fails to send the packet to the client for any reason other than the network
-// connection closed.
-type OnPacketSendErrorHook interface {
-	Hook
-	OnPacketSendError(c *Client, p Packet, err error)
+// OnPacketSendFailedHook is the hook interface that wraps the OnPacketSendFailed method. The OnPacketSendFailed
+// method is called by the server when it fails to send the packet to the client for any reason other than the
+// network connection closed. After the server calls this method, it closes the client.
+type OnPacketSendFailedHook interface {
+	OnPacketSendFailed(c *Client, p Packet, err error)
 }
 
 // OnPacketSentHook is the hook interface that wraps the OnPacketSent method. The OnPacketSent method is called by the
 // server after the packet has been sent to the client.
 type OnPacketSentHook interface {
-	Hook
 	OnPacketSent(c *Client, p Packet)
 }
 
@@ -178,44 +178,44 @@ type OnPacketSentHook interface {
 // and packet.ReasonCodeMalformedPacket, the server sends a CONNACK Packet with the reason code before it closes the
 // client.
 type OnConnectHook interface {
-	Hook
 	OnConnect(c *Client, p *packet.Connect) error
 }
 
-// OnConnectErrorHook is the hook interface that wraps the OnConnectError method. The OnConnectError method is called
-// by the server when it fails to connect the client. The connection process can fail for different reasons, and the
-// error indicating the reason is passed as parameter.
-type OnConnectErrorHook interface {
-	Hook
-	OnConnectError(c *Client, p *packet.Connect, err error)
+// OnConnectFailedHook is the hook interface that wraps the OnConnectFailed method. The OnConnectFailed method is
+// called by the server when it fails to connect the client. The connection process can fail for different reasons,
+// and the error indicating the reason is passed as parameter. After the server calls this method, it closes the
+// client.
+type OnConnectFailedHook interface {
+	OnConnectFailed(c *Client, p *packet.Connect, err error)
 }
 
 // OnConnectedHook is the hook interface that wraps the OnConnected method. The OnConnected method is called by the
 // server when it completes the connection process to connect the client with success.
 type OnConnectedHook interface {
-	Hook
 	OnConnected(c *Client)
 }
 
 var hooksRegistryFunc = map[hookType]func(*hooks, Hook, hookType){
-	onStartHook:              registerHook[OnStartHook],
-	onStopHook:               registerHook[OnStopHook],
-	onServerStartHook:        registerHook[OnServerStartHook],
-	onServerStartFailedHook:  registerHook[OnServerStartFailedHook],
-	onServerStartedHook:      registerHook[OnServerStartedHook],
-	onServerStopHook:         registerHook[OnServerStopHook],
-	onServerStoppedHook:      registerHook[OnServerStoppedHook],
-	onClientOpenHook:         registerHook[OnClientOpenHook],
-	onClientClosedHook:       registerHook[OnClientClosedHook],
-	onPacketReceiveHook:      registerHook[OnPacketReceiveHook],
-	onPacketReceiveErrorHook: registerHook[OnPacketReceiveErrorHook],
-	onPacketReceivedHook:     registerHook[OnPacketReceivedHook],
-	onPacketSendHook:         registerHook[OnPacketSendHook],
-	onPacketSendErrorHook:    registerHook[OnPacketSendErrorHook],
-	onPacketSentHook:         registerHook[OnPacketSentHook],
-	onConnectHook:            registerHook[OnConnectHook],
-	onConnectErrorHook:       registerHook[OnConnectErrorHook],
-	onConnectedHook:          registerHook[OnConnectedHook],
+	onStartHook:               registerHook[OnStartHook],
+	onStopHook:                registerHook[OnStopHook],
+	onServerStartHook:         registerHook[OnServerStartHook],
+	onServerStartFailedHook:   registerHook[OnServerStartFailedHook],
+	onServerStartedHook:       registerHook[OnServerStartedHook],
+	onServerStopHook:          registerHook[OnServerStopHook],
+	onServerStoppedHook:       registerHook[OnServerStoppedHook],
+	onConnectionOpenHook:      registerHook[OnConnectionOpenHook],
+	onClientOpenedHook:        registerHook[OnClientOpenedHook],
+	onClientCloseHook:         registerHook[OnClientCloseHook],
+	onConnectionClosedHook:    registerHook[OnConnectionClosedHook],
+	onPacketReceiveHook:       registerHook[OnPacketReceiveHook],
+	onPacketReceiveFailedHook: registerHook[OnPacketReceiveFailedHook],
+	onPacketReceivedHook:      registerHook[OnPacketReceivedHook],
+	onPacketSendHook:          registerHook[OnPacketSendHook],
+	onPacketSendFailedHook:    registerHook[OnPacketSendFailedHook],
+	onPacketSentHook:          registerHook[OnPacketSentHook],
+	onConnectHook:             registerHook[OnConnectHook],
+	onConnectFailedHook:       registerHook[OnConnectFailedHook],
+	onConnectedHook:           registerHook[OnConnectedHook],
 }
 
 func registerHook[T any](h *hooks, hook Hook, t hookType) {
@@ -228,16 +228,16 @@ func registerHook[T any](h *hooks, hook Hook, t hookType) {
 
 type hooks struct {
 	mutex       sync.RWMutex
-	hookNames   [numOfHookTypes]map[string]struct{}
-	hooks       [numOfHookTypes][]Hook
-	hookPresent [numOfHookTypes]atomic.Bool
+	hookNames   [maxHooks]map[string]struct{}
+	hooks       [maxHooks][]Hook
+	hookPresent [maxHooks]atomic.Bool
 }
 
 func newHooks() *hooks {
-	var names [numOfHookTypes]map[string]struct{}
-	var hks [numOfHookTypes][]Hook
+	var names [maxHooks]map[string]struct{}
+	var hks [maxHooks][]Hook
 
-	for t := hookType(0); t < numOfHookTypes; t++ {
+	for t := hookType(0); t < maxHooks; t++ {
 		names[t] = make(map[string]struct{})
 		hks[t] = make([]Hook, 0)
 	}
@@ -256,28 +256,28 @@ func (h *hooks) add(hook Hook) error {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
-	for t := hookType(0); t < numOfHookTypes; t++ {
+	for t := hookType(0); t < maxHooks; t++ {
 		_, ok := h.hookNames[t][hook.Name()]
 		if ok {
 			return ErrHookAlreadyExists
 		}
 	}
 
-	for t := hookType(0); t < numOfHookTypes; t++ {
+	for t := hookType(0); t < maxHooks; t++ {
 		hooksRegistryFunc[t](h, hook, t)
 	}
 
 	return nil
 }
 
-func (h *hooks) onStart(s *Server) error {
+func (h *hooks) onStart() error {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
 	for _, hook := range h.hooks[onStartHook] {
 		hk := hook.(OnStartHook)
 
-		err := hk.OnStart(s)
+		err := hk.OnStart()
 		if err != nil {
 			return err
 		}
@@ -286,24 +286,24 @@ func (h *hooks) onStart(s *Server) error {
 	return nil
 }
 
-func (h *hooks) onStop(s *Server) {
+func (h *hooks) onStop() {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
 	for _, hook := range h.hooks[onStopHook] {
 		hk := hook.(OnStopHook)
-		hk.OnStop(s)
+		hk.OnStop()
 	}
 }
 
-func (h *hooks) onServerStart(s *Server) error {
+func (h *hooks) onServerStart() error {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
 	for _, hook := range h.hooks[onServerStartHook] {
 		hk := hook.(OnServerStartHook)
 
-		err := hk.OnServerStart(s)
+		err := hk.OnServerStart()
 		if err != nil {
 			return err
 		}
@@ -312,58 +312,58 @@ func (h *hooks) onServerStart(s *Server) error {
 	return nil
 }
 
-func (h *hooks) onServerStartFailed(s *Server, err error) {
+func (h *hooks) onServerStartFailed(err error) {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
 	for _, hook := range h.hooks[onServerStartFailedHook] {
 		hk := hook.(OnServerStartFailedHook)
-		hk.OnServerStartFailed(s, err)
+		hk.OnServerStartFailed(err)
 	}
 }
 
-func (h *hooks) onServerStarted(s *Server) {
+func (h *hooks) onServerStarted() {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
 	for _, hook := range h.hooks[onServerStartedHook] {
 		hk := hook.(OnServerStartedHook)
-		hk.OnServerStarted(s)
+		hk.OnServerStarted()
 	}
 }
 
-func (h *hooks) onServerStop(s *Server) {
+func (h *hooks) onServerStop() {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
 	for _, hook := range h.hooks[onServerStopHook] {
 		hk := hook.(OnServerStopHook)
-		hk.OnServerStop(s)
+		hk.OnServerStop()
 	}
 }
 
-func (h *hooks) onServerStopped(s *Server) {
+func (h *hooks) onServerStopped() {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
 	for _, hook := range h.hooks[onServerStoppedHook] {
 		hk := hook.(OnServerStoppedHook)
-		hk.OnServerStopped(s)
+		hk.OnServerStopped()
 	}
 }
 
-func (h *hooks) onClientOpen(s *Server, c *Client) error {
-	if !h.hasHook(onClientOpenHook) {
+func (h *hooks) onConnectionOpen(c *Connection) error {
+	if !h.hasHook(onConnectionOpenHook) {
 		return nil
 	}
 
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
-	for _, hook := range h.hooks[onClientOpenHook] {
-		hk := hook.(OnClientOpenHook)
+	for _, hook := range h.hooks[onConnectionOpenHook] {
+		hk := hook.(OnConnectionOpenHook)
 
-		err := hk.OnClientOpen(s, c)
+		err := hk.OnConnectionOpen(c)
 		if err != nil {
 			return err
 		}
@@ -372,17 +372,45 @@ func (h *hooks) onClientOpen(s *Server, c *Client) error {
 	return nil
 }
 
-func (h *hooks) onClientClosed(s *Server, c *Client, err error) {
-	if !h.hasHook(onClientClosedHook) {
+func (h *hooks) onClientOpened(c *Client) {
+	if !h.hasHook(onClientOpenedHook) {
 		return
 	}
 
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
-	for _, hook := range h.hooks[onClientClosedHook] {
-		hk := hook.(OnClientClosedHook)
-		hk.OnClientClosed(s, c, err)
+	for _, hook := range h.hooks[onClientOpenedHook] {
+		hk := hook.(OnClientOpenedHook)
+		hk.OnClientOpened(c)
+	}
+}
+
+func (h *hooks) onClientClose(c *Client, err error) {
+	if !h.hasHook(onClientCloseHook) {
+		return
+	}
+
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+
+	for _, hook := range h.hooks[onClientCloseHook] {
+		hk := hook.(OnClientCloseHook)
+		hk.OnClientClose(c, err)
+	}
+}
+
+func (h *hooks) onConnectionClosed(c *Connection, err error) {
+	if !h.hasHook(onConnectionClosedHook) {
+		return
+	}
+
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+
+	for _, hook := range h.hooks[onConnectionClosedHook] {
+		hk := hook.(OnConnectionClosedHook)
+		hk.OnConnectionClosed(c, err)
 	}
 }
 
@@ -406,24 +434,18 @@ func (h *hooks) onPacketReceive(c *Client) error {
 	return nil
 }
 
-func (h *hooks) onPacketReceiveError(c *Client, err error) error {
-	if !h.hasHook(onPacketReceiveErrorHook) {
-		return err
+func (h *hooks) onPacketReceiveFailed(c *Client, err error) {
+	if !h.hasHook(onPacketReceiveFailedHook) {
+		return
 	}
 
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
-	for _, hook := range h.hooks[onPacketReceiveErrorHook] {
-		hk := hook.(OnPacketReceiveErrorHook)
-
-		newErr := hk.OnPacketReceiveError(c, err)
-		if newErr != nil {
-			return newErr
-		}
+	for _, hook := range h.hooks[onPacketReceiveFailedHook] {
+		hk := hook.(OnPacketReceiveFailedHook)
+		hk.OnPacketReceiveFailed(c, err)
 	}
-
-	return nil
 }
 
 func (h *hooks) onPacketReceived(c *Client, p Packet) error {
@@ -466,17 +488,17 @@ func (h *hooks) onPacketSend(c *Client, p Packet) error {
 	return nil
 }
 
-func (h *hooks) onPacketSendError(c *Client, p Packet, err error) {
-	if !h.hasHook(onPacketSendErrorHook) {
+func (h *hooks) onPacketSendFailed(c *Client, p Packet, err error) {
+	if !h.hasHook(onPacketSendFailedHook) {
 		return
 	}
 
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
-	for _, hook := range h.hooks[onPacketSendErrorHook] {
-		hk := hook.(OnPacketSendErrorHook)
-		hk.OnPacketSendError(c, p, err)
+	for _, hook := range h.hooks[onPacketSendFailedHook] {
+		hk := hook.(OnPacketSendFailedHook)
+		hk.OnPacketSendFailed(c, p, err)
 	}
 }
 
@@ -514,17 +536,17 @@ func (h *hooks) onConnect(c *Client, p *packet.Connect) error {
 	return nil
 }
 
-func (h *hooks) onConnectError(c *Client, p *packet.Connect, err error) {
-	if !h.hasHook(onConnectErrorHook) {
+func (h *hooks) onConnectFailed(c *Client, p *packet.Connect, err error) {
+	if !h.hasHook(onConnectFailedHook) {
 		return
 	}
 
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
-	for _, hook := range h.hooks[onConnectErrorHook] {
-		hk := hook.(OnConnectErrorHook)
-		hk.OnConnectError(c, p, err)
+	for _, hook := range h.hooks[onConnectFailedHook] {
+		hk := hook.(OnConnectFailedHook)
+		hk.OnConnectFailed(c, p, err)
 	}
 }
 
