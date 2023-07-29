@@ -120,10 +120,14 @@ func NewServerWithOptions(opts *Options) (s *Server, err error) {
 	return s, nil
 }
 
-// AddListener adds the provided Listener into the list of listeners managed by the Server.
-// If the Server is running at the time this function is called, the Server calls immediately the Listener's Listen
-// method.
-// If there's a Listener with the same name already managed by the Server, the ErrListenerAlreadyExists is returned.
+// AddListener adds the provided Listener to the list of listeners managed by the Server.
+//
+// Once a listener is added into the server, the server manages the listener by calling the Listen method on
+// start, and close method on stop. If the server is running at the time this method is called, the server
+// calls the Listen method immediately.
+//
+// For listeners which should not be managed by the server, don't add them into the server and call the Serve
+// method for each Connection to be served.
 func (s *Server) AddListener(l Listener) error {
 	if s.State() == ServerRunning {
 		err := l.Listen(s.handleConnection)
@@ -136,9 +140,10 @@ func (s *Server) AddListener(l Listener) error {
 }
 
 // AddHook adds the provided Hook into the list of hooks managed by the Server.
-// If the Server is already running at the time this function is called, the Server calls immediately the OnStart hook
-// method, if this method is implemented by the Hook.
-// If the OnStart hook returns an error, the Hook is not added into the Server and the error is returned.
+//
+// If the server is already running at the time this method is called, the server calls immediately the OnStart
+// hook, if this hook implements it. If the OnStart hook returns an error, the hook is not added into the server
+// and the error is returned.
 func (s *Server) AddHook(h Hook) error {
 	if s.State() == ServerRunning {
 		if hook, ok := h.(OnStartHook); ok {
@@ -152,9 +157,11 @@ func (s *Server) AddHook(h Hook) error {
 }
 
 // Start starts the Server and returns immediately.
-// If the OnServerStart or OnStart hooks return an error, the start process fails and the OnServerStartFailed hook is
-// called.
-// If the Server is not in the ServerNotStarted or ServerStopped state, it returns ErrInvalidServerState.
+//
+// During the start of the server, the hooks OnServerStart and OnStart are called. If any of these hooks return
+// an error, the start process fails and the OnServerStartFailed hook is called.
+//
+// If the server is not in the ServerNotStarted or ServerStopped state, it returns ErrInvalidServerState.
 func (s *Server) Start() error {
 	state := s.State()
 	if state != ServerNotStarted && state != ServerStopped {
@@ -193,9 +200,11 @@ func (s *Server) Start() error {
 }
 
 // Stop stops the Server gracefully.
-// This function blocks until the Server has been stopped or the context has been cancelled.
-// If the Server is not in the ServerRunning state, this function has no side effect.
-// When the Server is stopped, it can be started again.
+//
+// This method blocks until the server has been stopped or the context has been cancelled. When the server
+// is stopped, it can be started again.
+//
+// If the server is not in the ServerRunning state, this function has no side effect.
 func (s *Server) Stop(ctx context.Context) error {
 	if s.State() != ServerRunning {
 		return nil
@@ -220,9 +229,10 @@ func (s *Server) Stop(ctx context.Context) error {
 	}
 }
 
-// Close closes the Server.
-// If the Server is in ServerRunning state, it stops the server first before close it.
-// When the Server is closed, it cannot be started again.
+// Close closes the Server without waiting for a graceful stop.
+//
+// When the Server is closed, it cannot be started again. If the server is in ServerRunning state, it stops
+// the server first before close it.
 func (s *Server) Close() {
 	switch s.State() {
 	case ServerNotStarted, ServerStopped, ServerFailed:
