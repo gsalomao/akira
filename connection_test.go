@@ -91,11 +91,21 @@ func TestConnectionReceivePacket(t *testing.T) {
 				_ = nc.Close()
 			}()
 
-			p, n, readErr := conn.receivePacket(bufio.NewReader(nil))
+			r := bufio.NewReader(nil)
+
+			h, hSize, readErr := conn.readFixedHeader(r)
 			if readErr != nil {
 				t.Fatalf("Unexpected read error\n%v", readErr)
 			}
-			if n != len(fixture.Packet) {
+			if hSize != 2 {
+				t.Errorf("Unexpected number of bytes read\nwant: %v\ngot:  %v", 2, hSize)
+			}
+
+			p, n, readErr := conn.receivePacket(r, h)
+			if readErr != nil {
+				t.Fatalf("Unexpected read error\n%v", readErr)
+			}
+			if (hSize + n) != len(fixture.Packet) {
 				t.Errorf("Unexpected number of bytes read\nwant: %v\ngot:  %v", len(fixture.Packet), n)
 			}
 			if !reflect.DeepEqual(tc.packet, p) {
@@ -113,7 +123,7 @@ func TestConnectionReceivePacket(t *testing.T) {
 func TestConnectionReceivePacketOnNilConnection(t *testing.T) {
 	var conn *Connection
 
-	_, n, err := conn.receivePacket(bufio.NewReader(nil))
+	_, n, err := conn.receivePacket(bufio.NewReader(nil), packet.FixedHeader{})
 	if !errors.Is(err, io.EOF) {
 		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
 	}
@@ -154,12 +164,22 @@ func TestConnectionReceivePacketError(t *testing.T) {
 				_ = nc.Close()
 			}()
 
-			_, n, readErr := conn.receivePacket(bufio.NewReader(nil))
+			r := bufio.NewReader(nil)
+
+			h, hSize, readErr := conn.readFixedHeader(r)
+			if readErr != nil {
+				t.Fatalf("Unexpected read error\n%v", readErr)
+			}
+			if hSize != 2 {
+				t.Errorf("Unexpected number of bytes read\nwant: %v\ngot:  %v", 2, hSize)
+			}
+
+			_, n, readErr := conn.receivePacket(r, h)
 			if !errors.Is(readErr, tc.err) {
 				t.Errorf("Unexpected read error\nwant: %v\ngot:  %v", tc.err, readErr)
 			}
-			if n != len(tc.data) {
-				t.Errorf("Unexpected number of bytes read\nwant: %v\ngot:  %v", len(tc.data), n)
+			if (hSize + n) != len(tc.data) {
+				t.Errorf("Unexpected number of bytes read\nwant: %v\ngot:  %v", len(tc.data), hSize)
 			}
 
 			wg.Wait()
@@ -232,65 +252,5 @@ func TestConnectionSendPacketError(t *testing.T) {
 	}
 	if n != 0 {
 		t.Errorf("Unexpected number of bytes written\nwant: %v\ngot:  %v", 0, n)
-	}
-}
-
-func BenchmarkReadPacket(b *testing.B) {
-	testCases := []struct {
-		path string
-		name string
-	}{
-		{"connect.json", "V3.1"},
-		{"connect.json", "V3.1.1"},
-		{"connect.json", "V5.0"},
-	}
-
-	for _, tc := range testCases {
-		b.Run(fmt.Sprintf("%s-%s", tc.path, tc.name), func(b *testing.B) {
-			fixture, err := testdata.ReadPacketFixture(tc.path, tc.name)
-			if err != nil {
-				b.Fatalf("Unexpected error\n%v", err)
-			}
-
-			data := bytes.NewReader(fixture.Packet)
-			r := bufio.NewReader(data)
-
-			for i := 0; i < b.N; i++ {
-				_, _, err = readPacket(r)
-				if err != nil {
-					b.Fatal(err)
-				}
-
-				data.Reset(fixture.Packet)
-				r.Reset(data)
-			}
-		})
-	}
-}
-
-func BenchmarkWritePacket(b *testing.B) {
-	testCases := []struct {
-		name   string
-		packet PacketEncodable
-	}{
-		{"CONNACK V3.1", &packet.ConnAck{Version: packet.MQTT31}},
-		{"CONNACK V3.1.1", &packet.ConnAck{Version: packet.MQTT311}},
-		{"CONNACK V5.0", &packet.ConnAck{Version: packet.MQTT50}},
-	}
-
-	for _, tc := range testCases {
-		b.Run(tc.name, func(b *testing.B) {
-			w := bytes.Buffer{}
-			w.Grow(tc.packet.Size())
-
-			for i := 0; i < b.N; i++ {
-				_, err := writePacket(&w, tc.packet)
-				if err != nil {
-					b.Fatal(err)
-				}
-
-				w.Reset()
-			}
-		})
 	}
 }

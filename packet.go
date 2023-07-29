@@ -15,10 +15,6 @@
 package akira
 
 import (
-	"bufio"
-	"fmt"
-	"io"
-
 	"github.com/gsalomao/akira/packet"
 )
 
@@ -47,54 +43,4 @@ type PacketEncodable interface {
 	// Encode encodes itself into buf and returns the number of bytes encoded. The buffer must have the length greater
 	// than or equals to the packet size, otherwise this method returns an error.
 	Encode(buf []byte) (n int, err error)
-}
-
-func readPacket(r *bufio.Reader) (p Packet, n int, err error) {
-	var (
-		header packet.FixedHeader
-		pd     PacketDecodable
-	)
-
-	if n, err = header.Read(r); err != nil {
-		return nil, n, err
-	}
-
-	switch header.PacketType {
-	case packet.TypeConnect:
-		pd = &packet.Connect{}
-	default:
-		return nil, n, fmt.Errorf("%w: %v: unsupported packet", packet.ErrProtocolError, header.PacketType)
-	}
-
-	// Read the remaining bytes.
-	buf := make([]byte, header.RemainingLength)
-	if _, err = io.ReadFull(r, buf); err != nil {
-		return nil, n, err
-	}
-
-	p = pd
-	n += header.RemainingLength
-
-	var dSize int
-
-	dSize, err = pd.Decode(buf, header)
-	if err != nil {
-		return nil, n, fmt.Errorf("decode error: %s: %w", p.Type(), err)
-	}
-	if dSize != header.RemainingLength {
-		return nil, n, fmt.Errorf("%w: %s: packet size mismatch", packet.ErrMalformedPacket, p.Type())
-	}
-
-	return p, n, nil
-}
-
-func writePacket(w io.Writer, p PacketEncodable) (n int, err error) {
-	buf := make([]byte, p.Size())
-
-	_, err = p.Encode(buf)
-	if err != nil {
-		return n, err
-	}
-
-	return w.Write(buf)
 }

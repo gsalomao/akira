@@ -35,6 +35,7 @@ const (
 	onClientCloseHook
 	onConnectionClosedHook
 	onReceivePacketHook
+	onPacketReceiveHook
 	onPacketReceiveFailedHook
 	onPacketReceivedHook
 	onPacketSendHook
@@ -138,6 +139,14 @@ type OnReceivePacketHook interface {
 	OnReceivePacket(c *Client) error
 }
 
+// OnPacketReceiveHook is the hook interface that wraps the OnPacketReceive method. The OnPacketReceive method is
+// called by the server when it has received the fixed header of the packet from the client, but it did not receive
+// yet the remaining bytes of the packet. If this method returns an  error, the server stops to receive the packet
+// and closes the client.
+type OnPacketReceiveHook interface {
+	OnPacketReceive(c *Client, h packet.FixedHeader) error
+}
+
 // OnPacketReceiveFailedHook is the hook interface that wraps the OnPacketReceiveFailed method. The
 // OnPacketReceiveFailed method is called by the server when it fails to receive a packet from the client for any
 // reason other than the network connection closed. After the server calls this method, it closes the client.
@@ -208,6 +217,7 @@ var hooksRegistryFunc = map[hookType]func(*hooks, Hook, hookType){
 	onClientCloseHook:         registerHook[OnClientCloseHook],
 	onConnectionClosedHook:    registerHook[OnConnectionClosedHook],
 	onReceivePacketHook:       registerHook[OnReceivePacketHook],
+	onPacketReceiveHook:       registerHook[OnPacketReceiveHook],
 	onPacketReceiveFailedHook: registerHook[OnPacketReceiveFailedHook],
 	onPacketReceivedHook:      registerHook[OnPacketReceivedHook],
 	onPacketSendHook:          registerHook[OnPacketSendHook],
@@ -411,6 +421,26 @@ func (h *hooks) onReceivePacket(c *Client) error {
 		hk := hook.(OnReceivePacketHook)
 		return hk.OnReceivePacket(c)
 	}
+	return nil
+}
+
+func (h *hooks) onPacketReceive(c *Client, header packet.FixedHeader) error {
+	if !h.hasHook(onPacketReceiveHook) {
+		return nil
+	}
+
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+
+	for _, hook := range h.hooks[onPacketReceiveHook] {
+		hk := hook.(OnPacketReceiveHook)
+
+		err := hk.OnPacketReceive(c, header)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

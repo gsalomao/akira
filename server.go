@@ -348,7 +348,23 @@ func (s *Server) stop() {
 
 func (s *Server) inboundLoop(c *Client) error {
 	for {
-		p, err := s.receivePacket(c)
+		var p Packet
+
+		err := s.hooks.onReceivePacket(c)
+		if err != nil {
+			return err
+		}
+
+		p, err = s.receivePacket(c)
+		if err != nil {
+			if errors.Is(err, io.EOF) || errors.Is(err, os.ErrDeadlineExceeded) {
+				return err
+			}
+			s.hooks.onPacketReceiveFailed(c, err)
+			return err
+		}
+
+		err = s.hooks.onPacketReceived(c, p)
 		if err != nil {
 			return err
 		}
@@ -370,30 +386,24 @@ func (s *Server) backgroundLoop(ctx context.Context) {
 }
 
 func (s *Server) receivePacket(c *Client) (p Packet, err error) {
-	err = s.hooks.onReceivePacket(c)
-	if err != nil {
-		return nil, err
-	}
-
 	r := s.readersPool.Get().(*bufio.Reader)
 	defer s.readersPool.Put(r)
 
-	p, _, err = c.Connection.receivePacket(r)
+	var h packet.FixedHeader
+
+	h, _, err = c.Connection.readFixedHeader(r)
 	if err != nil {
-		if errors.Is(err, io.EOF) {
-			return nil, io.EOF
-		}
-		if errors.Is(err, os.ErrDeadlineExceeded) {
-			return nil, err
-		}
-		err = fmt.Errorf("failed to read packet: %w", err)
-		s.hooks.onPacketReceiveFailed(c, err)
+		return nil, fmt.Errorf("failed to read fixed header: %w", err)
+	}
+
+	err = s.hooks.onPacketReceive(c, h)
+	if err != nil {
 		return nil, err
 	}
 
-	err = s.hooks.onPacketReceived(c, p)
+	p, _, err = c.Connection.receivePacket(r, h)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read packet: %w", err)
 	}
 
 	return p, nil

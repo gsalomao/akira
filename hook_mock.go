@@ -232,6 +232,23 @@ func (m *mockOnReceivePacketHook) OnReceivePacket(c *Client) error {
 	return nil
 }
 
+type mockOnPacketReceiveHook struct {
+	mockHook
+	cb func(c *Client, h packet.FixedHeader) error
+}
+
+func (m *mockOnPacketReceiveHook) Name() string {
+	return reflect.TypeOf(m).String()
+}
+
+func (m *mockOnPacketReceiveHook) OnPacketReceive(c *Client, h packet.FixedHeader) error {
+	m.called()
+	if m.cb != nil {
+		return m.cb(c, h)
+	}
+	return nil
+}
+
 type mockOnPacketReceiveFailedHook struct {
 	mockHook
 	cb func(c *Client, err error)

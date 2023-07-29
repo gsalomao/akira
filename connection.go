@@ -17,6 +17,7 @@ package akira
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"net"
@@ -48,21 +49,70 @@ func NewConnection(l Listener, nc net.Conn) *Connection {
 	return &Connection{Listener: l, netConn: nc}
 }
 
-func (c *Connection) receivePacket(r *bufio.Reader) (p Packet, n int, err error) {
+func (c *Connection) readFixedHeader(r *bufio.Reader) (h packet.FixedHeader, n int, err error) {
 	if c == nil {
-		return nil, 0, io.EOF
+		return h, 0, io.EOF
 	}
 
 	r.Reset(c.netConn)
 	c.setReadDeadline()
-	return readPacket(r)
+
+	n, err = h.Read(r)
+	if err != nil {
+		return h, n, fmt.Errorf("failed to read fixed header: %w", err)
+	}
+
+	return h, n, nil
+}
+
+func (c *Connection) receivePacket(r *bufio.Reader, h packet.FixedHeader) (p Packet, n int, err error) {
+	if c == nil {
+		return nil, 0, io.EOF
+	}
+
+	var pd PacketDecodable
+
+	switch h.PacketType {
+	case packet.TypeConnect:
+		pd = &packet.Connect{}
+	default:
+		return nil, n, fmt.Errorf("%w: %v: unsupported packet", packet.ErrProtocolError, h.PacketType)
+	}
+
+	buf := make([]byte, h.RemainingLength)
+	if _, err = io.ReadFull(r, buf); err != nil {
+		return nil, n, err
+	}
+
+	p = pd
+	n += h.RemainingLength
+
+	var dSize int
+
+	dSize, err = pd.Decode(buf, h)
+	if err != nil {
+		return nil, n, fmt.Errorf("decode error: %s: %w", p.Type(), err)
+	}
+	if dSize != h.RemainingLength {
+		return nil, n, fmt.Errorf("%w: %s: packet size mismatch", packet.ErrMalformedPacket, p.Type())
+	}
+
+	return p, n, nil
 }
 
 func (c *Connection) sendPacket(p PacketEncodable) (n int, err error) {
 	if c == nil {
 		return 0, io.EOF
 	}
-	return writePacket(c.netConn, p)
+
+	buf := make([]byte, p.Size())
+
+	_, err = p.Encode(buf)
+	if err != nil {
+		return n, err
+	}
+
+	return c.netConn.Write(buf)
 }
 
 func (c *Connection) setReadDeadline() {

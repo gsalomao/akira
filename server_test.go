@@ -522,14 +522,21 @@ func TestServerServeWithHooks(t *testing.T) {
 	var (
 		onConnectionOpen = &mockOnConnectionOpenHook{}
 		onClientOpened   = &mockOnClientOpenedHook{}
+		onReceivePacket  = &mockOnReceivePacketHook{}
 	)
 
-	s := newServer(t, WithHooks([]Hook{onConnectionOpen, onClientOpened}))
+	s := newServer(t, WithHooks([]Hook{onConnectionOpen, onClientOpened, onReceivePacket}))
 	defer s.Close()
 	startServer(t, s)
 
 	nc, conn := newConnection(t)
 	defer func() { _ = nc.Close() }()
+
+	ready := make(chan struct{})
+	onReceivePacket.cb = func(_ *Client) error {
+		close(ready)
+		return nil
+	}
 
 	err := s.Serve(conn)
 	if err != nil {
@@ -540,6 +547,11 @@ func TestServerServeWithHooks(t *testing.T) {
 	}
 	if onClientOpened.calls() != 1 {
 		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onConnectionOpen.calls())
+	}
+
+	<-ready
+	if onReceivePacket.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onReceivePacket.calls())
 	}
 }
 
@@ -644,7 +656,7 @@ func TestServerCallsHooksWhenConnectionCloses(t *testing.T) {
 
 	err := <-closedErr
 	if !errors.Is(err, os.ErrDeadlineExceeded) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", os.ErrDeadlineExceeded, err)
 	}
 	if onClientClose.calls() != 1 {
 		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onClientClose.calls())
@@ -705,6 +717,29 @@ func TestServerClosesConnectionWhenOnReceivePacketReturnsError(t *testing.T) {
 	nc, conn := newConnection(t)
 	defer func() { _ = nc.Close() }()
 	serveConnection(t, s, conn)
+
+	_, err := nc.Read(nil)
+	if !errors.Is(err, io.EOF) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+	}
+	if h.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, h.calls())
+	}
+}
+
+func TestServerClosesConnectionWhenOnPacketReceiveReturnsError(t *testing.T) {
+	h := &mockOnPacketReceiveHook{cb: func(_ *Client, _ packet.FixedHeader) error { return errHookFailed }}
+	fixture := readPacketFixture(t, "connect.json", "V5.0")
+
+	s := newServer(t, WithHooks([]Hook{h}))
+	defer s.Close()
+	startServer(t, s)
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+
+	serveConnection(t, s, conn)
+	sendPacket(t, nc, fixture.Packet)
 
 	_, err := nc.Read(nil)
 	if !errors.Is(err, io.EOF) {
@@ -844,6 +879,7 @@ func TestServerReceivePacketConnect(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.fixture, func(t *testing.T) {
 			fixture := readPacketFixture(t, "connect.json", tc.fixture)
+			onPacketReceive := &mockOnPacketReceiveHook{}
 
 			received := make(chan Packet)
 			onPacketReceived := &mockOnPacketReceivedHook{cb: func(_ *Client, p Packet) error {
@@ -851,7 +887,7 @@ func TestServerReceivePacketConnect(t *testing.T) {
 				return nil
 			}}
 
-			s := newServer(t, WithHooks([]Hook{onPacketReceived}))
+			s := newServer(t, WithHooks([]Hook{onPacketReceive, onPacketReceived}))
 			defer s.Close()
 			startServer(t, s)
 
@@ -864,6 +900,12 @@ func TestServerReceivePacketConnect(t *testing.T) {
 			p := <-received
 			if !reflect.DeepEqual(tc.packet, p) {
 				t.Fatalf("Unexpected packet\nwant: %+v\ngot:  %+v", tc.packet, p)
+			}
+			if onPacketReceive.calls() != 1 {
+				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onPacketReceive.calls())
+			}
+			if onPacketReceived.calls() != 1 {
+				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onPacketReceived.calls())
 			}
 		})
 	}
