@@ -25,6 +25,25 @@ import (
 	"unsafe"
 )
 
+func TestMQTTVersionString(t *testing.T) {
+	testCases := map[byte]string{
+		0: "Unknown",
+		3: "3.1",
+		4: "3.1.1",
+		5: "5.0",
+	}
+
+	for v, n := range testCases {
+		t.Run(fmt.Sprint(v), func(t *testing.T) {
+			version := Version(v)
+			name := version.String()
+			if name != n {
+				t.Errorf("Unexpected name\nwant: %s\ngot:  %s", n, name)
+			}
+		})
+	}
+}
+
 func TestPacketTypeString(t *testing.T) {
 	testCases := map[Type]string{
 		TypeReserved:    "RESERVED",

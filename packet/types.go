@@ -136,7 +136,7 @@ func (v Version) String() string {
 	case MQTT50:
 		return "5.0"
 	default:
-		return "unknown"
+		return "Unknown"
 	}
 }
 
