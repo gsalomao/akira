@@ -424,7 +424,7 @@ func (s *Server) connectClient(c *Client, connect *packet.Connect) error {
 	if connect.Flags.CleanStart() {
 		err = s.store.deleteSession(connect.ClientID)
 	} else {
-		err = s.store.readSession(connect.ClientID, &c.Session)
+		err = s.store.getSession(connect.ClientID, &c.Session)
 		if err == nil {
 			sessionPresent = true
 		}
