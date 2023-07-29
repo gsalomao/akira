@@ -87,6 +87,7 @@ linters-settings:
         files:
           - $all
           - "!$test"
+          - "!**/*_mock.go"
         allow:
           - $gostd
           - github.com/gsalomao/akira
@@ -96,10 +97,15 @@ linters-settings:
           - pkg: reflect
             desc: Do not use the reflect package
       test:
+        files:
+          - $test
+          - "**/*_mock.go"
         allow:
           - $gostd
           - github.com/gsalomao/akira
           - github.com/stretchr/testify
+  dupl:
+    threshold: 100
   gocognit:
     min-complexity: 20
   gocyclo:
@@ -280,3 +286,9 @@ linters-settings:
       - name: identical-branches
   tenv:
     all: true
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - dupl
