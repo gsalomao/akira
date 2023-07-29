@@ -215,16 +215,16 @@ func (m *mockOnConnectionClosedHook) OnConnectionClosed(c *Connection, err error
 	}
 }
 
-type mockOnPacketReceiveHook struct {
+type mockOnReceivePacketHook struct {
 	mockHook
 	cb func(c *Client) error
 }
 
-func (m *mockOnPacketReceiveHook) Name() string {
+func (m *mockOnReceivePacketHook) Name() string {
 	return reflect.TypeOf(m).String()
 }
 
-func (m *mockOnPacketReceiveHook) OnPacketReceive(c *Client) error {
+func (m *mockOnReceivePacketHook) OnReceivePacket(c *Client) error {
 	m.called()
 	if m.cb != nil {
 		return m.cb(c)

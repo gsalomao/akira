@@ -94,21 +94,21 @@ func BenchmarkHooksOnConnectionClosed(b *testing.B) {
 	})
 }
 
-func BenchmarkHooksOnPacketReceive(b *testing.B) {
+func BenchmarkHooksOnReceivePacket(b *testing.B) {
 	b.Run("No Hook", func(b *testing.B) {
 		h := newHooks()
 
 		for i := 0; i < b.N; i++ {
-			_ = h.onPacketReceive(nil)
+			_ = h.onReceivePacket(nil)
 		}
 	})
 
 	b.Run("With Hook", func(b *testing.B) {
 		h := newHooks()
-		_ = h.add(&mockOnPacketReceiveHook{})
+		_ = h.add(&mockOnReceivePacketHook{})
 
 		for i := 0; i < b.N; i++ {
-			_ = h.onPacketReceive(nil)
+			_ = h.onReceivePacket(nil)
 		}
 	})
 }

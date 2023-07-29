@@ -695,8 +695,8 @@ func TestServerClosesConnectionWhenReceivesInvalidPacket(t *testing.T) {
 	}
 }
 
-func TestServerClosesConnectionWhenOnPacketReceiveReturnsError(t *testing.T) {
-	h := &mockOnPacketReceiveHook{cb: func(_ *Client) error { return errHookFailed }}
+func TestServerClosesConnectionWhenOnReceivePacketReturnsError(t *testing.T) {
+	h := &mockOnReceivePacketHook{cb: func(_ *Client) error { return errHookFailed }}
 
 	s := newServer(t, WithHooks([]Hook{h}))
 	defer s.Close()
@@ -763,11 +763,11 @@ func TestServerClosesConnectionWhenOnPacketSendReturnsError(t *testing.T) {
 
 func TestServerCallsHookWhenReceiveInvalidPacket(t *testing.T) {
 	var (
-		onPacketReceive       = &mockOnPacketReceiveHook{}
+		onReceivePacket       = &mockOnReceivePacketHook{}
 		onPacketReceiveFailed = &mockOnPacketReceiveFailedHook{}
 	)
 
-	s := newServer(t, WithHooks([]Hook{onPacketReceive, onPacketReceiveFailed}))
+	s := newServer(t, WithHooks([]Hook{onReceivePacket, onPacketReceiveFailed}))
 	defer s.Close()
 	startServer(t, s)
 
@@ -785,8 +785,8 @@ func TestServerCallsHookWhenReceiveInvalidPacket(t *testing.T) {
 	if !errors.Is(err, packet.ErrMalformedPacket) {
 		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", packet.ErrMalformedPacket, err)
 	}
-	if onPacketReceive.calls() != 1 {
-		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onPacketReceive.calls())
+	if onReceivePacket.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onReceivePacket.calls())
 	}
 	if onPacketReceiveFailed.calls() != 1 {
 		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onPacketReceiveFailed.calls())

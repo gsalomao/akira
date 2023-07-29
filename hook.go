@@ -34,7 +34,7 @@ const (
 	onClientOpenedHook
 	onClientCloseHook
 	onConnectionClosedHook
-	onPacketReceiveHook
+	onReceivePacketHook
 	onPacketReceiveFailedHook
 	onPacketReceivedHook
 	onPacketSendHook
@@ -131,11 +131,11 @@ type OnConnectionClosedHook interface {
 	OnConnectionClosed(c *Connection, err error)
 }
 
-// OnPacketReceiveHook is the hook interface that wraps the OnPacketReceive method. The OnPacketReceive method is
-// called by the server before try to receive any packet. If this method returns an error, the server doesn't try
-// to receive a new packet and the client is closed.
-type OnPacketReceiveHook interface {
-	OnPacketReceive(c *Client) error
+// OnReceivePacketHook is the hook interface that wraps the OnReceivePacket method. The OnReceivePacket method is
+// called by the server before try to receive any packet from the client. If this method returns an error, the server
+// doesn't try to receive a new packet and the client is closed.
+type OnReceivePacketHook interface {
+	OnReceivePacket(c *Client) error
 }
 
 // OnPacketReceiveFailedHook is the hook interface that wraps the OnPacketReceiveFailed method. The
@@ -207,7 +207,7 @@ var hooksRegistryFunc = map[hookType]func(*hooks, Hook, hookType){
 	onClientOpenedHook:        registerHook[OnClientOpenedHook],
 	onClientCloseHook:         registerHook[OnClientCloseHook],
 	onConnectionClosedHook:    registerHook[OnConnectionClosedHook],
-	onPacketReceiveHook:       registerHook[OnPacketReceiveHook],
+	onReceivePacketHook:       registerHook[OnReceivePacketHook],
 	onPacketReceiveFailedHook: registerHook[OnPacketReceiveFailedHook],
 	onPacketReceivedHook:      registerHook[OnPacketReceivedHook],
 	onPacketSendHook:          registerHook[OnPacketSendHook],
@@ -414,18 +414,18 @@ func (h *hooks) onConnectionClosed(c *Connection, err error) {
 	}
 }
 
-func (h *hooks) onPacketReceive(c *Client) error {
-	if !h.hasHook(onPacketReceiveHook) {
+func (h *hooks) onReceivePacket(c *Client) error {
+	if !h.hasHook(onReceivePacketHook) {
 		return nil
 	}
 
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
-	for _, hook := range h.hooks[onPacketReceiveHook] {
-		hk := hook.(OnPacketReceiveHook)
+	for _, hook := range h.hooks[onReceivePacketHook] {
+		hk := hook.(OnReceivePacketHook)
 
-		err := hk.OnPacketReceive(c)
+		err := hk.OnReceivePacket(c)
 		if err != nil {
 			return err
 		}

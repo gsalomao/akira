@@ -370,7 +370,7 @@ func (s *Server) backgroundLoop(ctx context.Context) {
 }
 
 func (s *Server) receivePacket(c *Client) (p Packet, err error) {
-	err = s.hooks.onPacketReceive(c)
+	err = s.hooks.onReceivePacket(c)
 	if err != nil {
 		return nil, err
 	}
