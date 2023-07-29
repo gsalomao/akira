@@ -425,9 +425,9 @@ func (s *Server) connectClient(c *Client, connect *packet.Connect) error {
 		return packet.ErrClientIDNotValid
 	}
 
-	// If the client requested a clean session, the server must delete any existing session for the given client
+	// If the client requested a clean start, the server must delete any existing session for the given client
 	// identifier. Otherwise, resume any existing session for the given client identifier.
-	if connect.Flags.CleanSession() {
+	if connect.Flags.CleanStart() {
 		err = s.store.deleteSession(connect.ClientID)
 	} else {
 		err = s.store.readSession(connect.ClientID, &c.Session)

@@ -18,7 +18,7 @@ import "fmt"
 
 const (
 	connectFlagReserved     = 0x01
-	connectFlagCleanSession = 0x02
+	connectFlagCleanStart   = 0x02
 	connectFlagWillFlag     = 0x04
 	connectFlagWillQoS      = 0x18
 	connectFlagWillRetain   = 0x20
@@ -28,7 +28,7 @@ const (
 
 const (
 	connectFlagShiftReserved = +iota
-	connectFlagShiftCleanSession
+	connectFlagShiftCleanStart
 	connectFlagShiftWillFlag
 	connectFlagShiftWillQoS
 	connectFlagShiftWillRetain
@@ -420,9 +420,9 @@ func (f ConnectFlags) WillFlag() bool {
 	return (f & connectFlagWillFlag >> connectFlagShiftWillFlag) > 0
 }
 
-// CleanSession returns whether the Clean Session flag is set or not.
-func (f ConnectFlags) CleanSession() bool {
-	return (f & connectFlagCleanSession >> connectFlagShiftCleanSession) > 0
+// CleanStart returns whether the Clean Start flag is set or not.
+func (f ConnectFlags) CleanStart() bool {
+	return (f & connectFlagCleanStart >> connectFlagShiftCleanStart) > 0
 }
 
 // Reserved returns whether the reserved flag is set or not.

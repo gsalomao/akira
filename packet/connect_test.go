@@ -94,12 +94,12 @@ func TestConnectDecode(t *testing.T) {
 		{"V3.1.1", Connect{Version: MQTT311, KeepAlive: 50, ClientID: []byte("ab")}},
 		{
 			"V3.1.1 No Client ID", Connect{
-				Version: MQTT311, Flags: ConnectFlags(connectFlagCleanSession), ClientID: []byte{},
+				Version: MQTT311, Flags: ConnectFlags(connectFlagCleanStart), ClientID: []byte{},
 			},
 		},
 		{
 			"V5.0", Connect{
-				Version: MQTT50, KeepAlive: 80, Flags: ConnectFlags(connectFlagCleanSession), ClientID: []byte("abc"),
+				Version: MQTT50, KeepAlive: 80, Flags: ConnectFlags(connectFlagCleanStart), ClientID: []byte("abc"),
 			},
 		},
 		{
@@ -310,8 +310,8 @@ func connectFlags(t *testing.T, p *Connect) []string {
 	if p.Flags.Reserved() {
 		flags = append(flags, testdata.ConnectFlagReserved)
 	}
-	if p.Flags.CleanSession() {
-		flags = append(flags, testdata.ConnectFlagCleanSession)
+	if p.Flags.CleanStart() {
+		flags = append(flags, testdata.ConnectFlagCleanStart)
 	}
 	if p.Flags.WillFlag() {
 		flags = append(flags, testdata.ConnectFlagWillFlag)

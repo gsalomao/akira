@@ -10,12 +10,12 @@
 	{
 		"name": "V3.1.1 No Client ID",
 		"packet": [16, 12, 0, 4, 77, 81, 84, 84, 4, 2, 0, 0, 0, 0],
-		"flags": ["CleanSession"]
+		"flags": ["CleanStart"]
 	},
 	{
 		"name": "V5.0",
 		"packet": [16, 16, 0, 4, 77, 81, 84, 84, 5, 2, 0, 80, 0, 0, 3, 97, 98, 99],
-		"flags": ["CleanSession"]
+		"flags": ["CleanStart"]
 	},
 	{
 		"name": "V5.0 Username/Password",

@@ -21,15 +21,15 @@ import (
 )
 
 const (
-	ConnectFlagReserved     = "Reserved"
-	ConnectFlagCleanSession = "CleanSession"
-	ConnectFlagWillFlag     = "WillFlag"
-	ConnectFlagWillQoS0     = "WillQoS0"
-	ConnectFlagWillQoS1     = "WillQoS1"
-	ConnectFlagWillQoS2     = "WillQoS2"
-	ConnectFlagWillRetain   = "WillRetain"
-	ConnectFlagPassword     = "Password"
-	ConnectFlagUsername     = "Username"
+	ConnectFlagReserved   = "Reserved"
+	ConnectFlagCleanStart = "CleanStart"
+	ConnectFlagWillFlag   = "WillFlag"
+	ConnectFlagWillQoS0   = "WillQoS0"
+	ConnectFlagWillQoS1   = "WillQoS1"
+	ConnectFlagWillQoS2   = "WillQoS2"
+	ConnectFlagWillRetain = "WillRetain"
+	ConnectFlagPassword   = "Password"
+	ConnectFlagUsername   = "Username"
 )
 
 type Fixture struct {
