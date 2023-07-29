@@ -344,19 +344,16 @@ func (s *Server) receivePacket(c *Client) (p Packet, err error) {
 	buf := s.readBufPool.Get().(*bufio.Reader)
 	defer s.readBufPool.Put(buf)
 
-	buf.Reset(c.Connection.netConn)
-	c.refreshDeadline(c.Connection.KeepAlive)
-
-	p, _, err = readPacket(buf)
+	p, _, err = c.Connection.receivePacket(r)
 	if err != nil {
-		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
+		if errors.Is(err, io.EOF) {
 			return nil, io.EOF
 		}
 		if errors.Is(err, os.ErrDeadlineExceeded) {
 			return nil, err
 		}
-
-		err = s.hooks.onPacketReceiveError(c, err)
+		err = fmt.Errorf("failed to read packet: %w", err)
+		s.hooks.onPacketReceiveFailed(c, err)
 		return nil, err
 	}
 
@@ -395,7 +392,7 @@ func (s *Server) handlePacketConnect(c *Client, connect *packet.Connect) error {
 
 	err = s.connectClient(c, connect)
 	if err != nil {
-		s.hooks.onConnectError(c, connect, err)
+		s.hooks.onConnectFailed(c, connect, err)
 		return err
 	}
 
@@ -447,13 +444,15 @@ func (s *Server) connectClient(c *Client, connect *packet.Connect) error {
 	c.Session.LastWill = lastWill(connect)
 	c.Connection.KeepAliveMs = uint32(sessionKeepAlive(connect.KeepAlive, s.config.MaxKeepAliveSec)) * 1000
 
-	err = s.store.saveSession(c.ID, &c.Session)
-	if err != nil {
-		// If the session store fails to save the session, the server replies to client indicating that the service
-		// is unavailable.
-		pErr := packet.ErrServerUnavailable
-		_ = s.sendConnAck(c, pErr.Code, false, nil)
-		return fmt.Errorf("%w: %s", pErr, err.Error())
+	if (c.Connection.Version != packet.MQTT50 && !connect.Flags.CleanStart()) || sessionExpiryInterval(&c.Session) > 0 {
+		err = s.store.saveSession(c.ID, &c.Session)
+		if err != nil {
+			// If the session store fails to save the session, the server replies to client indicating that the
+			// service is unavailable.
+			pErr := packet.ErrServerUnavailable
+			_ = s.sendConnAck(c, pErr.Code, false, nil)
+			return fmt.Errorf("%w: %s", pErr, err.Error())
+		}
 	}
 
 	err = s.sendConnAck(c, packet.ReasonCodeSuccess, sessionPresent, connect)
@@ -487,10 +486,10 @@ func (s *Server) sendPacket(c *Client, p PacketEncodable) error {
 		return err
 	}
 
-	err = writePacket(c.Connection.netConn, p)
+	_, err = c.Connection.sendPacket(p)
 	if err != nil {
 		if !errors.Is(err, io.EOF) {
-			s.hooks.onPacketSendError(c, p, err)
+			s.hooks.onPacketSendFailed(c, p, err)
 		}
 		return err
 	}

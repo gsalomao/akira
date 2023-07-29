@@ -70,6 +70,13 @@ func hasSessionExpiryInterval(s *Session, connect *packet.Connect) bool {
 	return false
 }
 
+func sessionExpiryInterval(s *Session) uint32 {
+	if !s.Properties.Has(packet.PropertySessionExpiryInterval) {
+		return 0
+	}
+	return s.Properties.SessionExpiryInterval
+}
+
 func sessionProperties(props *packet.ConnectProperties, conf *Config) *SessionProperties {
 	if props == nil {
 		return nil
@@ -123,10 +130,6 @@ func lastWill(connect *packet.Connect) *LastWill {
 		Payload: connect.WillPayload,
 		QoS:     connect.Flags.WillQoS(),
 		Retain:  connect.Flags.WillRetain(),
-	}
-
-	if connect.WillProperties == nil {
-		return nil
 	}
 
 	props := connect.WillProperties
