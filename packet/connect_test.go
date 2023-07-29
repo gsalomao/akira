@@ -193,7 +193,7 @@ func TestConnectDecode(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.fixture, func(t *testing.T) {
-			fixture, err := testdata.FixtureWithName("connect.json", tc.fixture)
+			fixture, err := testdata.ReadFixture("connect.json", tc.fixture)
 			if err != nil {
 				t.Fatalf("Unexpected error while getting the fixture\n%s", err)
 			}

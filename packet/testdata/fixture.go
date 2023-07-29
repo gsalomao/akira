@@ -53,7 +53,7 @@ func ReadFixtures(path string) ([]Fixture, error) {
 	return fixtures, nil
 }
 
-func FixtureWithName(path, name string) (Fixture, error) {
+func ReadFixture(path, name string) (Fixture, error) {
 	fixtures, err := ReadFixtures(path)
 	if err != nil {
 		return Fixture{}, err

@@ -131,7 +131,7 @@ func TestConnAckEncode(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			fixture, err := testdata.FixtureWithName("connack.json", tc.fixture)
+			fixture, err := testdata.ReadFixture("connack.json", tc.fixture)
 			if err != nil {
 				t.Fatalf("Unexpected error while getting fixture\n%s", err)
 			}
