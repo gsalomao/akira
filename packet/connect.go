@@ -482,20 +482,19 @@ func (p *ConnectProperties) Set(id PropertyID) {
 }
 
 func (p *ConnectProperties) size() int {
-	var size int
-
-	if p != nil {
-		size += sizePropSessionExpiryInterval(p.Flags)
-		size += sizePropReceiveMaximum(p.Flags)
-		size += sizePropMaxPacketSize(p.Flags)
-		size += sizePropTopicAliasMaximum(p.Flags)
-		size += sizePropRequestProblemInfo(p.Flags)
-		size += sizePropRequestResponseInfo(p.Flags)
-		size += sizePropUserProperties(p.Flags, p.UserProperties)
-		size += sizePropAuthenticationMethod(p.Flags, p.AuthenticationMethod)
-		size += sizePropAuthenticationData(p.Flags, p.AuthenticationData)
+	if p == nil {
+		return 0
 	}
 
+	size := sizePropSessionExpiryInterval(p.Flags)
+	size += sizePropReceiveMaximum(p.Flags)
+	size += sizePropMaxPacketSize(p.Flags)
+	size += sizePropTopicAliasMaximum(p.Flags)
+	size += sizePropRequestProblemInfo(p.Flags)
+	size += sizePropRequestResponseInfo(p.Flags)
+	size += sizePropUserProperties(p.Flags, p.UserProperties)
+	size += sizePropAuthenticationMethod(p.Flags, p.AuthenticationMethod)
+	size += sizePropAuthenticationData(p.Flags, p.AuthenticationData)
 	return size
 }
 
@@ -601,18 +600,17 @@ func (p *WillProperties) Set(id PropertyID) {
 }
 
 func (p *WillProperties) size() int {
-	var size int
-
-	if p != nil {
-		size += sizePropWillDelayInterval(p.Flags)
-		size += sizePropPayloadFormatIndicator(p.Flags)
-		size += sizePropMessageExpiryInterval(p.Flags)
-		size += sizePropContentType(p.Flags, p.ContentType)
-		size += sizePropResponseTopic(p.Flags, p.ResponseTopic)
-		size += sizePropCorrelationData(p.Flags, p.CorrelationData)
-		size += sizePropUserProperties(p.Flags, p.UserProperties)
+	if p == nil {
+		return 0
 	}
 
+	size := sizePropWillDelayInterval(p.Flags)
+	size += sizePropPayloadFormatIndicator(p.Flags)
+	size += sizePropMessageExpiryInterval(p.Flags)
+	size += sizePropContentType(p.Flags, p.ContentType)
+	size += sizePropResponseTopic(p.Flags, p.ResponseTopic)
+	size += sizePropCorrelationData(p.Flags, p.CorrelationData)
+	size += sizePropUserProperties(p.Flags, p.UserProperties)
 	return size
 }
 
