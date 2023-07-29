@@ -527,26 +527,26 @@ func (p *ConnectProperties) decodeProperty(id PropertyID, buf []byte) (n int, er
 	switch id {
 	case PropertySessionExpiryInterval:
 		p.SessionExpiryInterval, n, err = decodePropSessionExpiryInterval(buf, p)
-	case PropertyReceiveMaximum:
-		p.ReceiveMaximum, n, err = decodePropReceiveMaximum(buf, p)
-	case PropertyMaximumPacketSize:
-		p.MaximumPacketSize, n, err = decodePropMaxPacketSize(buf, p)
-	case PropertyTopicAliasMaximum:
-		p.TopicAliasMaximum, n, err = decodePropTopicAliasMaximum(buf, p)
-	case PropertyRequestResponseInfo:
-		p.RequestResponseInfo, n, err = decodePropRequestResponseInfo(buf, p)
+	case PropertyAuthenticationMethod:
+		p.AuthenticationMethod, n, err = decodePropAuthenticationMethod(buf, p)
+	case PropertyAuthenticationData:
+		p.AuthenticationData, n, err = decodePropAuthenticationData(buf, p)
 	case PropertyRequestProblemInfo:
 		p.RequestProblemInfo, n, err = decodePropRequestProblemInfo(buf, p)
+	case PropertyRequestResponseInfo:
+		p.RequestResponseInfo, n, err = decodePropRequestResponseInfo(buf, p)
+	case PropertyReceiveMaximum:
+		p.ReceiveMaximum, n, err = decodePropReceiveMaximum(buf, p)
+	case PropertyTopicAliasMaximum:
+		p.TopicAliasMaximum, n, err = decodePropTopicAliasMaximum(buf, p)
 	case PropertyUserProperty:
 		var user UserProperty
 		user, n, err = decodePropUserProperty(buf, p)
 		if err == nil {
 			p.UserProperties = append(p.UserProperties, user)
 		}
-	case PropertyAuthenticationMethod:
-		p.AuthenticationMethod, n, err = decodePropAuthenticationMethod(buf, p)
-	case PropertyAuthenticationData:
-		p.AuthenticationData, n, err = decodePropAuthenticationData(buf, p)
+	case PropertyMaximumPacketSize:
+		p.MaximumPacketSize, n, err = decodePropMaxPacketSize(buf, p)
 	default:
 		err = fmt.Errorf("%w: invalid connect property: %v", ErrMalformedPacket, id)
 	}
@@ -641,8 +641,6 @@ func (p *WillProperties) decode(buf []byte, remaining int) (n int, err error) {
 
 func (p *WillProperties) decodeProperty(id PropertyID, buf []byte) (n int, err error) {
 	switch id {
-	case PropertyWillDelayInterval:
-		p.WillDelayInterval, n, err = decodePropWillDelayInterval(buf, p)
 	case PropertyPayloadFormatIndicator:
 		p.PayloadFormatIndicator, n, err = decodePropPayloadFormatIndicator(buf, p)
 	case PropertyMessageExpiryInterval:
@@ -653,6 +651,8 @@ func (p *WillProperties) decodeProperty(id PropertyID, buf []byte) (n int, err e
 		p.ResponseTopic, n, err = decodePropResponseTopic(buf, p)
 	case PropertyCorrelationData:
 		p.CorrelationData, n, err = decodePropCorrelationData(buf, p)
+	case PropertyWillDelayInterval:
+		p.WillDelayInterval, n, err = decodePropWillDelayInterval(buf, p)
 	case PropertyUserProperty:
 		var user UserProperty
 		user, n, err = decodePropUserProperty(buf, p)
