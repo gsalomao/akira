@@ -20,7 +20,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -57,6 +56,9 @@ var ErrInvalidServerState = errors.New("invalid server state")
 
 // ErrServerStopped indicates that the Server has stopped.
 var ErrServerStopped = errors.New("server stopped")
+
+// ErrServerNotRunning indicates that the Server is not running.
+var ErrServerNotRunning = errors.New("server not running")
 
 // ServerState represents the current state of the Server.
 type ServerState uint32
@@ -130,7 +132,7 @@ func NewServerWithOptions(opts *Options) (s *Server, err error) {
 // method for each Connection to be served.
 func (s *Server) AddListener(l Listener) error {
 	if s.State() == ServerRunning {
-		err := l.Listen(s.handleConnection)
+		err := l.Listen(s.Serve)
 		if err != nil {
 			return err
 		}
@@ -177,7 +179,7 @@ func (s *Server) Start() error {
 	s.stopOnce = sync.Once{}
 	s.ctx, s.cancelCtx = context.WithCancelCause(context.Background())
 
-	err = s.listeners.listenAll(s.handleConnection)
+	err = s.listeners.listenAll(s.Serve)
 	if err != nil {
 		_ = s.setState(ServerFailed, err)
 		return err
@@ -248,6 +250,66 @@ func (s *Server) Close() {
 	_ = s.setState(ServerClosed, nil)
 }
 
+// Serve serves the provided Connection.
+//
+// This method does not block the caller and returns an error only if the server is not able to serve the
+// connection.
+//
+// When this method is called, the server creates a Client, associate the client with the connection, and
+// returns immediately. If this method is called while the server is not running, it returns ErrServerNotRunning.
+func (s *Server) Serve(c *Connection) error {
+	if s.State() != ServerRunning {
+		return ErrServerNotRunning
+	}
+	if c == nil || c.Listener == nil || c.netConn == nil {
+		return ErrInvalidConnection
+	}
+
+	c.KeepAliveMs = s.config.ConnectTimeoutMs
+
+	if err := s.hooks.onConnectionOpen(c); err != nil {
+		_ = c.netConn.Close()
+		s.hooks.onConnectionClosed(c, err)
+		return err
+	}
+
+	client := &Client{Connection: c}
+	s.wg.Add(2)
+
+	inboundCtx, cancelInboundCtx := context.WithCancel(context.Background())
+	outboundCtx, cancelOutboundCtx := context.WithCancelCause(s.ctx)
+
+	// The inbound goroutine is responsible for receive and handle the received packets from client.
+	go func() {
+		defer s.wg.Done()
+		defer cancelInboundCtx()
+
+		err := s.inboundLoop(client)
+		if err != nil {
+			cancelOutboundCtx(err)
+		}
+	}()
+
+	// The outbound goroutine is responsible to send outbound packets to client.
+	go func() {
+		defer s.wg.Done()
+
+		err := s.outboundLoop(outboundCtx)
+		if err != nil {
+			s.hooks.onClientClose(client, err)
+			_ = client.Connection.netConn.Close()
+			<-inboundCtx.Done()
+
+			conn := client.Connection
+			client.Connection = nil
+			s.hooks.onConnectionClosed(conn, err)
+		}
+	}()
+
+	s.hooks.onClientOpened(client)
+	return nil
+}
+
 // State returns the current ServerState.
 func (s *Server) State() ServerState {
 	return ServerState(s.state.Load())
@@ -284,55 +346,11 @@ func (s *Server) stop() {
 	})
 }
 
-func (s *Server) handleConnection(l Listener, nc net.Conn) {
-	c := &Client{
-		Connection: Connection{
-			netConn:   nc,
-			listener:  l,
-			KeepAlive: s.config.ConnectTimeout,
-		},
-	}
-
-	if err := s.hooks.onClientOpen(s, c); err != nil {
-		_ = c.Connection.netConn.Close()
-		s.hooks.onClientClosed(s, c, err)
-		return
-	}
-
-	ctx, cancelCtx := context.WithCancelCause(s.ctx)
-	s.wg.Add(2)
-
-	// The inbound goroutine is responsible for receive and handle the received packets from client.
-	go func() {
-		defer s.wg.Done()
-
-		err := s.inboundLoop(c)
-		if err != nil {
-			cancelCtx(err)
-		}
-	}()
-
-	// The outbound goroutine is responsible to send outbound packets to client.
-	go func() {
-		defer s.wg.Done()
-
-		err := s.outboundLoop(ctx)
-		if err != nil {
-			_ = c.Connection.netConn.Close()
-			<-ctx.Done()
-			s.hooks.onClientClosed(s, c, err)
-		}
-	}()
-}
-
 func (s *Server) inboundLoop(c *Client) error {
 	for {
 		p, err := s.receivePacket(c)
 		if err != nil {
 			return err
-		}
-		if p == nil {
-			continue
 		}
 
 		err = s.handlePacket(c, p)
