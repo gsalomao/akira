@@ -47,15 +47,15 @@ type Config struct {
 	// MaxPacketSize indicates the maximum packet size, in bytes, allowed by the server.
 	MaxPacketSize uint32 `json:"max_packet_size"`
 
-	// MaxSessionExpiryInterval indicates the maximum session expire interval, in seconds, allowed by the server.
-	MaxSessionExpiryInterval uint32 `json:"max_session_expiry_interval"`
+	// MaxSessionExpiryIntervalSec indicates the maximum session expire interval, in seconds, allowed by the server.
+	MaxSessionExpiryIntervalSec uint32 `json:"max_session_expiry_interval_sec"`
 
-	// ConnectTimeout is the number of seconds to wait for the CONNECT Packet after the Client has established the
-	// network connection.
-	ConnectTimeout uint16 `json:"connect_timeout"`
+	// ConnectTimeoutMs is the maximum number of milliseconds to wait for the CONNECT Packet after the Client
+	// has established the network connection.
+	ConnectTimeoutMs uint32 `json:"connect_timeout_ms"`
 
-	// MaxKeepAlive is the maximum Keep Alive value, in seconds, allowed by the server.
-	MaxKeepAlive uint16 `json:"max_keep_alive"`
+	// MaxKeepAliveSec is the maximum Keep Alive value, in seconds, allowed by the server.
+	MaxKeepAliveSec uint16 `json:"max_keep_alive_sec"`
 
 	// MaxInflightMessages indicates maximum number of QoS 1 or 2 messages that can be processed simultaneously per
 	// client.
@@ -86,7 +86,7 @@ func NewDefaultConfig() *Config {
 	c := Config{
 		MaxClientIDSize:               23,
 		ReadBufferSize:                1024,
-		ConnectTimeout:                10,
+		ConnectTimeoutMs:              10000,
 		MaxQoS:                        byte(packet.QoS2),
 		RetainAvailable:               true,
 		WildcardSubscriptionAvailable: true,

@@ -79,7 +79,7 @@ func sessionProperties(props *packet.ConnectProperties, conf *Config) *SessionPr
 
 	if props.Has(packet.PropertySessionExpiryInterval) {
 		interval := props.SessionExpiryInterval
-		p.SessionExpiryInterval = maxIfExceeded(interval, conf.MaxSessionExpiryInterval)
+		p.SessionExpiryInterval = maxIfExceeded(interval, conf.MaxSessionExpiryIntervalSec)
 		p.Set(packet.PropertySessionExpiryInterval)
 	}
 	if props.Has(packet.PropertyMaximumPacketSize) {
@@ -172,9 +172,9 @@ func connAckProperties(c *Client, conf *Config, connect *packet.Connect) *packet
 		props.SessionExpiryInterval = c.Session.Properties.SessionExpiryInterval
 		props.Set(packet.PropertySessionExpiryInterval)
 	}
-	if connect != nil && connect.KeepAlive != c.Connection.KeepAlive {
+	if connect != nil && uint32(connect.KeepAlive) != c.Connection.KeepAliveMs/1000 {
 		props = newIfNotExists(props)
-		props.ServerKeepAlive = c.Connection.KeepAlive
+		props.ServerKeepAlive = uint16(c.Connection.KeepAliveMs / 1000)
 		props.Set(packet.PropertyServerKeepAlive)
 	}
 	if conf.MaxInflightMessages > 0 {

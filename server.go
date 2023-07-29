@@ -417,7 +417,7 @@ func (s *Server) connectClient(c *Client, connect *packet.Connect) error {
 		return packet.ErrClientIDNotValid
 	}
 
-	if !isKeepAliveValid(connect.Version, connect.KeepAlive, s.config.MaxKeepAlive) {
+	if !isKeepAliveValid(connect.Version, connect.KeepAlive, s.config.MaxKeepAliveSec) {
 		// For MQTT v3.1 and v3.1.1, there is no mechanism to tell the clients what Keep Alive value they should use.
 		// If an MQTT v3.1 or v3.1.1 client specifies a Keep Alive time greater than maximum keep alive, the CONNACK
 		// packet shall be sent with the reason code "identifier rejected".
@@ -448,7 +448,7 @@ func (s *Server) connectClient(c *Client, connect *packet.Connect) error {
 	c.Session.ConnectedAt = time.Now().UnixMilli()
 	c.Session.Properties = sessionProperties(connect.Properties, &s.config)
 	c.Session.LastWill = lastWill(connect)
-	c.Connection.KeepAlive = sessionKeepAlive(connect.KeepAlive, s.config.MaxKeepAlive)
+	c.Connection.KeepAliveMs = uint32(sessionKeepAlive(connect.KeepAlive, s.config.MaxKeepAliveSec)) * 1000
 
 	err = s.store.saveSession(c.ID, &c.Session)
 	if err != nil {
