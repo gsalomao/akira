@@ -140,7 +140,16 @@ func TestConnectDecode(t *testing.T) {
 		{
 			"V5.0 Will", Connect{
 				Version:     MQTT50,
-				Flags:       ConnectFlags(connectFlagWillFlag | connectFlagWillRetain | (1 << connectFlagShiftWillQoS)),
+				Flags:       ConnectFlags(connectFlagWillFlag | (1 << connectFlagShiftWillQoS)),
+				ClientID:    []byte("abc"),
+				WillTopic:   []byte("a"),
+				WillPayload: []byte("b"),
+			},
+		},
+		{
+			"V5.0 Will Retain + Will Properties", Connect{
+				Version:     MQTT50,
+				Flags:       ConnectFlags(connectFlagWillFlag | connectFlagWillRetain | (2 << connectFlagShiftWillQoS)),
 				ClientID:    []byte("abc"),
 				WillTopic:   []byte("a"),
 				WillPayload: []byte("b"),
