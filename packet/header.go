@@ -60,7 +60,8 @@ func (h *FixedHeader) Read(r *bufio.Reader) (n int, err error) {
 	return n, nil
 }
 
-func (h *FixedHeader) size() int {
+// Size returns the size of the fixed header.
+func (h *FixedHeader) Size() int {
 	// The size of the remaining length + 1 byte for the control byte.
 	return sizeVarInteger(h.RemainingLength) + 1
 }

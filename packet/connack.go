@@ -66,7 +66,7 @@ func (p *ConnAck) Size() int {
 	size := p.remainingLength()
 	header := FixedHeader{PacketType: TypeConnAck, RemainingLength: size}
 
-	size += header.size()
+	size += header.Size()
 	return size
 }
 

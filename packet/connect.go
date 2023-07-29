@@ -115,7 +115,7 @@ func (p *Connect) Size() int {
 	}
 
 	header := FixedHeader{PacketType: TypeConnect, RemainingLength: size}
-	size += header.size()
+	size += header.Size()
 
 	return size
 }
