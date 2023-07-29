@@ -258,28 +258,27 @@ func (p *ConnAckProperties) Validate() error {
 }
 
 func (p *ConnAckProperties) size() int {
-	var size int
-
-	if p != nil {
-		size += sizePropSessionExpiryInterval(p.Flags)
-		size += sizePropReceiveMaximum(p.Flags)
-		size += sizePropMaxQoS(p.Flags)
-		size += sizePropRetainAvailable(p.Flags)
-		size += sizePropMaxPacketSize(p.Flags)
-		size += sizePropAssignedClientID(p.Flags, p.AssignedClientID)
-		size += sizePropTopicAliasMaximum(p.Flags)
-		size += sizePropReasonString(p.Flags, p.ReasonString)
-		size += sizePropUserProperties(p.Flags, p.UserProperties)
-		size += sizePropWildcardSubscriptionAvailable(p.Flags)
-		size += sizePropSubscriptionIDAvailable(p.Flags)
-		size += sizePropSharedSubscriptionAvailable(p.Flags)
-		size += sizePropServerKeepAlive(p.Flags)
-		size += sizePropResponseInfo(p.Flags, p.ResponseInfo)
-		size += sizePropServerReference(p.Flags, p.ServerReference)
-		size += sizePropAuthenticationMethod(p.Flags, p.AuthenticationMethod)
-		size += sizePropAuthenticationData(p.Flags, p.AuthenticationData)
+	if p == nil {
+		return 0
 	}
 
+	size := sizePropSessionExpiryInterval(p.Flags)
+	size += sizePropReceiveMaximum(p.Flags)
+	size += sizePropMaxQoS(p.Flags)
+	size += sizePropRetainAvailable(p.Flags)
+	size += sizePropMaxPacketSize(p.Flags)
+	size += sizePropAssignedClientID(p.Flags, p.AssignedClientID)
+	size += sizePropTopicAliasMaximum(p.Flags)
+	size += sizePropReasonString(p.Flags, p.ReasonString)
+	size += sizePropUserProperties(p.Flags, p.UserProperties)
+	size += sizePropWildcardSubscriptionAvailable(p.Flags)
+	size += sizePropSubscriptionIDAvailable(p.Flags)
+	size += sizePropSharedSubscriptionAvailable(p.Flags)
+	size += sizePropServerKeepAlive(p.Flags)
+	size += sizePropResponseInfo(p.Flags, p.ResponseInfo)
+	size += sizePropServerReference(p.Flags, p.ServerReference)
+	size += sizePropAuthenticationMethod(p.Flags, p.AuthenticationMethod)
+	size += sizePropAuthenticationData(p.Flags, p.AuthenticationData)
 	return size
 }
 
