@@ -1,0 +1,79 @@
+[
+	{
+		"name": "V3 Accepted",
+		"packet": [32, 2, 0, 0]
+	},
+	{
+		"name": "V3 Accepted + Session Present",
+		"packet": [32, 2, 1, 0]
+	},
+	{
+		"name": "V3 Identifier Rejected",
+		"packet": [32, 2, 0, 2]
+	},
+	{
+		"name": "V3 Server Unavailable",
+		"packet": [32, 2, 0, 3]
+	},
+	{
+		"name": "V5.0 Success",
+		"packet": [32, 3, 0, 0, 0]
+	},
+	{
+		"name": "V5.0 Success + Session Present",
+		"packet": [32, 3, 1, 0, 0]
+	},
+	{
+		"name": "V5.0 Success + Session Expiry Interval",
+		"packet": [32, 8, 0, 0, 5, 17, 0, 0, 0, 30]
+	},
+	{
+		"name": "V5.0 Success + Server Keep Alive",
+		"packet": [32, 6, 0, 0, 3, 19, 0, 50]
+	},
+	{
+		"name": "V5.0 Success + Receive Maximum",
+		"packet": [32, 6, 0, 0, 3, 33, 0, 100]
+	},
+	{
+		"name": "V5.0 Success + Topic Alias Maximum",
+		"packet": [32, 6, 0, 0, 3, 34, 0, 10]
+	},
+	{
+		"name": "V5.0 Success + Maximum QoS",
+		"packet": [32, 5, 0, 0, 2, 36, 1]
+	},
+	{
+		"name": "V5.0 Success + Retain Available",
+		"packet": [32, 5, 0, 0, 2, 37, 0]
+	},
+	{
+		"name": "V5.0 Success + Maximum Packet Size",
+		"packet": [32, 8, 0, 0, 5, 39, 0, 0, 0, 200]
+	},
+	{
+		"name": "V5.0 Success + Wildcard Subscription Available",
+		"packet": [32, 5, 0, 0, 2, 40, 0]
+	},
+	{
+		"name": "V5.0 Success + Subscription ID Available",
+		"packet": [32, 5, 0, 0, 2, 41, 0]
+	},
+	{
+		"name": "V5.0 Success + Shared Subscription Available",
+		"packet": [32, 5, 0, 0, 2, 42, 0]
+	},
+	{
+		"name": "V5.0 Success + All Properties",
+		"packet": [32, 32, 0, 0, 29, 17, 0, 0, 0, 30, 19, 0, 50, 33, 0, 100, 34, 0, 10, 36, 1, 37, 0, 39, 0, 0, 0, 200,
+			40, 0, 41, 0, 42, 0]
+	},
+	{
+		"name": "V5.0 Client ID Not Valid",
+		"packet": [32, 3, 0, 133, 0]
+	},
+	{
+		"name": "V5.0 Server Unavailable",
+		"packet": [32, 3, 0, 136, 0]
+	}
+]

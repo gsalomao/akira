@@ -12,1109 +12,1510 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package akira_test
+package akira
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
-	"github.com/gsalomao/akira"
-	"github.com/gsalomao/akira/internal/mocks"
-	"github.com/gsalomao/akira/listener"
 	"github.com/gsalomao/akira/packet"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/suite"
+	"github.com/gsalomao/akira/testdata"
 )
 
-type ServerTestSuite struct {
-	suite.Suite
-	server *akira.Server
+func TestNewServer(t *testing.T) {
+	s, err := NewServer()
+	if err != nil {
+		t.Fatalf("Unexpected error\n%v", err)
+	}
+	if s == nil {
+		t.Fatal("A server was expected")
+	}
+	defer s.Close()
+
+	if s.State() != ServerNotStarted {
+		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ServerNotStarted, s.State())
+	}
+	if !reflect.DeepEqual(NewDefaultConfig(), &s.config) {
+		t.Fatalf("Unexpected config\nwant: %+v\ngot:  %+v", NewDefaultConfig(), &s.config)
+	}
 }
 
-func (s *ServerTestSuite) SetupTest() {
-	var err error
+func TestNewServerWithConfig(t *testing.T) {
+	c := &Config{}
 
-	options := akira.NewDefaultOptions()
-	options.Config.ConnectTimeout = 1
+	s, err := NewServer(WithConfig(c))
+	if err != nil {
+		t.Fatalf("Unexpected error\n%v", err)
+	}
+	if s == nil {
+		t.Fatal("A server was expected")
+	}
+	defer s.Close()
 
-	s.server, err = akira.NewServer(options)
-	s.Require().NoError(err)
+	if !reflect.DeepEqual(c, &s.config) {
+		t.Fatalf("Unexpected config\nwant: %+v\ngot:  %+v", c, &s.config)
+	}
 }
 
-func (s *ServerTestSuite) TearDownTest() {
-	s.server.Close()
+func TestNewServerWithListeners(t *testing.T) {
+	l := &mockListener{}
+
+	s, err := NewServer(WithListeners([]Listener{l}))
+	if err != nil {
+		t.Fatalf("Unexpected error\n%v", err)
+	}
+	if s == nil {
+		t.Fatal("A server was expected")
+	}
+	defer s.Close()
+
+	if l.listenCalls() != 0 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 0, l.listenCalls())
+	}
+	if l.closeCalls() != 0 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 0, l.closeCalls())
+	}
 }
 
-func (s *ServerTestSuite) addListener(srv *akira.Server) (l akira.Listener, cb <-chan akira.OnConnectionFunc) {
-	onConnectionStream := make(chan akira.OnConnectionFunc, 1)
+func TestNewServerWithHooks(t *testing.T) {
+	h := &mockOnStartHook{}
 
-	lsn := mocks.NewMockListener(s.T())
-	lsn.EXPECT().Listen(mock.Anything).RunAndReturn(func(cb akira.OnConnectionFunc) error {
-		onConnectionStream <- cb
-		close(onConnectionStream)
-		return nil
-	})
-	lsn.EXPECT().Close().Return(nil)
-	err := srv.AddListener(lsn)
-	s.Require().NoError(err)
+	s, err := NewServer(WithHooks([]Hook{h}))
+	if err != nil {
+		t.Fatalf("Unexpected error\n%v", err)
+	}
+	if s == nil {
+		t.Fatal("A server was expected")
+	}
+	defer s.Close()
 
-	return lsn, onConnectionStream
+	if h.calls() != 0 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 0, h.calls())
+	}
 }
 
-func (s *ServerTestSuite) TestNewServer() {
-	srv, err := akira.NewServer(nil)
-	s.Require().NoError(err)
-	s.Assert().Equal(akira.ServerNotStarted, srv.State())
+func TestNewServerWithHooksErrorDuplicatedHook(t *testing.T) {
+	h := &mockOnStartHook{}
+
+	s, err := NewServer(WithHooks([]Hook{h, h}))
+	if err == nil {
+		t.Error("An error was expected")
+	}
+	if s != nil {
+		t.Error("No server should be created")
+	}
 }
 
-func (s *ServerTestSuite) TestNewServerWithDefaultConfig() {
-	srv, err := akira.NewServer(&akira.Options{})
-	s.Require().NoError(err)
-	s.Assert().Equal(akira.ServerNotStarted, srv.State())
+func TestNewServerWithOptions(t *testing.T) {
+	s, err := NewServerWithOptions(NewDefaultOptions())
+	if err != nil {
+		t.Fatalf("Unexpected error\n%v", err)
+	}
+	if s == nil {
+		t.Fatal("A server was expected")
+	}
+	defer s.Close()
+
+	if s.State() != ServerNotStarted {
+		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ServerNotStarted, s.State())
+	}
+	if !reflect.DeepEqual(NewDefaultConfig(), &s.config) {
+		t.Fatalf("Unexpected config\nwant: %+v\ngot:  %+v", NewDefaultConfig(), &s.config)
+	}
 }
 
-func (s *ServerTestSuite) TestNewServerWithListeners() {
-	lsn := mocks.NewMockListener(s.T())
+func TestNewServerWithOptionsNilIsTheSameAsDefaultConfig(t *testing.T) {
+	s, err := NewServerWithOptions(nil)
+	if err != nil {
+		t.Fatalf("Unexpected error\n%v", err)
+	}
+	if s == nil {
+		t.Fatal("A server was expected")
+	}
+	defer s.Close()
 
-	srv, err := akira.NewServer(&akira.Options{Listeners: []akira.Listener{lsn}})
-	s.Require().NoError(err)
-	s.Assert().Equal(akira.ServerNotStarted, srv.State())
+	if s.State() != ServerNotStarted {
+		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ServerNotStarted, s.State())
+	}
+	if !reflect.DeepEqual(NewDefaultConfig(), &s.config) {
+		t.Fatalf("Unexpected config\nwant: %+v\ngot:  %+v", NewDefaultConfig(), &s.config)
+	}
 }
 
-func (s *ServerTestSuite) TestNewServerWithDuplicatedListeners() {
-	lsn := mocks.NewMockListener(s.T())
+func TestNewServerWithOptionsWithoutConfig(t *testing.T) {
+	s, err := NewServerWithOptions(&Options{})
+	if err != nil {
+		t.Fatalf("Unexpected error\n%v", err)
+	}
+	if s == nil {
+		t.Fatal("A server was expected")
+	}
+	defer s.Close()
 
-	srv, err := akira.NewServer(&akira.Options{Listeners: []akira.Listener{lsn, lsn}})
-	s.Require().NoError(err)
-	s.Assert().Equal(akira.ServerNotStarted, srv.State())
+	if !reflect.DeepEqual(NewDefaultConfig(), &s.config) {
+		t.Fatalf("Unexpected config\nwant: %+v\ngot:  %+v", NewDefaultConfig(), &s.config)
+	}
 }
 
-func (s *ServerTestSuite) TestNewServerWithHooks() {
-	hook := mocks.NewMockOnServerStartHook(s.T())
-	hook.EXPECT().Name().Return("mock")
+func TestServerAddHook(t *testing.T) {
+	s := newServer(t)
+	defer s.Close()
 
-	srv, err := akira.NewServer(&akira.Options{Hooks: []akira.Hook{hook}})
-	s.Require().NoError(err)
-	s.Assert().Equal(akira.ServerNotStarted, srv.State())
+	h := &mockOnStartHook{}
+	err := s.AddHook(h)
+	if err != nil {
+		t.Fatalf("Unexpected error\n%v", err)
+	}
+	if h.calls() != 0 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 0, h.calls())
+	}
 }
 
-func (s *ServerTestSuite) TestNewServerWithDuplicatedHooksReturnsError() {
-	hook := mocks.NewMockOnServerStartHook(s.T())
-	hook.EXPECT().Name().Return("mock")
+func TestServerStart(t *testing.T) {
+	s := newServer(t)
+	defer s.Close()
 
-	srv, err := akira.NewServer(&akira.Options{Hooks: []akira.Hook{hook, hook}})
-	s.Require().Error(err)
-	s.Require().Nil(srv)
+	err := s.Start()
+	if err != nil {
+		t.Fatalf("Unexpected error\n%v", err)
+	}
+	if s.State() != ServerRunning {
+		t.Errorf("Unexpected state\nwant: %v\ngot:  %v", ServerRunning, s.State())
+	}
 }
 
-func (s *ServerTestSuite) TestAddHook() {
-	hook := mocks.NewMockHook(s.T())
-	hook.EXPECT().Name().Return("hook")
+func TestServerStartWithHooks(t *testing.T) {
+	var (
+		onStart         = &mockOnStartHook{}
+		onServerStart   = &mockOnServerStartHook{}
+		onServerStarted = &mockOnServerStartedHook{}
+	)
 
-	err := s.server.AddHook(hook)
-	s.Require().NoError(err)
+	s := newServer(t, WithHooks([]Hook{onStart, onServerStart, onServerStarted}))
+	defer s.Close()
+
+	err := s.Start()
+	if err != nil {
+		t.Fatalf("Unexpected error\n%v", err)
+	}
+	if onStart.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onStart.calls())
+	}
+	if onServerStart.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onServerStart.calls())
+	}
+	if onServerStarted.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onServerStarted.calls())
+	}
 }
 
-func (s *ServerTestSuite) TestStart() {
-	err := s.server.Start()
-	s.Require().NoError(err)
-	s.Assert().Equal(akira.ServerRunning, s.server.State())
+func TestServerStartFailsWhenOnServerStartReturnsError(t *testing.T) {
+	onServerStart := &mockOnServerStartHook{cb: func() error { return errHookFailed }}
+	onServerStartFailed := &mockOnServerStartFailedHook{cb: func(err error) {
+		if !errors.Is(err, errHookFailed) {
+			t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", errHookFailed, err)
+		}
+	}}
+
+	s := newServer(t, WithHooks([]Hook{onServerStart, onServerStartFailed}))
+	defer s.Close()
+
+	err := s.Start()
+	if !errors.Is(err, errHookFailed) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", errHookFailed, err)
+	}
+	if s.State() != ServerFailed {
+		t.Errorf("Unexpected state\nwant: %v\ngot:  %v", ServerFailed, s.State())
+	}
 }
 
-func (s *ServerTestSuite) TestStartWithHooks() {
-	onServerStart := mocks.NewMockOnServerStartHook(s.T())
-	onServerStart.EXPECT().Name().Return("onServerStart")
-	onServerStart.EXPECT().OnServerStart(s.server).Return(nil)
-	_ = s.server.AddHook(onServerStart)
+func TestServerStartFailsWhenOnStartReturnsError(t *testing.T) {
+	onStart := &mockOnStartHook{cb: func() error { return errHookFailed }}
+	onServerStartFailed := &mockOnServerStartFailedHook{cb: func(err error) {
+		if !errors.Is(err, errHookFailed) {
+			t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", errHookFailed, err)
+		}
+	}}
 
-	onStart := mocks.NewMockOnStartHook(s.T())
-	onStart.EXPECT().Name().Return("onStart")
-	onStart.EXPECT().OnStart(s.server).Return(nil)
-	_ = s.server.AddHook(onStart)
+	s := newServer(t, WithHooks([]Hook{onStart, onServerStartFailed}))
+	defer s.Close()
 
-	onServerStarted := mocks.NewMockOnServerStartedHook(s.T())
-	onServerStarted.EXPECT().Name().Return("onServerStarted")
-	onServerStarted.EXPECT().OnServerStarted(s.server)
-	_ = s.server.AddHook(onServerStarted)
-
-	onServerStop := mocks.NewMockOnServerStopHook(s.T())
-	onServerStop.EXPECT().Name().Return("onServerStop")
-	onServerStop.EXPECT().OnServerStop(s.server)
-	_ = s.server.AddHook(onServerStop)
-
-	onStop := mocks.NewMockOnStopHook(s.T())
-	onStop.EXPECT().Name().Return("onStop")
-	onStop.EXPECT().OnStop(s.server)
-	_ = s.server.AddHook(onStop)
-
-	onServerStopped := mocks.NewMockOnServerStoppedHook(s.T())
-	onServerStopped.EXPECT().Name().Return("onServerStopped")
-	onServerStopped.EXPECT().OnServerStopped(s.server)
-	_ = s.server.AddHook(onServerStopped)
-
-	err := s.server.Start()
-	s.Require().NoError(err)
-	s.Assert().Equal(akira.ServerRunning, s.server.State())
+	err := s.Start()
+	if !errors.Is(err, errHookFailed) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", errHookFailed, err)
+	}
+	if s.State() != ServerFailed {
+		t.Errorf("Unexpected state\nwant: %v\ngot:  %v", ServerFailed, s.State())
+	}
 }
 
-func (s *ServerTestSuite) TestStartWithOnServerStartReturningError() {
-	onServerStart := mocks.NewMockOnServerStartHook(s.T())
-	onServerStart.EXPECT().Name().Return("onServerStart")
-	onServerStart.EXPECT().OnServerStart(s.server).Return(assert.AnError)
-	_ = s.server.AddHook(onServerStart)
+func TestServerStartFailsWhenServerClosed(t *testing.T) {
+	s := newServer(t)
+	s.Close()
 
-	onServerStartFailed := mocks.NewMockOnServerStartFailedHook(s.T())
-	onServerStartFailed.EXPECT().Name().Return("onServerStartFailed")
-	onServerStartFailed.EXPECT().OnServerStartFailed(s.server, assert.AnError)
-	_ = s.server.AddHook(onServerStartFailed)
-
-	err := s.server.Start()
-	s.Require().ErrorIs(err, assert.AnError)
-	s.Assert().Equal(akira.ServerFailed, s.server.State())
+	err := s.Start()
+	if !errors.Is(err, ErrInvalidServerState) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", ErrInvalidServerState, err)
+	}
+	if s.State() != ServerClosed {
+		t.Errorf("Unexpected state\nwant: %v\ngot:  %v", ServerClosed, s.State())
+	}
 }
 
-func (s *ServerTestSuite) TestStartWithOnStartReturningError() {
-	onStart := mocks.NewMockOnStartHook(s.T())
-	onStart.EXPECT().Name().Return("onStart")
-	onStart.EXPECT().OnStart(s.server).Return(assert.AnError)
-	_ = s.server.AddHook(onStart)
+func TestServerAddListener(t *testing.T) {
+	s := newServer(t)
+	defer s.Close()
 
-	onServerStartFailed := mocks.NewMockOnServerStartFailedHook(s.T())
-	onServerStartFailed.EXPECT().Name().Return("onServerStartFailed")
-	onServerStartFailed.EXPECT().OnServerStartFailed(s.server, assert.AnError)
-	_ = s.server.AddHook(onServerStartFailed)
-
-	err := s.server.Start()
-	s.Require().ErrorIs(err, assert.AnError)
-	s.Assert().Equal(akira.ServerFailed, s.server.State())
+	l := &mockListener{}
+	err := s.AddListener(l)
+	if err != nil {
+		t.Fatalf("Unexpected error\n%v", err)
+	}
+	if l.listenCalls() != 0 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 0, l.listenCalls())
+	}
 }
 
-func (s *ServerTestSuite) TestStartWhenServerClosedReturnsError() {
-	_ = s.server.Start()
-	s.server.Close()
-	s.Require().Equal(akira.ServerClosed, s.server.State())
+func TestServerAddListenerWhenServerRunning(t *testing.T) {
+	s := newServer(t)
+	defer s.Close()
+	startServer(t, s)
 
-	err := s.server.Start()
-	s.Require().Error(err, akira.ErrInvalidServerState)
+	l := &mockListener{}
+	err := s.AddListener(l)
+	if err != nil {
+		t.Fatalf("Unexpected error\n%v", err)
+	}
+	if l.listenCalls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, l.listenCalls())
+	}
 }
 
-func (s *ServerTestSuite) TestAddListener() {
-	lsn := mocks.NewMockListener(s.T())
+func TestServerAddListenerFailsWhenListenReturnsError(t *testing.T) {
+	s := newServer(t)
+	defer s.Close()
+	startServer(t, s)
 
-	err := s.server.AddListener(lsn)
-	s.Require().NoError(err)
+	l := &mockListener{listenCB: func(_ Handler) error { return errListenerFailed }}
+	err := s.AddListener(l)
+	if !errors.Is(err, errListenerFailed) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", errListenerFailed, err)
+	}
 }
 
-func (s *ServerTestSuite) TestAddListenerWhenServerRunning() {
-	_ = s.server.Start()
-	lsn := mocks.NewMockListener(s.T())
-	lsn.EXPECT().Listen(mock.Anything).Return(nil)
-	lsn.EXPECT().Close().Return(nil)
+func TestServerStartFailsWhenListenReturnsError(t *testing.T) {
+	l := &mockListener{listenCB: func(_ Handler) error { return errListenerFailed }}
+	h := &mockOnServerStartFailedHook{cb: func(err error) {
+		if !errors.Is(err, errListenerFailed) {
+			t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", errListenerFailed, err)
+		}
+	}}
 
-	err := s.server.AddListener(lsn)
-	s.Require().NoError(err)
+	s := newServer(t, WithListeners([]Listener{l}), WithHooks([]Hook{h}))
+	defer s.Close()
+
+	err := s.Start()
+	if !errors.Is(err, errListenerFailed) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", errListenerFailed, err)
+	}
+	if s.State() != ServerFailed {
+		t.Errorf("Unexpected state\nwant: %v\ngot:  %v", ServerFailed, s.State())
+	}
+	if h.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, h.calls())
+	}
 }
 
-func (s *ServerTestSuite) TestAddDuplicatedListener() {
-	lsn1 := mocks.NewMockListener(s.T())
-	_ = s.server.AddListener(lsn1)
-	lsn2 := mocks.NewMockListener(s.T())
+func TestServerAddHookStartsHookWhenServerRunning(t *testing.T) {
+	s := newServer(t)
+	defer s.Close()
+	startServer(t, s)
 
-	err := s.server.AddListener(lsn2)
-	s.Require().NoError(err)
+	h := &mockOnStartHook{}
+	err := s.AddHook(h)
+	if err != nil {
+		t.Fatalf("Unexpected error\n%v", err)
+	}
+	if h.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, h.calls())
+	}
 }
 
-func (s *ServerTestSuite) TestAddListenerWithListenErrorWhenServerRunning() {
-	_ = s.server.Start()
-	lsn := mocks.NewMockListener(s.T())
-	lsn.EXPECT().Listen(mock.Anything).Return(assert.AnError)
+func TestServerAddHookFailsWhenOnStartReturnsError(t *testing.T) {
+	s := newServer(t)
+	defer s.Close()
+	startServer(t, s)
 
-	err := s.server.AddListener(lsn)
-	s.Require().ErrorIs(err, assert.AnError)
+	h := &mockOnStartHook{cb: func() error { return errHookFailed }}
+	err := s.AddHook(h)
+	if !errors.Is(err, errHookFailed) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", errHookFailed, err)
+	}
 }
 
-func (s *ServerTestSuite) TestStartWithListenerFailingToListen() {
-	lsn := mocks.NewMockListener(s.T())
-	lsn.EXPECT().Listen(mock.Anything).Return(assert.AnError)
-	_ = s.server.AddListener(lsn)
+func TestServerStop(t *testing.T) {
+	s := newServer(t)
+	defer s.Close()
+	startServer(t, s)
 
-	err := s.server.Start()
-	s.Require().ErrorIs(err, assert.AnError)
-	s.Assert().Equal(akira.ServerFailed, s.server.State())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	err := s.Stop(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error\n%v", err)
+	}
+	if s.State() != ServerStopped {
+		t.Errorf("Unexpected state\nwant: %v\ngot:  %v", ServerStopped, s.State())
+	}
 }
 
-func (s *ServerTestSuite) TestAddHookCallsOnStartWhenServerRunning() {
-	_ = s.server.Start()
-	hook := mocks.NewMockOnStartHook(s.T())
-	hook.EXPECT().Name().Return("hook")
-	hook.EXPECT().OnStart(s.server).Return(nil)
+func TestServerStopWithHooks(t *testing.T) {
+	var (
+		onStop          = &mockOnStopHook{}
+		onServerStop    = &mockOnServerStopHook{}
+		onServerStopped = &mockOnServerStoppedHook{}
+	)
 
-	err := s.server.AddHook(hook)
-	s.Require().NoError(err)
+	s := newServer(t, WithHooks([]Hook{onStop, onServerStop, onServerStopped}))
+	defer s.Close()
+	startServer(t, s)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	err := s.Stop(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error\n%v", err)
+	}
+	if onStop.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onStop.calls())
+	}
+	if onServerStop.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onServerStop.calls())
+	}
+	if onServerStopped.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onServerStopped.calls())
+	}
 }
 
-func (s *ServerTestSuite) TestAddHookWithOnStartReturningError() {
-	_ = s.server.Start()
-	hook := mocks.NewMockOnStartHook(s.T())
-	hook.EXPECT().OnStart(s.server).Return(assert.AnError)
+func TestServerStopWhenServerNotStarted(t *testing.T) {
+	s := newServer(t)
+	defer s.Close()
 
-	err := s.server.AddHook(hook)
-	s.Require().ErrorIs(err, assert.AnError)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	err := s.Stop(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error\n%v", err)
+	}
 }
 
-func (s *ServerTestSuite) TestStop() {
-	lsn := mocks.NewMockListener(s.T())
-	lsn.EXPECT().Listen(mock.Anything).Return(nil)
-	lsn.EXPECT().Close().Return(nil)
-	_ = s.server.AddListener(lsn)
-	_ = s.server.Start()
+func TestServerStopFailsWhenCancelled(t *testing.T) {
+	s := newServer(t)
+	defer s.Close()
+	startServer(t, s)
 
-	err := s.server.Stop(context.Background())
-	s.Require().NoError(err)
-	s.Assert().Equal(akira.ServerStopped, s.server.State())
-}
+	// To prevent the server stops before the stop method evaluates the cancelled context.
+	s.wg.Add(1)
+	defer s.wg.Done()
 
-func (s *ServerTestSuite) TestStopWithHooks() {
-	onServerStop := mocks.NewMockOnServerStopHook(s.T())
-	onServerStop.EXPECT().Name().Return("onServerStop")
-	onServerStop.EXPECT().OnServerStop(s.server)
-	_ = s.server.AddHook(onServerStop)
-
-	onStop := mocks.NewMockOnStopHook(s.T())
-	onStop.EXPECT().Name().Return("onStop")
-	onStop.EXPECT().OnStop(s.server)
-	_ = s.server.AddHook(onStop)
-
-	onServerStopped := mocks.NewMockOnServerStoppedHook(s.T())
-	onServerStopped.EXPECT().Name().Return("onServerStopped")
-	onServerStopped.EXPECT().OnServerStopped(s.server)
-	_ = s.server.AddHook(onServerStopped)
-	_ = s.server.Start()
-
-	err := s.server.Stop(context.Background())
-	s.Require().NoError(err)
-	s.Assert().Equal(akira.ServerStopped, s.server.State())
-}
-
-func (s *ServerTestSuite) TestStopClosesAllClients() {
-	var onConnection akira.OnConnectionFunc
-	listeningCh := make(chan struct{})
-
-	lsn := mocks.NewMockListener(s.T())
-	lsn.EXPECT().Listen(mock.Anything).RunAndReturn(func(cb akira.OnConnectionFunc) error {
-		onConnection = cb
-		close(listeningCh)
-		return nil
-	})
-	lsn.EXPECT().Close().Return(nil)
-	_ = s.server.AddListener(lsn)
-
-	receivingCh := make(chan struct{})
-	onPacketReceive := mocks.NewMockOnPacketReceiveHook(s.T())
-	onPacketReceive.EXPECT().Name().Return("onPacketReceive")
-	onPacketReceive.EXPECT().OnPacketReceive(mock.Anything).RunAndReturn(func(_ *akira.Client) error {
-		close(receivingCh)
-		return nil
-	})
-	_ = s.server.AddHook(onPacketReceive)
-	_ = s.server.Start()
-
-	conn1, conn2 := net.Pipe()
-	defer func() { _ = conn1.Close() }()
-
-	<-listeningCh
-	onConnection(lsn, conn2)
-	<-receivingCh
-
-	err := s.server.Stop(context.Background())
-	s.Require().NoError(err)
-	s.Assert().Equal(akira.ServerStopped, s.server.State())
-}
-
-func (s *ServerTestSuite) TestStopReturnsErrorWhenCancelled() {
-	_ = s.server.Start()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := s.server.Stop(ctx)
-	s.Require().Error(err)
-
-	state := s.server.State()
-	if state != akira.ServerStopping && state != akira.ServerStopped {
-		s.T().Fatalf("Unexpected server state: %v", state)
+	err := s.Stop(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", context.Canceled, err)
+	}
+	if s.State() != ServerStopping {
+		t.Errorf("Unexpected state\nwant: %v\ngot:  %v", ServerStopping, s.State())
 	}
 }
 
-func (s *ServerTestSuite) TestStopWhenServerNotRunning() {
-	err := s.server.Stop(context.Background())
-	s.Require().NoError(err)
+func TestServerCloseWhenServerNotStarted(t *testing.T) {
+	s := newServer(t)
+
+	s.Close()
+	if s.State() != ServerClosed {
+		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ServerClosed, s.State())
+	}
 }
 
-func (s *ServerTestSuite) TestCloseWhenServerStopping() {
-	_ = s.server.Start()
+func TestServerCloseWhenServerRunning(t *testing.T) {
+	s := newServer(t)
+	startServer(t, s)
+
+	s.Close()
+	if s.State() != ServerClosed {
+		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ServerClosed, s.State())
+	}
+}
+
+func TestServerCloseWhenServerStopping(t *testing.T) {
+	s := newServer(t)
+	startServer(t, s)
+
+	// To prevent the server stops before the stop method evaluates the cancelled context.
+	s.wg.Add(1)
+	defer s.wg.Done()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_ = s.server.Stop(ctx)
 
-	s.server.Close()
-	s.Require().Equal(akira.ServerClosed, s.server.State())
-}
-
-func (s *ServerTestSuite) TestCloseWhenServerStopped() {
-	_ = s.server.Start()
-	_ = s.server.Stop(context.Background())
-
-	s.server.Close()
-	s.Require().Equal(akira.ServerClosed, s.server.State())
-}
-
-func (s *ServerTestSuite) TestCloseWhenServerRunning() {
-	_ = s.server.Start()
-
-	s.server.Close()
-	s.Require().Equal(akira.ServerClosed, s.server.State())
-}
-
-func (s *ServerTestSuite) TestCloseWhenServerNotStarted() {
-	s.server.Close()
-	s.Require().Equal(akira.ServerClosed, s.server.State())
-}
-
-func (s *ServerTestSuite) TestHandleConnection() {
-	lsn, onConnectionStream := s.addListener(s.server)
-	clientOpenedCh := make(chan struct{})
-
-	onClientOpen := mocks.NewMockOnClientOpenHook(s.T())
-	onClientOpen.EXPECT().Name().Return("onClientOpen")
-	onClientOpen.EXPECT().OnClientOpen(s.server, mock.Anything).
-		RunAndReturn(func(_ *akira.Server, _ *akira.Client) error {
-			close(clientOpenedCh)
-			return nil
-		})
-	_ = s.server.AddHook(onClientOpen)
-
-	onPacketRcv := mocks.NewMockOnPacketReceiveHook(s.T())
-	onPacketRcv.EXPECT().Name().Return("onPacketRcv")
-	onPacketRcv.EXPECT().OnPacketReceive(mock.Anything).Return(nil)
-	_ = s.server.AddHook(onPacketRcv)
-
-	clientClosedCh := make(chan struct{})
-	onClientClosed := mocks.NewMockOnClientClosedHook(s.T())
-	onClientClosed.EXPECT().Name().Return("onClientClosed")
-	onClientClosed.EXPECT().OnClientClosed(s.server, mock.Anything, mock.Anything).
-		Run(func(_ *akira.Server, _ *akira.Client, err error) {
-			s.Assert().ErrorIs(err, io.EOF)
-			close(clientClosedCh)
-		})
-	_ = s.server.AddHook(onClientClosed)
-	_ = s.server.Start()
-
-	conn1, conn2 := net.Pipe()
-	onConnection := <-onConnectionStream
-	onConnection(lsn, conn2)
-	<-clientOpenedCh
-
-	_ = conn1.Close()
-	<-clientClosedCh
-}
-
-func (s *ServerTestSuite) TestHandleConnectionWithReadTimeout() {
-	lsn, onConnectionStream := s.addListener(s.server)
-
-	connClosedCh := make(chan struct{})
-	onClientClosed := mocks.NewMockOnClientClosedHook(s.T())
-	onClientClosed.EXPECT().Name().Return("onClientClosed")
-	onClientClosed.EXPECT().OnClientClosed(s.server, mock.Anything, mock.Anything).
-		Run(func(_ *akira.Server, _ *akira.Client, err error) {
-			s.Assert().ErrorIs(err, os.ErrDeadlineExceeded)
-			close(connClosedCh)
-		})
-	_ = s.server.AddHook(onClientClosed)
-	_ = s.server.Start()
-
-	conn1, conn2 := net.Pipe()
-	defer func() { _ = conn1.Close() }()
-
-	onConnection := <-onConnectionStream
-	onConnection(lsn, conn2)
-	<-connClosedCh
-}
-
-func (s *ServerTestSuite) TestHandleConnectionWithOnConnectionOpenReturningError() {
-	lsn, onConnectionStream := s.addListener(s.server)
-
-	onClientOpen := mocks.NewMockOnClientOpenHook(s.T())
-	onClientOpen.EXPECT().Name().Return("onClientOpen")
-	onClientOpen.EXPECT().OnClientOpen(s.server, mock.Anything).Return(assert.AnError)
-	_ = s.server.AddHook(onClientOpen)
-
-	clientClosedCh := make(chan struct{})
-	onClientClosed := mocks.NewMockOnClientClosedHook(s.T())
-	onClientClosed.EXPECT().Name().Return("onClientClosed")
-	onClientClosed.EXPECT().OnClientClosed(s.server, mock.Anything, assert.AnError).
-		Run(func(_ *akira.Server, _ *akira.Client, _ error) { close(clientClosedCh) })
-	_ = s.server.AddHook(onClientClosed)
-	_ = s.server.Start()
-
-	conn1, conn2 := net.Pipe()
-	defer func() { _ = conn1.Close() }()
-
-	onConnection := <-onConnectionStream
-	onConnection(lsn, conn2)
-	<-clientClosedCh
-}
-
-func (s *ServerTestSuite) TestReceivePacket() {
-	var connect packet.Connect
-	lsn, onConnectionStream := s.addListener(s.server)
-	receivedCh := make(chan struct{})
-
-	onPacketReceived := mocks.NewMockOnPacketReceivedHook(s.T())
-	onPacketReceived.EXPECT().Name().Return("onPacketReceived")
-	onPacketReceived.EXPECT().OnPacketReceived(mock.Anything, mock.Anything).
-		RunAndReturn(func(_ *akira.Client, p akira.Packet) error {
-			s.Require().Equal(packet.TypeConnect, p.Type())
-			connect = *p.(*packet.Connect)
-			close(receivedCh)
-			return nil
-		})
-	_ = s.server.AddHook(onPacketReceived)
-	_ = s.server.Start()
-
-	conn1, conn2 := net.Pipe()
-	defer func() { _ = conn1.Close() }()
-
-	onConnection := <-onConnectionStream
-	onConnection(lsn, conn2)
-
-	msg := []byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 2, 0, 255, 0, 2, 'a', 'b'}
-	_, _ = conn1.Write(msg)
-	<-receivedCh
-
-	expected := packet.Connect{
-		Version:   packet.MQTT311,
-		KeepAlive: 255,
-		Flags:     packet.ConnectFlags(0x02), // Clean session flag.
-		ClientID:  []byte("ab"),
+	_ = s.Stop(ctx)
+	if s.State() != ServerStopping {
+		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ServerStopping, s.State())
 	}
-	s.Assert().Equal(expected, connect)
+
+	s.Close()
+	if s.State() != ServerClosed {
+		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ServerClosed, s.State())
+	}
 }
 
-func (s *ServerTestSuite) TestCloseConnectionWhenReceiveInvalidPacket() {
-	lsn, onConnectionStream := s.addListener(s.server)
+func TestServerCloseWhenServerStopped(t *testing.T) {
+	s := newServer(t)
+	startServer(t, s)
+	stopServer(t, s)
 
-	clientClosedCh := make(chan struct{})
-	onClientClosed := mocks.NewMockOnClientClosedHook(s.T())
-	onClientClosed.EXPECT().Name().Return("onClientClosed")
-	onClientClosed.EXPECT().OnClientClosed(s.server, mock.Anything, mock.Anything).
-		Run(func(_ *akira.Server, _ *akira.Client, _ error) { close(clientClosedCh) })
-	_ = s.server.AddHook(onClientClosed)
-	_ = s.server.Start()
+	s.Close()
+	if s.State() != ServerClosed {
+		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ServerClosed, s.State())
+	}
+}
 
-	conn1, conn2 := net.Pipe()
-	defer func() { _ = conn1.Close() }()
+func TestServerCloseWhenServerClosed(t *testing.T) {
+	s := newServer(t)
+	s.Close()
 
-	onConnection := <-onConnectionStream
-	onConnection(lsn, conn2)
+	s.Close()
+	if s.State() != ServerClosed {
+		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ServerClosed, s.State())
+	}
+}
+
+func TestServerServe(t *testing.T) {
+	s := newServer(t)
+	defer s.Close()
+	startServer(t, s)
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+
+	err := s.Serve(conn)
+	if err != nil {
+		t.Fatalf("Unexpected error\n%v", err)
+	}
+}
+
+func TestServerServeWithHooks(t *testing.T) {
+	var (
+		onConnectionOpen = &mockOnConnectionOpenHook{}
+		onClientOpened   = &mockOnClientOpenedHook{}
+	)
+
+	s := newServer(t, WithHooks([]Hook{onConnectionOpen, onClientOpened}))
+	defer s.Close()
+	startServer(t, s)
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+
+	err := s.Serve(conn)
+	if err != nil {
+		t.Fatalf("Unexpected error\n%v", err)
+	}
+	if onConnectionOpen.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onConnectionOpen.calls())
+	}
+	if onClientOpened.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onConnectionOpen.calls())
+	}
+}
+
+func TestServerServeFailsWhenServerNotRunning(t *testing.T) {
+	s := newServer(t)
+	defer s.Close()
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+
+	err := s.Serve(conn)
+	if !errors.Is(err, ErrServerNotRunning) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", ErrServerNotRunning, err)
+	}
+}
+
+func TestServerServeFailsWhenInvalidConnection(t *testing.T) {
+	s := newServer(t)
+	defer s.Close()
+	startServer(t, s)
+
+	err := s.Serve(nil)
+	if !errors.Is(err, ErrInvalidConnection) {
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", ErrInvalidConnection, err)
+	}
+
+	err = s.Serve(&Connection{})
+	if !errors.Is(err, ErrInvalidConnection) {
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", ErrInvalidConnection, err)
+	}
+
+	err = s.Serve(&Connection{Listener: &mockListener{}})
+	if !errors.Is(err, ErrInvalidConnection) {
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", ErrInvalidConnection, err)
+	}
+}
+
+func TestServerServeFailsWhenOnConnectionOpenReturnsError(t *testing.T) {
+	var (
+		onConnectionOpen   = &mockOnConnectionOpenHook{cb: func(_ *Connection) error { return errHookFailed }}
+		onConnectionClosed = &mockOnConnectionClosedHook{}
+	)
+
+	s := newServer(t, WithHooks([]Hook{onConnectionOpen, onConnectionClosed}))
+	defer s.Close()
+	startServer(t, s)
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+
+	err := s.Serve(conn)
+	if !errors.Is(err, errHookFailed) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", errHookFailed, err)
+	}
+
+	_, err = nc.Read(nil)
+	if !errors.Is(err, io.EOF) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+	}
+	if onConnectionClosed.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onConnectionClosed.calls())
+	}
+}
+
+func TestServerConnectionClosesWhenConnectTimeout(t *testing.T) {
+	c := NewDefaultConfig()
+	c.ConnectTimeoutMs = 10
+
+	s := newServer(t, WithConfig(c))
+	defer s.Close()
+	startServer(t, s)
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+	serveConnection(t, s, conn)
+
+	_, err := nc.Read(nil)
+	if !errors.Is(err, io.EOF) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+	}
+}
+
+func TestServerCallsHooksWhenConnectionCloses(t *testing.T) {
+	var (
+		onClientClose      = &mockOnClientCloseHook{}
+		onConnectionClosed = &mockOnConnectionClosedHook{}
+	)
+
+	c := NewDefaultConfig()
+	c.ConnectTimeoutMs = 10
+
+	s := newServer(t, WithConfig(c), WithHooks([]Hook{onClientClose, onConnectionClosed}))
+	defer s.Close()
+	startServer(t, s)
+
+	closedErr := make(chan error)
+	onConnectionClosed.cb = func(_ *Connection, err error) { closedErr <- err }
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+	serveConnection(t, s, conn)
+
+	err := <-closedErr
+	if !errors.Is(err, os.ErrDeadlineExceeded) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+	}
+	if onClientClose.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onClientClose.calls())
+	}
+	if onConnectionClosed.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onConnectionClosed.calls())
+	}
+}
+
+func TestServerStopClosesAllClients(t *testing.T) {
+	s := newServer(t)
+	defer s.Close()
+	startServer(t, s)
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+	serveConnection(t, s, conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	err := s.Stop(ctx)
+	if err != nil {
+		t.Fatalf("Unexpected error\n%v", err)
+	}
+
+	_, err = nc.Read(nil)
+	if !errors.Is(err, io.EOF) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+	}
+}
+
+func TestServerClosesConnectionWhenReceivesInvalidPacket(t *testing.T) {
+	s := newServer(t)
+	defer s.Close()
+	startServer(t, s)
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+	serveConnection(t, s, conn)
 
 	msg := []byte{0x10, 7, 0, 4, 'M', 'Q', 'T', 'T', 0}
-	_, _ = conn1.Write(msg)
-	<-clientClosedCh
+	sendPacket(t, nc, msg)
+
+	_, err := nc.Read(nil)
+	if !errors.Is(err, io.EOF) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+	}
 }
 
-func (s *ServerTestSuite) TestCloseConnectionIfOnPacketReceiveErrorReturnsError() {
-	lsn, onConnectionStream := s.addListener(s.server)
+func TestServerClosesConnectionWhenOnPacketReceiveReturnsError(t *testing.T) {
+	h := &mockOnPacketReceiveHook{cb: func(_ *Client) error { return errHookFailed }}
 
-	onPacketRcvError := mocks.NewMockOnPacketReceiveErrorHook(s.T())
-	onPacketRcvError.EXPECT().Name().Return("onPacketRcvError")
-	onPacketRcvError.EXPECT().OnPacketReceiveError(mock.Anything, mock.Anything).Return(assert.AnError)
-	_ = s.server.AddHook(onPacketRcvError)
+	s := newServer(t, WithHooks([]Hook{h}))
+	defer s.Close()
+	startServer(t, s)
 
-	connClosedCh := make(chan struct{})
-	onClientClosed := mocks.NewMockOnClientClosedHook(s.T())
-	onClientClosed.EXPECT().Name().Return("onClientClosed")
-	onClientClosed.EXPECT().OnClientClosed(s.server, mock.Anything, assert.AnError).
-		Run(func(_ *akira.Server, _ *akira.Client, _ error) { close(connClosedCh) })
-	_ = s.server.AddHook(onClientClosed)
-	_ = s.server.Start()
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+	serveConnection(t, s, conn)
 
-	conn1, conn2 := net.Pipe()
-	defer func() { _ = conn1.Close() }()
+	_, err := nc.Read(nil)
+	if !errors.Is(err, io.EOF) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+	}
+	if h.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, h.calls())
+	}
+}
 
-	onConnection := <-onConnectionStream
-	onConnection(lsn, conn2)
+func TestServerClosesConnectionWhenOnPacketReceivedReturnsError(t *testing.T) {
+	h := &mockOnPacketReceivedHook{cb: func(_ *Client, _ Packet) error { return errHookFailed }}
+	fixture := readPacketFixture(t, "connect.json", "V5.0")
+
+	s := newServer(t, WithHooks([]Hook{h}))
+	defer s.Close()
+	startServer(t, s)
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+
+	serveConnection(t, s, conn)
+	sendPacket(t, nc, fixture.Packet)
+
+	_, err := nc.Read(nil)
+	if !errors.Is(err, io.EOF) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+	}
+	if h.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, h.calls())
+	}
+}
+
+func TestServerClosesConnectionWhenOnPacketSendReturnsError(t *testing.T) {
+	h := &mockOnPacketSendHook{cb: func(_ *Client, _ Packet) error { return errHookFailed }}
+	fixture := readPacketFixture(t, "connect.json", "V5.0")
+
+	s := newServer(t, WithHooks([]Hook{h}))
+	defer s.Close()
+	startServer(t, s)
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+
+	serveConnection(t, s, conn)
+	sendPacket(t, nc, fixture.Packet)
+
+	_, err := nc.Read(nil)
+	if !errors.Is(err, io.EOF) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+	}
+	if h.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, h.calls())
+	}
+}
+
+func TestServerCallsHookWhenReceiveInvalidPacket(t *testing.T) {
+	var (
+		onPacketReceive       = &mockOnPacketReceiveHook{}
+		onPacketReceiveFailed = &mockOnPacketReceiveFailedHook{}
+	)
+
+	s := newServer(t, WithHooks([]Hook{onPacketReceive, onPacketReceiveFailed}))
+	defer s.Close()
+	startServer(t, s)
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+	serveConnection(t, s, conn)
+
+	receiveErr := make(chan error)
+	onPacketReceiveFailed.cb = func(_ *Client, err error) { receiveErr <- err }
 
 	msg := []byte{0x10, 7, 0, 4, 'M', 'Q', 'T', 'T', 0}
-	_, _ = conn1.Write(msg)
-	<-connClosedCh
+	sendPacket(t, nc, msg)
+
+	err := <-receiveErr
+	if !errors.Is(err, packet.ErrMalformedPacket) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", packet.ErrMalformedPacket, err)
+	}
+	if onPacketReceive.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onPacketReceive.calls())
+	}
+	if onPacketReceiveFailed.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onPacketReceiveFailed.calls())
+	}
 }
 
-func (s *ServerTestSuite) TestKeepReceivingWhenOnPacketReceiveErrorDoesNotReturnError() {
-	lsn, onConnectionStream := s.addListener(s.server)
+func TestServerCallsOnPacketSendErrorWhenFailsToSendPacket(t *testing.T) {
+	var (
+		onPacketReceived  = &mockOnPacketReceivedHook{}
+		onPacketSendError = &mockOnPacketSendFailedHook{}
+	)
 
-	onPacketRcv := mocks.NewMockOnPacketReceiveHook(s.T())
-	onPacketRcv.EXPECT().Name().Return("onPacketRcv")
-	onPacketRcv.EXPECT().OnPacketReceive(mock.Anything).Return(nil).Twice()
-	_ = s.server.AddHook(onPacketRcv)
+	fixture := readPacketFixture(t, "connect.json", "V5.0")
 
-	receivedCh := make(chan struct{})
-	onPacketRcvError := mocks.NewMockOnPacketReceiveErrorHook(s.T())
-	onPacketRcvError.EXPECT().Name().Return("onPacketRcvError")
-	onPacketRcvError.EXPECT().OnPacketReceiveError(mock.Anything, mock.Anything).
-		RunAndReturn(func(_ *akira.Client, _ error) error {
-			close(receivedCh)
-			return nil
-		})
-	_ = s.server.AddHook(onPacketRcvError)
+	s := newServer(t, WithHooks([]Hook{onPacketReceived, onPacketSendError}))
+	defer s.Close()
+	startServer(t, s)
 
-	clientClosedCh := make(chan struct{})
-	onClientClosed := mocks.NewMockOnClientClosedHook(s.T())
-	onClientClosed.EXPECT().Name().Return("onClientClosed")
-	onClientClosed.EXPECT().OnClientClosed(s.server, mock.Anything, mock.Anything).
-		Run(func(_ *akira.Server, _ *akira.Client, _ error) { close(clientClosedCh) })
-	_ = s.server.AddHook(onClientClosed)
-	_ = s.server.Start()
+	nc, conn := newConnection(t)
 
-	conn1, conn2 := net.Pipe()
+	ready := make(chan struct{})
+	onPacketReceived.cb = func(_ *Client, _ Packet) error {
+		<-ready
+		return nil
+	}
 
-	onConnection := <-onConnectionStream
-	onConnection(lsn, conn2)
+	sendErr := make(chan error)
+	onPacketSendError.cb = func(_ *Client, _ Packet, err error) { sendErr <- err }
 
-	msg := []byte{0x10, 7, 0, 4, 'M', 'Q', 'T', 'T', 0}
-	_, _ = conn1.Write(msg)
-	<-receivedCh
+	serveConnection(t, s, conn)
+	sendPacket(t, nc, fixture.Packet)
 
-	_ = conn1.Close()
-	<-clientClosedCh
+	_ = nc.Close()
+	close(ready)
+
+	err := <-sendErr
+	if !errors.Is(err, io.ErrClosedPipe) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.ErrClosedPipe, err)
+	}
+	if onPacketSendError.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onPacketSendError.calls())
+	}
 }
 
-func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketReceiveReturnsError() {
-	lsn, onConnectionStream := s.addListener(s.server)
-
-	onPacketRcv := mocks.NewMockOnPacketReceiveHook(s.T())
-	onPacketRcv.EXPECT().Name().Return("onPacketRcv")
-	onPacketRcv.EXPECT().OnPacketReceive(mock.Anything).Return(assert.AnError)
-	_ = s.server.AddHook(onPacketRcv)
-
-	clientClosedCh := make(chan struct{})
-	onClientClosed := mocks.NewMockOnClientClosedHook(s.T())
-	onClientClosed.EXPECT().Name().Return("onClientClosed")
-	onClientClosed.EXPECT().OnClientClosed(s.server, mock.Anything, assert.AnError).
-		Run(func(_ *akira.Server, _ *akira.Client, err error) { close(clientClosedCh) })
-	_ = s.server.AddHook(onClientClosed)
-	_ = s.server.Start()
-
-	conn1, conn2 := net.Pipe()
-	defer func() { _ = conn1.Close() }()
-
-	onConnection := <-onConnectionStream
-	onConnection(lsn, conn2)
-	<-clientClosedCh
-}
-
-func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketReceivedReturnsError() {
-	lsn, onConnectionStream := s.addListener(s.server)
-
-	onPacketReceived := mocks.NewMockOnPacketReceivedHook(s.T())
-	onPacketReceived.EXPECT().Name().Return("onPacketReceived")
-	onPacketReceived.EXPECT().OnPacketReceived(mock.Anything, mock.Anything).
-		RunAndReturn(func(_ *akira.Client, _ akira.Packet) error { return assert.AnError })
-	_ = s.server.AddHook(onPacketReceived)
-
-	clientClosedCh := make(chan struct{})
-	onClientClosed := mocks.NewMockOnClientClosedHook(s.T())
-	onClientClosed.EXPECT().Name().Return("onClientClosed")
-	onClientClosed.EXPECT().OnClientClosed(s.server, mock.Anything, assert.AnError).
-		Run(func(_ *akira.Server, _ *akira.Client, err error) { close(clientClosedCh) })
-	_ = s.server.AddHook(onClientClosed)
-	_ = s.server.Start()
-
-	conn1, conn2 := net.Pipe()
-	defer func() { _ = conn1.Close() }()
-
-	onConnection := <-onConnectionStream
-	onConnection(lsn, conn2)
-
-	msg := []byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 2, 0, 255, 0, 2, 'a', 'b'}
-	_, _ = conn1.Write(msg)
-	<-clientClosedCh
-}
-
-func (s *ServerTestSuite) TestCloseConnectionWhenOnPacketSendReturnsError() {
-	opts := akira.NewDefaultOptions()
-	srv, _ := akira.NewServer(opts)
-	defer srv.Close()
-
-	lsn, onConnectionStream := s.addListener(srv)
-
-	onPacketSend := mocks.NewMockOnPacketSendHook(s.T())
-	onPacketSend.EXPECT().Name().Return("onPacketSend")
-	onPacketSend.EXPECT().OnPacketSend(mock.Anything, mock.Anything).Return(assert.AnError)
-	_ = srv.AddHook(onPacketSend)
-
-	conn1, conn2 := net.Pipe()
-	defer func() { _ = conn1.Close() }()
-	_ = srv.Start()
-
-	onConnection := <-onConnectionStream
-	onConnection(lsn, conn2)
-
-	msg := []byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 2, 0, 100, 0, 2, 'a', 'b'}
-	_, _ = conn1.Write(msg)
-
-	reply := make([]byte, 4)
-	_, err := conn1.Read(reply)
-	s.Require().ErrorIs(err, io.EOF)
-}
-
-func (s *ServerTestSuite) TestOnPacketSendErrorIsCalledWhenFailedToSendPacket() {
-	opts := akira.NewDefaultOptions()
-	srv, _ := akira.NewServer(opts)
-	defer srv.Close()
-
-	lsn, onConnectionStream := s.addListener(srv)
-
-	sendErrCh := make(chan struct{})
-	onPacketSendErr := mocks.NewMockOnPacketSendErrorHook(s.T())
-	onPacketSendErr.EXPECT().Name().Return("onPacketSendErr")
-	onPacketSendErr.EXPECT().OnPacketSendError(mock.Anything, mock.Anything, mock.Anything).
-		Run(func(_ *akira.Client, _ akira.Packet, err error) {
-			s.Require().Error(err)
-			close(sendErrCh)
-		})
-	_ = srv.AddHook(onPacketSendErr)
-
-	conn1, conn2 := net.Pipe()
-	_ = srv.Start()
-
-	onConnection := <-onConnectionStream
-	onConnection(lsn, conn2)
-
-	msg := []byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 2, 0, 100, 0, 2, 'a', 'b'}
-	_, _ = conn1.Write(msg)
-	_ = conn1.Close()
-	<-sendErrCh
-}
-
-func (s *ServerTestSuite) TestConnectPacket() {
+func TestServerReceivePacketConnect(t *testing.T) {
 	testCases := []struct {
-		name    string
-		connect []byte
-		connack []byte
+		fixture string
+		packet  Packet
+	}{
+		{"V3.1", &packet.Connect{Version: packet.MQTT31, ClientID: []byte("a")}},
+		{"V3.1.1", &packet.Connect{Version: packet.MQTT311, ClientID: []byte("a")}},
+		{"V5.0", &packet.Connect{Version: packet.MQTT50, ClientID: []byte("a")}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.fixture, func(t *testing.T) {
+			fixture := readPacketFixture(t, "connect.json", tc.fixture)
+
+			received := make(chan Packet)
+			onPacketReceived := &mockOnPacketReceivedHook{cb: func(_ *Client, p Packet) error {
+				received <- p
+				return nil
+			}}
+
+			s := newServer(t, WithHooks([]Hook{onPacketReceived}))
+			defer s.Close()
+			startServer(t, s)
+
+			nc, conn := newConnection(t)
+			defer func() { _ = nc.Close() }()
+
+			serveConnection(t, s, conn)
+			sendPacket(t, nc, fixture.Packet)
+
+			p := <-received
+			if !reflect.DeepEqual(tc.packet, p) {
+				t.Fatalf("Unexpected packet\nwant: %+v\ngot:  %+v", tc.packet, p)
+			}
+		})
+	}
+}
+
+func TestServerConnectAccepted(t *testing.T) {
+	testCases := []struct {
+		connect string
+		connack string
+	}{
+		{"V3.1", "V3 Accepted"},
+		{"V3.1.1", "V3 Accepted"},
+		{"V5.0", "V5.0 Success"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.connect, func(t *testing.T) {
+			connect := readPacketFixture(t, "connect.json", tc.connect)
+			connack := readPacketFixture(t, "connack.json", tc.connack)
+
+			s := newServer(t)
+			defer s.Close()
+			startServer(t, s)
+
+			nc, conn := newConnection(t)
+			defer func() { _ = nc.Close() }()
+
+			serveConnection(t, s, conn)
+			sendPacket(t, nc, connect.Packet)
+
+			p := receivePacket(t, nc, len(connack.Packet))
+			if !bytes.Equal(connack.Packet, p) {
+				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+			}
+		})
+	}
+}
+
+func TestServerConnectAcceptedWithHooks(t *testing.T) {
+	testCases := []struct {
+		connect string
+		connack string
+	}{
+		{"V3.1", "V3 Accepted"},
+		{"V3.1.1", "V3 Accepted"},
+		{"V5.0", "V5.0 Success"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.connect, func(t *testing.T) {
+			connect := readPacketFixture(t, "connect.json", tc.connect)
+			connack := readPacketFixture(t, "connack.json", tc.connack)
+
+			onConnect := &mockOnConnectHook{}
+			onConnected := &mockOnConnectedHook{}
+			onPacketSend := &mockOnPacketSendHook{}
+			onPacketSent := &mockOnPacketSentHook{}
+
+			s := newServer(t, WithHooks([]Hook{onConnect, onConnected, onPacketSend, onPacketSent}))
+			defer s.Close()
+			startServer(t, s)
+
+			nc, conn := newConnection(t)
+			defer func() { _ = nc.Close() }()
+
+			clients := make(chan *Client)
+			onConnected.cb = func(c *Client) { clients <- c }
+
+			serveConnection(t, s, conn)
+			sendPacket(t, nc, connect.Packet)
+
+			p := receivePacket(t, nc, len(connack.Packet))
+			if !bytes.Equal(connack.Packet, p) {
+				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+			}
+
+			client := <-clients
+			if !client.Connected() {
+				t.Error("It was expected the client to be connected")
+			}
+			if onConnect.calls() != 1 {
+				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onConnect.calls())
+			}
+			if onConnected.calls() != 1 {
+				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onConnected.calls())
+			}
+			if onPacketSend.calls() != 1 {
+				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onPacketSend.calls())
+			}
+			if onPacketSent.calls() != 1 {
+				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onPacketSent.calls())
+			}
+		})
+	}
+}
+
+func TestServerConnectRejectedDueToConfig(t *testing.T) {
+	testCases := []struct {
+		version packet.Version
+		config  string
+		value   any
+		connect string
+		connack string
 	}{
 		{
-			"V3.1",
-			[]byte{0x10, 16, 0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 0, 0, 100, 0, 2, 'a', 'b'},
-			[]byte{0x20, 2, 0, 0},
+			packet.MQTT31,
+			"max_keep_alive_sec",
+			50,
+			"V3.1 Keep Alive",
+			"V3 Identifier Rejected",
 		},
 		{
-			"V3.1.1",
-			[]byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 0, 0, 100, 0, 2, 'a', 'b'},
-			[]byte{0x20, 2, 0, 0},
+			packet.MQTT311,
+			"max_keep_alive_sec",
+			50,
+			"V3.1 Keep Alive",
+			"V3 Identifier Rejected",
 		},
 		{
+			packet.MQTT31,
+			"max_client_id_size",
+			50,
+			"V3.1 Big Client ID",
+			"V3 Identifier Rejected",
+		},
+		{
+			packet.MQTT311,
+			"max_client_id_size",
+			23,
+			"V3.1.1 Big Client ID",
+			"V3 Identifier Rejected",
+		},
+		{
+			packet.MQTT50,
+			"max_client_id_size",
+			23,
+			"V5.0 Big Client ID",
+			"V5.0 Client ID Not Valid",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("%s-%s", tc.version.String(), tc.config), func(t *testing.T) {
+			connect := readPacketFixture(t, "connect.json", tc.connect)
+			connack := readPacketFixture(t, "connack.json", tc.connack)
+
+			js, err := json.Marshal(map[string]any{tc.config: tc.value})
+			if err != nil {
+				t.Fatalf("Unexpected error\n%v", err)
+			}
+
+			c := NewDefaultConfig()
+			err = json.Unmarshal(js, &c)
+			if err != nil {
+				t.Fatalf("Unexpected error\n%v", err)
+			}
+
+			s := newServer(t, WithConfig(c))
+			defer s.Close()
+			startServer(t, s)
+
+			nc, conn := newConnection(t)
+			defer func() { _ = nc.Close() }()
+
+			serveConnection(t, s, conn)
+			sendPacket(t, nc, connect.Packet)
+
+			p := receivePacket(t, nc, len(connack.Packet))
+			if !bytes.Equal(connack.Packet, p) {
+				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+			}
+		})
+	}
+}
+
+func TestServerConnectRejectedDueToEmptyClientID(t *testing.T) {
+	testCases := []struct {
+		version packet.Version
+		connect string
+		connack string
+	}{
+		{packet.MQTT311, "V3.1.1 Empty Client ID", "V3 Identifier Rejected"},
+		{packet.MQTT50, "V5.0 Empty Client ID", "V5.0 Client ID Not Valid"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("%s-%s", tc.version.String(), tc.connect), func(t *testing.T) {
+			connect := readPacketFixture(t, "connect.json", tc.connect)
+			connack := readPacketFixture(t, "connack.json", tc.connack)
+
+			s := newServer(t)
+			defer s.Close()
+			startServer(t, s)
+
+			nc, conn := newConnection(t)
+			defer func() { _ = nc.Close() }()
+
+			serveConnection(t, s, conn)
+			sendPacket(t, nc, connect.Packet)
+
+			p := receivePacket(t, nc, len(connack.Packet))
+			if !bytes.Equal(connack.Packet, p) {
+				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+			}
+		})
+	}
+}
+
+func TestServerConnectConnectionClosedWhenRejected(t *testing.T) {
+	connect := readPacketFixture(t, "connect.json", "V5.0 Empty Client ID")
+	connack := readPacketFixture(t, "connack.json", "V5.0 Client ID Not Valid")
+
+	onConnect := &mockOnConnectHook{}
+	onConnectionClosed := &mockOnConnectionClosedHook{}
+
+	s := newServer(t, WithHooks([]Hook{onConnect, onConnectionClosed}))
+	defer s.Close()
+	startServer(t, s)
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+
+	clientStream := make(chan *Client, 1)
+	onConnect.cb = func(c *Client, _ *packet.Connect) error {
+		clientStream <- c
+		return nil
+	}
+
+	closed := make(chan struct{})
+	onConnectionClosed.cb = func(_ *Connection, _ error) { close(closed) }
+
+	serveConnection(t, s, conn)
+	sendPacket(t, nc, connect.Packet)
+
+	p := receivePacket(t, nc, len(connack.Packet))
+	if !bytes.Equal(connack.Packet, p) {
+		t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+	}
+
+	<-closed
+	_, err := nc.Read(nil)
+	if !errors.Is(err, io.EOF) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+	}
+
+	c := <-clientStream
+	if c.Connected() {
+		t.Error("The connection should be closed")
+	}
+	if c.Connection != nil {
+		t.Errorf("Unexpected connection pointer\nwant: %v\ngot:  %+v", nil, c.Connection)
+	}
+}
+
+func TestServerConnectPersistentSession(t *testing.T) {
+	testCases := []struct {
+		connect string
+		connack string
+	}{
+		{"V3.1", "V3 Accepted"},
+		{"V3.1.1", "V3 Accepted"},
+		{"V5.0 Session Expiry Interval", "V5.0 Success"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.connect, func(t *testing.T) {
+			connect := readPacketFixture(t, "connect.json", tc.connect)
+			connack := readPacketFixture(t, "connack.json", tc.connack)
+			ss := &mockSessionStore{}
+
+			s := newServer(t, WithSessionStore(ss))
+			defer s.Close()
+			startServer(t, s)
+
+			nc, conn := newConnection(t)
+			defer func() { _ = nc.Close() }()
+
+			serveConnection(t, s, conn)
+			sendPacket(t, nc, connect.Packet)
+
+			p := receivePacket(t, nc, len(connack.Packet))
+			if !bytes.Equal(connack.Packet, p) {
+				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+			}
+			if ss.saveCalls() != 1 {
+				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, ss.saveCalls())
+			}
+		})
+	}
+}
+
+func TestServerConnectNoSessionPersistence(t *testing.T) {
+	testCases := []struct {
+		connect string
+		connack string
+	}{
+		{"V3.1 Clean Session", "V3 Accepted"},
+		{"V3.1.1 Clean Session", "V3 Accepted"},
+		{"V5.0", "V5.0 Success"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.connect, func(t *testing.T) {
+			connect := readPacketFixture(t, "connect.json", tc.connect)
+			connack := readPacketFixture(t, "connack.json", tc.connack)
+			ss := &mockSessionStore{}
+
+			s := newServer(t, WithSessionStore(ss))
+			defer s.Close()
+			startServer(t, s)
+
+			nc, conn := newConnection(t)
+			defer func() { _ = nc.Close() }()
+
+			serveConnection(t, s, conn)
+			sendPacket(t, nc, connect.Packet)
+
+			p := receivePacket(t, nc, len(connack.Packet))
+			if !bytes.Equal(connack.Packet, p) {
+				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+			}
+			if ss.saveCalls() != 0 {
+				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 0, ss.saveCalls())
+			}
+		})
+	}
+}
+
+func TestServerConnectCleanStart(t *testing.T) {
+	testCases := []struct {
+		connect string
+		connack string
+	}{
+		{"V3.1 Clean Session", "V3 Accepted"},
+		{"V3.1.1 Clean Session", "V3 Accepted"},
+		{"V5.0 Clean Start", "V5.0 Success"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.connect, func(t *testing.T) {
+			connect := readPacketFixture(t, "connect.json", tc.connect)
+			connack := readPacketFixture(t, "connack.json", tc.connack)
+
+			s := newServer(t)
+			defer s.Close()
+			startServer(t, s)
+
+			nc, conn := newConnection(t)
+			defer func() { _ = nc.Close() }()
+
+			serveConnection(t, s, conn)
+			sendPacket(t, nc, connect.Packet)
+
+			p := receivePacket(t, nc, len(connack.Packet))
+			if !bytes.Equal(connack.Packet, p) {
+				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+			}
+		})
+	}
+}
+
+func TestServerConnectNoCleanStart(t *testing.T) {
+	testCases := []struct {
+		connect string
+		connack string
+	}{
+		{"V3.1", "V3 Accepted"},
+		{"V3.1.1", "V3 Accepted"},
+		{"V5.0", "V5.0 Success"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.connect, func(t *testing.T) {
+			connect := readPacketFixture(t, "connect.json", tc.connect)
+			connack := readPacketFixture(t, "connack.json", tc.connack)
+			ss := &mockSessionStore{}
+
+			s := newServer(t, WithSessionStore(ss))
+			defer s.Close()
+			startServer(t, s)
+
+			nc, conn := newConnection(t)
+			defer func() { _ = nc.Close() }()
+
+			serveConnection(t, s, conn)
+			sendPacket(t, nc, connect.Packet)
+
+			p := receivePacket(t, nc, len(connack.Packet))
+			if !bytes.Equal(connack.Packet, p) {
+				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+			}
+			if ss.deleteCalls() != 0 {
+				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 0, ss.deleteCalls())
+			}
+		})
+	}
+}
+
+func TestServerConnectWithSessionPresent(t *testing.T) {
+	testCases := []struct {
+		connect string
+		connack string
+	}{
+		{"V3.1", "V3 Accepted"},
+		{"V3.1.1", "V3 Accepted + Session Present"},
+		{"V5.0", "V5.0 Success + Session Present"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.connect, func(t *testing.T) {
+			connect := readPacketFixture(t, "connect.json", tc.connect)
+			connack := readPacketFixture(t, "connack.json", tc.connack)
+
+			ss := &mockSessionStore{}
+			ss.getCB = func(_ []byte, s *Session) error { return nil }
+
+			s := newServer(t, WithSessionStore(ss))
+			defer s.Close()
+			startServer(t, s)
+
+			nc, conn := newConnection(t)
+			defer func() { _ = nc.Close() }()
+
+			serveConnection(t, s, conn)
+			sendPacket(t, nc, connect.Packet)
+
+			p := receivePacket(t, nc, len(connack.Packet))
+			if !bytes.Equal(connack.Packet, p) {
+				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+			}
+			if ss.getCalls() != 1 {
+				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, ss.getCalls())
+			}
+		})
+	}
+}
+
+func TestServerConnectWithConfig(t *testing.T) {
+	testCases := []struct {
+		config  string
+		value   any
+		connect string
+		connack string
+	}{
+		{
+			"max_keep_alive_sec",
+			100,
+			"V3.1 Keep Alive",
+			"V3 Accepted",
+		},
+		{
+			"max_keep_alive_sec",
+			100,
+			"V3.1.1 Keep Alive",
+			"V3 Accepted",
+		},
+		{
+			"max_keep_alive_sec",
+			100,
+			"V5.0 Keep Alive",
+			"V5.0 Success",
+		},
+		{
+			"max_keep_alive_sec",
+			50,
+			"V5.0 Keep Alive",
+			"V5.0 Success + Server Keep Alive",
+		},
+		{
+			"max_session_expiry_interval_sec",
+			30,
+			"V5.0 Session Expiry Interval",
+			"V5.0 Success + Session Expiry Interval",
+		},
+		{
+			"max_inflight_messages",
+			100,
 			"V5.0",
-			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 0, 0, 100, 0, 0, 2, 'a', 'b'},
-			[]byte{0x20, 3, 0, 0, 0},
-		},
-	}
-
-	for _, test := range testCases {
-		s.Run(test.name, func() {
-			var session *akira.Session
-
-			store := mocks.NewMockSessionStore(s.T())
-			store.EXPECT().ReadSession([]byte{'a', 'b'}, mock.Anything).Return(akira.ErrSessionNotFound)
-			store.EXPECT().SaveSession(mock.Anything, mock.Anything).
-				RunAndReturn(func(id []byte, ss *akira.Session) error {
-					s.Assert().Equal([]byte{'a', 'b'}, id)
-					s.Assert().True(ss.Connected)
-					session = ss
-					return nil
-				})
-
-			opts := akira.NewDefaultOptions()
-			opts.SessionStore = store
-			srv, _ := akira.NewServer(opts)
-			defer srv.Close()
-
-			lsn, onConnectionStream := s.addListener(srv)
-
-			onPacketSend := mocks.NewMockOnPacketSendHook(s.T())
-			onPacketSend.EXPECT().Name().Return("onPacketSend")
-			onPacketSend.EXPECT().OnPacketSend(mock.Anything, mock.Anything).
-				RunAndReturn(func(c *akira.Client, p akira.Packet) error {
-					s.Require().Equal(*session, c.Session)
-					s.Require().Equal(packet.TypeConnAck, p.Type())
-					return nil
-				})
-			_ = srv.AddHook(onPacketSend)
-
-			onPacketSent := mocks.NewMockOnPacketSentHook(s.T())
-			onPacketSent.EXPECT().Name().Return("onPacketSent")
-			onPacketSent.EXPECT().OnPacketSent(mock.Anything, mock.Anything).Run(func(c *akira.Client, p akira.Packet) {
-				s.Require().Equal(*session, c.Session)
-				s.Require().Equal(packet.TypeConnAck, p.Type())
-			})
-			_ = srv.AddHook(onPacketSent)
-
-			onConnect := mocks.NewMockOnConnectHook(s.T())
-			onConnect.EXPECT().Name().Return("onConnect")
-			onConnect.EXPECT().OnConnect(mock.Anything, mock.Anything).
-				RunAndReturn(func(c *akira.Client, p *packet.Connect) error {
-					s.Require().NotNil(c)
-					s.Require().NotNil(p)
-					s.Assert().Equal([]byte{'a', 'b'}, p.ClientID)
-					return nil
-				})
-			_ = srv.AddHook(onConnect)
-
-			connectedCh := make(chan struct{})
-			onConnected := mocks.NewMockOnConnectedHook(s.T())
-			onConnected.EXPECT().Name().Return("onConnected")
-			onConnected.EXPECT().OnConnected(mock.Anything).Run(func(c *akira.Client) {
-				s.Require().True(c.Connected())
-				s.Require().Equal(*session, c.Session)
-				s.Require().NotNil(c.Connection)
-				s.Assert().WithinDuration(time.Now(), time.UnixMilli(c.Session.ConnectedAt), time.Second)
-				close(connectedCh)
-			})
-			_ = srv.AddHook(onConnected)
-
-			conn1, conn2 := net.Pipe()
-			defer func() { _ = conn1.Close() }()
-			_ = srv.Start()
-
-			onConnection := <-onConnectionStream
-			onConnection(lsn, conn2)
-			_, _ = conn1.Write(test.connect)
-
-			connack := make([]byte, len(test.connack))
-			_, err := conn1.Read(connack)
-			s.Require().NoError(err)
-			s.Assert().Equal(test.connack, connack)
-			<-connectedCh
-		})
-	}
-}
-
-func (s *ServerTestSuite) TestConnectPacketWithSessionPresent() {
-	testCases := []struct {
-		name    string
-		connect []byte
-		connack []byte
-	}{
-		{
-			"V3.1",
-			[]byte{0x10, 16, 0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 0, 0, 255, 0, 2, 'a', 'b'},
-			[]byte{0x20, 2, 0, 0},
+			"V5.0 Success + Receive Maximum",
 		},
 		{
-			"V3.1.1",
-			[]byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 0, 0, 255, 0, 2, 'a', 'b'},
-			[]byte{0x20, 2, 1, 0},
-		},
-		{
+			"topic_alias_max",
+			10,
 			"V5.0",
-			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 0, 0, 255, 0, 0, 2, 'a', 'b'},
-			[]byte{0x20, 3, 1, 0, 0},
+			"V5.0 Success + Topic Alias Maximum",
+		},
+		{
+			"max_qos",
+			1,
+			"V5.0",
+			"V5.0 Success + Maximum QoS",
+		},
+		{
+			"retain_available",
+			false,
+			"V5.0",
+			"V5.0 Success + Retain Available",
+		},
+		{
+			"max_packet_size",
+			200,
+			"V5.0",
+			"V5.0 Success + Maximum Packet Size",
+		},
+		{
+			"wildcard_subscription_available",
+			false,
+			"V5.0",
+			"V5.0 Success + Wildcard Subscription Available",
+		},
+		{
+			"subscription_id_available",
+			false,
+			"V5.0",
+			"V5.0 Success + Subscription ID Available",
+		},
+		{
+			"shared_subscription_available",
+			false,
+			"V5.0",
+			"V5.0 Success + Shared Subscription Available",
 		},
 	}
 
-	for _, test := range testCases {
-		s.Run(test.name, func() {
-			session := &akira.Session{Connected: false}
+	for _, tc := range testCases {
+		t.Run(tc.config, func(t *testing.T) {
+			connect := readPacketFixture(t, "connect.json", tc.connect)
+			connack := readPacketFixture(t, "connack.json", tc.connack)
 
-			store := mocks.NewMockSessionStore(s.T())
-			store.EXPECT().ReadSession([]byte{'a', 'b'}, mock.Anything).
-				RunAndReturn(func(_ []byte, s *akira.Session) error {
-					s.Connected = session.Connected
-					return nil
-				})
-			store.EXPECT().SaveSession([]byte{'a', 'b'}, mock.Anything).
-				RunAndReturn(func(_ []byte, session *akira.Session) error {
-					s.Assert().True(session.Connected)
-					return nil
-				})
+			js, err := json.Marshal(map[string]any{tc.config: tc.value})
+			if err != nil {
+				t.Fatalf("Unexpected error\n%v", err)
+			}
 
-			opts := akira.NewDefaultOptions()
-			opts.SessionStore = store
-			srv, _ := akira.NewServer(opts)
-			defer srv.Close()
+			c := NewDefaultConfig()
+			err = json.Unmarshal(js, &c)
+			if err != nil {
+				t.Fatalf("Unexpected error\n%v", err)
+			}
 
-			lsn, onConnectionStream := s.addListener(srv)
+			s := newServer(t, WithConfig(c))
+			defer s.Close()
+			startServer(t, s)
 
-			conn1, conn2 := net.Pipe()
-			defer func() { _ = conn1.Close() }()
-			_ = srv.Start()
+			nc, conn := newConnection(t)
+			defer func() { _ = nc.Close() }()
 
-			onConnection := <-onConnectionStream
-			onConnection(lsn, conn2)
-			_, _ = conn1.Write(test.connect)
+			serveConnection(t, s, conn)
+			sendPacket(t, nc, connect.Packet)
 
-			connack := make([]byte, len(test.connack))
-			_, err := conn1.Read(connack)
-			s.Require().NoError(err)
-			s.Assert().Equal(test.connack, connack)
+			p := receivePacket(t, nc, len(connack.Packet))
+			if !bytes.Equal(connack.Packet, p) {
+				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+			}
 		})
 	}
 }
 
-func (s *ServerTestSuite) TestConnectPacketWithCleanSession() {
-	store := mocks.NewMockSessionStore(s.T())
-	store.EXPECT().DeleteSession([]byte{'a', 'b'}).Return(nil)
-	store.EXPECT().SaveSession(mock.Anything, mock.Anything).
-		RunAndReturn(func(id []byte, session *akira.Session) error {
-			s.Assert().Equal([]byte{'a', 'b'}, id)
-			s.Assert().True(session.Connected)
-			return nil
-		})
+func TestServerConnectWithAllProperties(t *testing.T) {
+	connect := readPacketFixture(t, "connect.json", "V5.0 Connect Properties")
+	connack := readPacketFixture(t, "connack.json", "V5.0 Success + All Properties")
+	h := &mockOnConnectedHook{}
 
-	opts := akira.NewDefaultOptions()
-	opts.SessionStore = store
-	srv, _ := akira.NewServer(opts)
-	defer srv.Close()
+	c := NewDefaultConfig()
+	c.MaxKeepAliveSec = 50
+	c.MaxSessionExpiryIntervalSec = 30
+	c.MaxInflightMessages = 100
+	c.TopicAliasMax = 10
+	c.MaxQoS = 1
+	c.MaxPacketSize = 200
+	c.RetainAvailable = false
+	c.WildcardSubscriptionAvailable = false
+	c.SubscriptionIDAvailable = false
+	c.SharedSubscriptionAvailable = false
 
-	lsn, onConnectionStream := s.addListener(srv)
+	s := newServer(t, WithConfig(c), WithHooks([]Hook{h}))
+	defer s.Close()
+	startServer(t, s)
 
-	conn1, conn2 := net.Pipe()
-	defer func() { _ = conn1.Close() }()
-	_ = srv.Start()
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
 
-	onConnection := <-onConnectionStream
-	onConnection(lsn, conn2)
+	clients := make(chan *Client)
+	h.cb = func(c *Client) { clients <- c }
 
-	connect := []byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 255, 0, 0, 2, 'a', 'b'}
-	_, _ = conn1.Write(connect)
+	serveConnection(t, s, conn)
+	sendPacket(t, nc, connect.Packet)
 
-	expected := []byte{0x20, 3, 0, 0, 0}
-	connack := make([]byte, len(expected))
-
-	_, err := conn1.Read(connack)
-	s.Require().NoError(err)
-	s.Assert().Equal(expected, connack)
-}
-
-func (s *ServerTestSuite) TestConnectPacketWithConfig() {
-	testCases := []struct {
-		name    string
-		config  map[string]any
-		connect []byte
-		connack []byte
-	}{
-		{
-			"Session expiry interval",
-			map[string]any{"max_session_expiry_interval": 150},
-			[]byte{0x10, 20, 0, 4, 'M', 'Q', 'T', 'T', 5, 0, 0, 100, 5, 0x11, 0, 0, 0, 200, 0, 2, 'a', 'b'},
-			[]byte{0x20, 8, 0, 0, 5, 0x11, 0, 0, 0, 150},
-		},
-		{
-			"Server keep alive",
-			map[string]any{"max_keep_alive": 50},
-			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
-			[]byte{0x20, 6, 0, 0, 3, 0x13, 0, 50},
-		},
-		{
-			"Receive maximum",
-			map[string]any{"max_inflight_messages": 100},
-			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
-			[]byte{0x20, 6, 0, 0, 3, 0x21, 0, 100},
-		},
-		{
-			"Topic alias maximum",
-			map[string]any{"topic_alias_max": 10},
-			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
-			[]byte{0x20, 6, 0, 0, 3, 0x22, 0, 10},
-		},
-		{
-			"Maximum QoS",
-			map[string]any{"max_qos": 1},
-			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
-			[]byte{0x20, 5, 0, 0, 2, 0x24, 1},
-		},
-		{
-			"Retain available",
-			map[string]any{"retain_available": false},
-			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
-			[]byte{0x20, 5, 0, 0, 2, 0x25, 0},
-		},
-		{
-			"Maximum packet size",
-			map[string]any{"max_packet_size": 200},
-			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
-			[]byte{0x20, 8, 0, 0, 5, 0x27, 0, 0, 0, 200},
-		},
-		{
-			"Wildcard subscription available",
-			map[string]any{"wildcard_subscription_available": false},
-			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
-			[]byte{0x20, 5, 0, 0, 2, 0x28, 0},
-		},
-		{
-			"Subscription identifier available",
-			map[string]any{"subscription_id_available": false},
-			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
-			[]byte{0x20, 5, 0, 0, 2, 0x29, 0},
-		},
-		{
-			"Shared subscription available",
-			map[string]any{"shared_subscription_available": false},
-			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
-			[]byte{0x20, 5, 0, 0, 2, 0x2A, 0},
-		},
+	p := receivePacket(t, nc, len(connack.Packet))
+	if !bytes.Equal(connack.Packet, p) {
+		t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
 	}
 
-	for _, test := range testCases {
-		s.Run(test.name, func() {
-			data, err := json.Marshal(test.config)
-			s.Require().NoError(err)
+	client := <-clients
+	if client == nil {
+		t.Fatal("A client was expected")
+	}
 
-			config := akira.NewDefaultConfig()
-			err = json.Unmarshal(data, &config)
-			s.Require().NoError(err)
-
-			opts := akira.NewDefaultOptions()
-			opts.Config = config
-
-			srv, _ := akira.NewServer(opts)
-			defer srv.Close()
-
-			lsn, onConnectionStream := s.addListener(srv)
-
-			conn1, conn2 := net.Pipe()
-			defer func() { _ = conn1.Close() }()
-			_ = srv.Start()
-
-			onConnection := <-onConnectionStream
-			onConnection(lsn, conn2)
-
-			_, _ = conn1.Write(test.connect)
-			connack := make([]byte, len(test.connack))
-
-			_, err = conn1.Read(connack)
-			s.Require().NoError(err)
-			s.Assert().Equal(test.connack, connack)
-		})
+	expectedSessionProps := &SessionProperties{
+		Flags: packet.PropertyFlags(0).
+			Set(packet.PropertySessionExpiryInterval).
+			Set(packet.PropertyReceiveMaximum).
+			Set(packet.PropertyMaximumPacketSize).
+			Set(packet.PropertyTopicAliasMaximum).
+			Set(packet.PropertyRequestResponseInfo).
+			Set(packet.PropertyRequestProblemInfo).
+			Set(packet.PropertyUserProperty),
+		SessionExpiryInterval: c.MaxSessionExpiryIntervalSec,
+		ReceiveMaximum:        c.MaxInflightMessages,
+		MaximumPacketSize:     c.MaxPacketSize,
+		TopicAliasMaximum:     c.TopicAliasMax,
+		RequestResponseInfo:   true,
+		RequestProblemInfo:    true,
+		UserProperties:        []packet.UserProperty{{Key: []byte("a"), Value: []byte("b")}},
+	}
+	if !reflect.DeepEqual(expectedSessionProps, client.Session.Properties) {
+		t.Errorf("Unexpected session properties\nwant: %+v\ngot:  %+v",
+			expectedSessionProps, client.Session.Properties)
 	}
 }
 
-func (s *ServerTestSuite) TestConnectPacketWithSessionProperties() {
-	srv, _ := akira.NewServer(akira.NewDefaultOptions())
-	defer srv.Close()
+func TestServerConnectWithLastWill(t *testing.T) {
+	connect := readPacketFixture(t, "connect.json", "V5.0 Last Will")
+	connack := readPacketFixture(t, "connack.json", "V5.0 Success")
+	h := &mockOnConnectedHook{}
 
-	var props *akira.SessionProperties
-	connectCh := make(chan struct{})
+	s := newServer(t, WithHooks([]Hook{h}))
+	defer s.Close()
+	startServer(t, s)
 
-	onConnected := mocks.NewMockOnConnectedHook(s.T())
-	onConnected.EXPECT().Name().Return("onConnected")
-	onConnected.EXPECT().OnConnected(mock.Anything).Run(func(c *akira.Client) {
-		props = c.Session.Properties
-		close(connectCh)
-	})
-	_ = srv.AddHook(onConnected)
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
 
-	lsn, onConnectionStream := s.addListener(srv)
+	clients := make(chan *Client)
+	h.cb = func(c *Client) { clients <- c }
 
-	conn1, conn2 := net.Pipe()
-	defer func() { _ = conn1.Close() }()
-	_ = srv.Start()
+	serveConnection(t, s, conn)
+	sendPacket(t, nc, connect.Packet)
 
-	onConnection := <-onConnectionStream
-	onConnection(lsn, conn2)
-
-	connect := []byte{
-		0x10, 51, 0, 4, 'M', 'Q', 'T', 'T', 5, 0, 0, 100, 36,
-		17, 0, 0, 0, 100, // Session Expiry Interval.
-		33, 0, 150, // Receive Maximum.
-		39, 0, 0, 0, 200, // Maximum Packet Size.
-		34, 0, 250, // Topic Alias Maximum.
-		25, 1, // Request Response Info.
-		23, 1, // Request Problem Info.
-		38, 0, 1, 'a', 0, 1, 'b', // User Property.
-		21, 0, 2, 'e', 'f', // Authentication Method.
-		22, 0, 1, 10, // Authentication Data.
-		0, 2, 'a', 'b',
+	p := receivePacket(t, nc, len(connack.Packet))
+	if !bytes.Equal(connack.Packet, p) {
+		t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
 	}
-	_, _ = conn1.Write(connect)
 
-	connack := make([]byte, 10)
-	_, err := conn1.Read(connack)
-	s.Require().NoError(err)
-
-	<-connectCh
-	s.Require().NotNil(props)
-	s.Require().True(props.Has(packet.PropertySessionExpiryInterval))
-	s.Require().True(props.Has(packet.PropertyMaximumPacketSize))
-	s.Require().True(props.Has(packet.PropertyReceiveMaximum))
-	s.Require().True(props.Has(packet.PropertyTopicAliasMaximum))
-	s.Require().True(props.Has(packet.PropertyRequestResponseInfo))
-	s.Require().True(props.Has(packet.PropertyRequestProblemInfo))
-	s.Require().True(props.Has(packet.PropertyUserProperty))
-
-	s.Assert().Equal(100, int(props.SessionExpiryInterval))
-	s.Assert().Equal(150, int(props.ReceiveMaximum))
-	s.Assert().Equal(200, int(props.MaximumPacketSize))
-	s.Assert().Equal(250, int(props.TopicAliasMaximum))
-	s.Assert().True(props.RequestResponseInfo)
-	s.Assert().True(props.RequestProblemInfo)
-	s.Assert().Equal([]packet.UserProperty{{Key: []byte("a"), Value: []byte("b")}}, props.UserProperties)
-}
-
-func (s *ServerTestSuite) TestConnectPacketWithLastWill() {
-	srv, _ := akira.NewServer(akira.NewDefaultOptions())
-	defer srv.Close()
-
-	var will *akira.LastWill
-	connectCh := make(chan struct{})
-
-	onConnected := mocks.NewMockOnConnectedHook(s.T())
-	onConnected.EXPECT().Name().Return("onConnected")
-	onConnected.EXPECT().OnConnected(mock.Anything).Run(func(c *akira.Client) {
-		will = c.Session.LastWill
-		close(connectCh)
-	})
-	_ = srv.AddHook(onConnected)
-
-	lsn, onConnectionStream := s.addListener(srv)
-
-	conn1, conn2 := net.Pipe()
-	defer func() { _ = conn1.Close() }()
-	_ = srv.Start()
-
-	onConnection := <-onConnectionStream
-	onConnection(lsn, conn2)
-
-	connect := []byte{
-		0x10, 57, 0, 4, 'M', 'Q', 'T', 'T', 5, 0x34, 0, 100, 0, 0, 2, 'a', 'b',
-		35,              // Property Length.
-		24, 0, 0, 0, 10, // Will Delay Interval.
-		1, 1, // Payload Format Indicator.
-		2, 0, 0, 0, 20, // Message Expiry Interval.
-		3, 0, 4, 'j', 's', 'o', 'n', // Content Type.
-		8, 0, 1, 'b', // Response Topic.
-		9, 0, 2, 20, 1, // Correlation Data.
-		38, 0, 1, 'a', 0, 1, 'b', // User Property.
-		0, 1, 'a', // Will Topic.
-		0, 1, 'b', // Will Payload.
+	client := <-clients
+	if client == nil {
+		t.Fatal("A client was expected")
 	}
-	_, _ = conn1.Write(connect)
 
-	connack := make([]byte, 10)
-	_, err := conn1.Read(connack)
-	s.Require().NoError(err)
-
-	<-connectCh
-	s.Require().NotNil(will)
-
-	expected := akira.LastWill{
-		Topic:   []byte("a"),
-		Payload: []byte("b"),
+	expectedLastWill := &LastWill{
+		Topic:   []byte("e"),
+		Payload: []byte("f"),
 		QoS:     packet.QoS2,
 		Retain:  true,
 		Properties: &packet.WillProperties{
@@ -1129,489 +1530,377 @@ func (s *ServerTestSuite) TestConnectPacketWithLastWill() {
 			WillDelayInterval:      10,
 			PayloadFormatIndicator: true,
 			MessageExpiryInterval:  20,
-			ContentType:            []byte("json"),
+			ContentType:            []byte("a"),
 			ResponseTopic:          []byte("b"),
 			CorrelationData:        []byte{20, 1},
-			UserProperties:         []packet.UserProperty{{Key: []byte("a"), Value: []byte("b")}},
+			UserProperties:         []packet.UserProperty{{Key: []byte("c"), Value: []byte("d")}},
 		},
 	}
-	s.Assert().Equal(expected, *will)
+	if !reflect.DeepEqual(expectedLastWill, client.Session.LastWill) {
+		t.Errorf("Unexpected last will\nwant: %+v\ngot:  %+v",
+			expectedLastWill, client.Session.LastWill)
+	}
+	if !reflect.DeepEqual(expectedLastWill.Properties, client.Session.LastWill.Properties) {
+		t.Errorf("Unexpected last will properties\nwant: %+v\ngot:  %+v",
+			expectedLastWill.Properties, client.Session.LastWill.Properties)
+	}
 }
 
-func (s *ServerTestSuite) TestConnectPacketWithInvalid() {
+func TestServerConnectUnavailableWhenGetSessionReturnsError(t *testing.T) {
 	testCases := []struct {
-		name    string
-		config  map[string]any
-		connect []byte
-		connack []byte
+		connect string
+		connack string
 	}{
-		{
-			"MaxKeepAliveExceeded - V3.1",
-			map[string]any{"max_keep_alive": 100},
-			[]byte{0x10, 16, 0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 0, 0, 200, 0, 2, 'a', 'b'},
-			[]byte{0x20, 2, 0, 2},
-		},
-		{
-			"MaxKeepAliveExceeded - V3.1.1",
-			map[string]any{"max_keep_alive": 100},
-			[]byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 0, 0, 200, 0, 2, 'a', 'b'},
-			[]byte{0x20, 2, 0, 2},
-		},
-		{
-			"ClientID - V3.1",
-			map[string]any{"max_client_id_size": 23},
-			[]byte{
-				0x10, 38, 0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 0, 0, 100, 0, 24,
-				'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-				'0', '1', '2', '3',
-			},
-			[]byte{0x20, 2, 0, 2},
-		},
-		{
-			"ClientID - V3.1.1",
-			map[string]any{"max_client_id_size": 23},
-			[]byte{
-				0x10, 36, 0, 4, 'M', 'Q', 'T', 'T', 4, 0, 0, 100, 0, 24,
-				'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-				'0', '1', '2', '3',
-			},
-			[]byte{0x20, 2, 0, 2},
-		},
-		{
-			"ClientID - V5.0",
-			map[string]any{"max_client_id_size": 23},
-			[]byte{
-				0x10, 37, 0, 4, 'M', 'Q', 'T', 'T', 5, 0, 0, 100, 0, 0, 24,
-				'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-				'0', '1', '2', '3',
-			},
-			[]byte{0x20, 3, 0, 0x85, 0},
-		},
+		{"V3.1", "V3 Server Unavailable"},
+		{"V3.1.1", "V3 Server Unavailable"},
+		{"V5.0", "V5.0 Server Unavailable"},
 	}
 
-	for _, test := range testCases {
-		s.Run(test.name, func() {
-			data, err := json.Marshal(test.config)
-			s.Require().NoError(err)
+	for _, tc := range testCases {
+		t.Run(tc.connect, func(t *testing.T) {
+			connect := readPacketFixture(t, "connect.json", tc.connect)
+			connack := readPacketFixture(t, "connack.json", tc.connack)
 
-			config := akira.NewDefaultConfig()
-			err = json.Unmarshal(data, &config)
-			s.Require().NoError(err)
+			ss := &mockSessionStore{}
+			ss.getCB = func(_ []byte, s *Session) error { return errSessionStoreFailed }
 
-			opts := akira.NewDefaultOptions()
-			opts.Config = config
+			connectErr := make(chan error)
+			h := &mockOnConnectFailedHook{cb: func(_ *Client, _ *packet.Connect, err error) { connectErr <- err }}
 
-			srv, _ := akira.NewServer(opts)
-			defer srv.Close()
+			s := newServer(t, WithSessionStore(ss), WithHooks([]Hook{h}))
+			defer s.Close()
+			startServer(t, s)
 
-			lsn, onConnectionStream := s.addListener(srv)
+			nc, conn := newConnection(t)
+			defer func() { _ = nc.Close() }()
 
-			conn1, conn2 := net.Pipe()
-			defer func() { _ = conn1.Close() }()
-			_ = srv.Start()
+			serveConnection(t, s, conn)
+			sendPacket(t, nc, connect.Packet)
 
-			onConnection := <-onConnectionStream
-			onConnection(lsn, conn2)
-			_, _ = conn1.Write(test.connect)
+			p := receivePacket(t, nc, len(connack.Packet))
+			if !bytes.Equal(connack.Packet, p) {
+				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+			}
 
-			connack := make([]byte, len(test.connack))
-			_, err = conn1.Read(connack)
-			s.Require().NoError(err)
-			s.Assert().Equal(test.connack, connack)
+			err := <-connectErr
+			if !errors.Is(err, packet.ErrServerUnavailable) {
+				t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", packet.ErrServerUnavailable, err)
+			}
 
-			_, err = conn1.Read(connack)
-			s.Require().ErrorIs(err, io.EOF)
+			_, err = nc.Read(nil)
+			if !errors.Is(err, io.EOF) {
+				t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+			}
 		})
 	}
 }
 
-func (s *ServerTestSuite) TestConnectPacketRejectedWhenEmptyClientID() {
+func TestServerConnectUnavailableWhenDeleteSessionReturnsError(t *testing.T) {
 	testCases := []struct {
-		name    string
-		connect []byte
-		connack []byte
+		connect string
+		connack string
 	}{
-		{
-			"V3.1.1, no clean session",
-			[]byte{0x10, 12, 0, 4, 'M', 'Q', 'T', 'T', 4, 0, 0, 100, 0, 0},
-			[]byte{0x20, 2, 0, 0x02},
-		},
-		{
-			"V3.1.1, clean session",
-			[]byte{0x10, 12, 0, 4, 'M', 'Q', 'T', 'T', 4, 2, 0, 100, 0, 0},
-			[]byte{0x20, 2, 0, 0x02},
-		},
-		{
-			"V5.0",
-			[]byte{0x10, 13, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 0},
-			[]byte{0x20, 3, 0, 0x85, 0},
-		},
+		{"V3.1 Clean Session", "V3 Server Unavailable"},
+		{"V3.1.1 Clean Session", "V3 Server Unavailable"},
+		{"V5.0 Clean Start", "V5.0 Server Unavailable"},
 	}
 
-	for _, test := range testCases {
-		s.Run(test.name, func() {
-			srv, _ := akira.NewServer(akira.NewDefaultOptions())
-			defer srv.Close()
+	for _, tc := range testCases {
+		t.Run(tc.connect, func(t *testing.T) {
+			connect := readPacketFixture(t, "connect.json", tc.connect)
+			connack := readPacketFixture(t, "connack.json", tc.connack)
 
-			lsn, onConnectionStream := s.addListener(srv)
+			ss := &mockSessionStore{}
+			ss.deleteCB = func(_ []byte) error { return errSessionStoreFailed }
 
-			conn1, conn2 := net.Pipe()
-			defer func() { _ = conn1.Close() }()
-			_ = srv.Start()
+			connectErr := make(chan error)
+			h := &mockOnConnectFailedHook{cb: func(_ *Client, _ *packet.Connect, err error) { connectErr <- err }}
 
-			onConnection := <-onConnectionStream
-			onConnection(lsn, conn2)
-			_, _ = conn1.Write(test.connect)
+			s := newServer(t, WithSessionStore(ss), WithHooks([]Hook{h}))
+			defer s.Close()
+			startServer(t, s)
 
-			connack := make([]byte, len(test.connack))
-			_, err := conn1.Read(connack)
-			s.Require().NoError(err)
-			s.Assert().Equal(test.connack, connack)
+			nc, conn := newConnection(t)
+			defer func() { _ = nc.Close() }()
 
-			_, err = conn1.Read(connack)
-			s.Require().ErrorIs(err, io.EOF)
+			serveConnection(t, s, conn)
+			sendPacket(t, nc, connect.Packet)
+
+			p := receivePacket(t, nc, len(connack.Packet))
+			if !bytes.Equal(connack.Packet, p) {
+				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+			}
+			if ss.deleteCalls() != 1 {
+				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, ss.deleteCalls())
+			}
+
+			err := <-connectErr
+			if !errors.Is(err, packet.ErrServerUnavailable) {
+				t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", packet.ErrServerUnavailable, err)
+			}
+
+			_, err = nc.Read(nil)
+			if !errors.Is(err, io.EOF) {
+				t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+			}
 		})
 	}
 }
 
-func (s *ServerTestSuite) TestConnectPacketWithGetSessionReturningError() {
+func TestServerConnectUnavailableWhenSaveSessionReturnsError(t *testing.T) {
 	testCases := []struct {
-		name    string
-		connect []byte
-		connack []byte
+		connect string
+		connack string
 	}{
-		{
-			"V3.1",
-			[]byte{0x10, 16, 0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 0, 0, 100, 0, 2, 'a', 'b'},
-			[]byte{0x20, 2, 0, 3},
-		},
-		{
-			"V3.1.1",
-			[]byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 0, 0, 100, 0, 2, 'a', 'b'},
-			[]byte{0x20, 2, 0, 3},
-		},
-		{
-			"V5.0",
-			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 0, 0, 100, 0, 0, 2, 'a', 'b'},
-			[]byte{0x20, 3, 0, 0x88, 0},
-		},
+		{"V3.1", "V3 Server Unavailable"},
+		{"V3.1.1", "V3 Server Unavailable"},
+		{"V5.0 Session Expiry Interval", "V5.0 Server Unavailable"},
 	}
 
-	for _, test := range testCases {
-		s.Run(test.name, func() {
-			store := mocks.NewMockSessionStore(s.T())
-			store.EXPECT().ReadSession([]byte{'a', 'b'}, mock.Anything).Return(assert.AnError)
+	for _, tc := range testCases {
+		t.Run(tc.connect, func(t *testing.T) {
+			connect := readPacketFixture(t, "connect.json", tc.connect)
+			connack := readPacketFixture(t, "connack.json", tc.connack)
 
-			opts := akira.NewDefaultOptions()
-			opts.SessionStore = store
-			srv, _ := akira.NewServer(opts)
-			defer srv.Close()
+			ss := &mockSessionStore{}
+			ss.saveCB = func(_ []byte, s *Session) error { return errSessionStoreFailed }
 
-			onConnectErr := mocks.NewMockOnConnectErrorHook(s.T())
-			onConnectErr.EXPECT().Name().Return("onConnectErr")
-			onConnectErr.EXPECT().OnConnectError(mock.Anything, mock.Anything, mock.Anything).
-				Run(func(c *akira.Client, p *packet.Connect, err error) {
-					s.Require().NotNil(c)
-					s.Require().NotNil(p)
-					s.Require().Error(err)
-					s.Assert().Equal([]byte{'a', 'b'}, p.ClientID)
-				})
-			_ = srv.AddHook(onConnectErr)
+			connectErr := make(chan error)
+			h := &mockOnConnectFailedHook{cb: func(_ *Client, _ *packet.Connect, err error) { connectErr <- err }}
 
-			lsn, onConnectionStream := s.addListener(srv)
+			s := newServer(t, WithSessionStore(ss), WithHooks([]Hook{h}))
+			defer s.Close()
+			startServer(t, s)
 
-			conn1, conn2 := net.Pipe()
-			defer func() { _ = conn1.Close() }()
-			_ = srv.Start()
+			nc, conn := newConnection(t)
+			defer func() { _ = nc.Close() }()
 
-			onConnection := <-onConnectionStream
-			onConnection(lsn, conn2)
-			_, _ = conn1.Write(test.connect)
+			serveConnection(t, s, conn)
+			sendPacket(t, nc, connect.Packet)
 
-			connack := make([]byte, len(test.connack))
-			_, err := conn1.Read(connack)
-			s.Require().NoError(err)
-			s.Assert().Equal(test.connack, connack)
+			p := receivePacket(t, nc, len(connack.Packet))
+			if !bytes.Equal(connack.Packet, p) {
+				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+			}
 
-			_, err = conn1.Read(connack)
-			s.Require().ErrorIs(err, io.EOF)
+			err := <-connectErr
+			if !errors.Is(err, packet.ErrServerUnavailable) {
+				t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", packet.ErrServerUnavailable, err)
+			}
+
+			_, err = nc.Read(nil)
+			if !errors.Is(err, io.EOF) {
+				t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+			}
 		})
 	}
 }
 
-func (s *ServerTestSuite) TestConnectPacketWithDeleteSessionReturningError() {
+func TestServerConnectWithOnConnectReturningValidPacketError(t *testing.T) {
 	testCases := []struct {
-		name    string
-		connect []byte
-		connack []byte
+		connect string
+		connack string
 	}{
-		{
-			"V3.1",
-			[]byte{0x10, 16, 0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 2, 0, 100, 0, 2, 'a', 'b'},
-			[]byte{0x20, 2, 0, 3},
-		},
-		{
-			"V3.1.1",
-			[]byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 2, 0, 100, 0, 2, 'a', 'b'},
-			[]byte{0x20, 2, 0, 3},
-		},
-		{
-			"V5.0",
-			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
-			[]byte{0x20, 3, 0, 0x88, 0},
-		},
+		{"V3.1", "V3 Server Unavailable"},
+		{"V3.1.1", "V3 Server Unavailable"},
+		{"V5.0", "V5.0 Server Unavailable"},
 	}
 
-	for _, test := range testCases {
-		s.Run(test.name, func() {
-			store := mocks.NewMockSessionStore(s.T())
-			store.EXPECT().DeleteSession([]byte{'a', 'b'}).Return(assert.AnError)
+	for _, tc := range testCases {
+		t.Run(tc.connect, func(t *testing.T) {
+			connect := readPacketFixture(t, "connect.json", tc.connect)
+			connack := readPacketFixture(t, "connack.json", tc.connack)
+			h := &mockOnConnectHook{cb: func(_ *Client, _ *packet.Connect) error { return packet.ErrServerUnavailable }}
 
-			opts := akira.NewDefaultOptions()
-			opts.SessionStore = store
-			srv, _ := akira.NewServer(opts)
-			defer srv.Close()
+			s := newServer(t, WithHooks([]Hook{h}))
+			defer s.Close()
+			startServer(t, s)
 
-			onConnectErr := mocks.NewMockOnConnectErrorHook(s.T())
-			onConnectErr.EXPECT().Name().Return("onConnectErr")
-			onConnectErr.EXPECT().OnConnectError(mock.Anything, mock.Anything, mock.Anything).
-				Run(func(c *akira.Client, p *packet.Connect, err error) {
-					s.Require().NotNil(c)
-					s.Require().NotNil(p)
-					s.Require().Error(err)
-				})
-			_ = srv.AddHook(onConnectErr)
+			nc, conn := newConnection(t)
+			defer func() { _ = nc.Close() }()
 
-			lsn, onConnectionStream := s.addListener(srv)
+			serveConnection(t, s, conn)
+			sendPacket(t, nc, connect.Packet)
 
-			conn1, conn2 := net.Pipe()
-			defer func() { _ = conn1.Close() }()
-			_ = srv.Start()
+			p := receivePacket(t, nc, len(connack.Packet))
+			if !bytes.Equal(connack.Packet, p) {
+				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+			}
 
-			onConnection := <-onConnectionStream
-			onConnection(lsn, conn2)
-			_, _ = conn1.Write(test.connect)
-
-			connack := make([]byte, len(test.connack))
-			_, err := conn1.Read(connack)
-			s.Require().NoError(err)
-			s.Assert().Equal(test.connack, connack)
-
-			_, err = conn1.Read(connack)
-			s.Require().ErrorIs(err, io.EOF)
+			_, err := nc.Read(nil)
+			if !errors.Is(err, io.EOF) {
+				t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+			}
 		})
 	}
 }
 
-func (s *ServerTestSuite) TestConnectPacketWithSaveSessionReturningError() {
-	testCases := []struct {
-		name    string
-		connect []byte
-		connack []byte
-	}{
-		{
-			"V3.1",
-			[]byte{0x10, 16, 0, 6, 'M', 'Q', 'I', 's', 'd', 'p', 3, 2, 0, 100, 0, 2, 'a', 'b'},
-			[]byte{0x20, 2, 0, 3},
-		},
-		{
-			"V3.1.1",
-			[]byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 2, 0, 100, 0, 2, 'a', 'b'},
-			[]byte{0x20, 2, 0, 3},
-		},
-		{
-			"V5.0",
-			[]byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'},
-			[]byte{0x20, 3, 0, 0x88, 0},
-		},
-	}
+func TestServerConnectWithOnConnectReturningUnknownError(t *testing.T) {
+	testCases := []string{"V3.1", "V3.1.1", "V5.0"}
 
-	for _, test := range testCases {
-		s.Run(test.name, func() {
-			store := mocks.NewMockSessionStore(s.T())
-			store.EXPECT().DeleteSession([]byte{'a', 'b'}).Return(nil)
-			store.EXPECT().SaveSession(mock.Anything, mock.Anything).Return(assert.AnError)
+	for _, tc := range testCases {
+		t.Run(tc, func(t *testing.T) {
+			connect := readPacketFixture(t, "connect.json", tc)
+			h := &mockOnConnectHook{cb: func(_ *Client, _ *packet.Connect) error { return errHookFailed }}
 
-			opts := akira.NewDefaultOptions()
-			opts.SessionStore = store
-			srv, _ := akira.NewServer(opts)
-			defer srv.Close()
+			s := newServer(t, WithHooks([]Hook{h}))
+			defer s.Close()
+			startServer(t, s)
 
-			onConnectErr := mocks.NewMockOnConnectErrorHook(s.T())
-			onConnectErr.EXPECT().Name().Return("onConnectErr")
-			onConnectErr.EXPECT().OnConnectError(mock.Anything, mock.Anything, mock.Anything).
-				Run(func(c *akira.Client, p *packet.Connect, err error) {
-					s.Require().NotNil(c)
-					s.Require().NotNil(p)
-					s.Require().Error(err)
-				})
-			_ = srv.AddHook(onConnectErr)
+			nc, conn := newConnection(t)
+			defer func() { _ = nc.Close() }()
 
-			lsn, onConnectionStream := s.addListener(srv)
+			serveConnection(t, s, conn)
+			sendPacket(t, nc, connect.Packet)
 
-			conn1, conn2 := net.Pipe()
-			defer func() { _ = conn1.Close() }()
-			_ = srv.Start()
-
-			onConnection := <-onConnectionStream
-			onConnection(lsn, conn2)
-			_, _ = conn1.Write(test.connect)
-
-			connack := make([]byte, len(test.connack))
-			_, err := conn1.Read(connack)
-			s.Require().NoError(err)
-			s.Assert().Equal(test.connack, connack)
-
-			_, err = conn1.Read(connack)
-			s.Require().ErrorIs(err, io.EOF)
+			_, err := nc.Read(nil)
+			if !errors.Is(err, io.EOF) {
+				t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+			}
 		})
 	}
 }
 
-func (s *ServerTestSuite) TestConnectPacketWithOnConnectReturningError() {
-	srv, _ := akira.NewServer(akira.NewDefaultOptions())
-	defer srv.Close()
-
-	onConnect := mocks.NewMockOnConnectHook(s.T())
-	onConnect.EXPECT().Name().Return("onConnect")
-	onConnect.EXPECT().OnConnect(mock.Anything, mock.Anything).Return(assert.AnError)
-	_ = srv.AddHook(onConnect)
-
-	lsn, onConnectionStream := s.addListener(srv)
-
-	conn1, conn2 := net.Pipe()
-	defer func() { _ = conn1.Close() }()
-	_ = srv.Start()
-
-	onConnection := <-onConnectionStream
-	onConnection(lsn, conn2)
-
-	connect := []byte{0x10, 14, 0, 4, 'M', 'Q', 'T', 'T', 4, 2, 0, 100, 0, 2, 'a', 'b'}
-	_, _ = conn1.Write(connect)
-
-	connack := make([]byte, 4)
-	_, err := conn1.Read(connack)
-	s.Require().ErrorIs(err, io.EOF)
-}
-
-func (s *ServerTestSuite) TestConnectPacketSendConnAckWhenOnConnectReturnPacketError() {
-	srv, _ := akira.NewServer(akira.NewDefaultOptions())
-	defer srv.Close()
-
-	onConnect := mocks.NewMockOnConnectHook(s.T())
-	onConnect.EXPECT().Name().Return("onConnect")
-	onConnect.EXPECT().OnConnect(mock.Anything, mock.Anything).Return(packet.ErrNotAuthorized)
-	_ = srv.AddHook(onConnect)
-
-	lsn, onConnectionStream := s.addListener(srv)
-
-	conn1, conn2 := net.Pipe()
-	defer func() { _ = conn1.Close() }()
-	_ = srv.Start()
-
-	onConnection := <-onConnectionStream
-	onConnection(lsn, conn2)
-
-	connect := []byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'}
-	_, _ = conn1.Write(connect)
-
-	expected := []byte{0x20, 3, 0, 0x87, 0}
-	connack := make([]byte, len(expected))
-
-	_, err := conn1.Read(connack)
-	s.Require().NoError(err)
-	s.Assert().Equal(expected, connack)
-
-	_, err = conn1.Read(connack)
-	s.Require().ErrorIs(err, io.EOF)
-}
-
-func (s *ServerTestSuite) TestConnectPacketDontSendConnAckWhenOnConnectReturnReasonCodes() {
+func TestServerConnectIgnoreReasonCodesFromOnConnect(t *testing.T) {
 	testCases := []struct {
-		name string
-		code packet.ReasonCode
+		connect string
+		code    packet.ReasonCode
 	}{
-		{"Success", packet.ReasonCodeSuccess},
-		{"Malformed packet", packet.ReasonCodeMalformedPacket},
+		{"V3.1", packet.ReasonCodeSuccess},
+		{"V3.1.1", packet.ReasonCodeSuccess},
+		{"V5.0", packet.ReasonCodeSuccess},
+		{"V3.1", packet.ReasonCodeMalformedPacket},
+		{"V3.1.1", packet.ReasonCodeMalformedPacket},
+		{"V5.0", packet.ReasonCodeMalformedPacket},
 	}
 
-	for _, test := range testCases {
-		s.Run(test.name, func() {
-			srv, _ := akira.NewServer(akira.NewDefaultOptions())
-			defer srv.Close()
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("%s-%v", tc.connect, tc.code), func(t *testing.T) {
+			connect := readPacketFixture(t, "connect.json", tc.connect)
+			h := &mockOnConnectHook{cb: func(_ *Client, _ *packet.Connect) error { return packet.Error{Code: tc.code} }}
 
-			onConnect := mocks.NewMockOnConnectHook(s.T())
-			onConnect.EXPECT().Name().Return("onConnect")
-			onConnect.EXPECT().OnConnect(mock.Anything, mock.Anything).Return(packet.Error{Code: test.code})
-			_ = srv.AddHook(onConnect)
+			s := newServer(t, WithHooks([]Hook{h}))
+			defer s.Close()
+			startServer(t, s)
 
-			lsn, onConnectionStream := s.addListener(srv)
+			nc, conn := newConnection(t)
+			defer func() { _ = nc.Close() }()
 
-			conn1, conn2 := net.Pipe()
-			defer func() { _ = conn1.Close() }()
-			_ = srv.Start()
+			serveConnection(t, s, conn)
+			sendPacket(t, nc, connect.Packet)
 
-			onConnection := <-onConnectionStream
-			onConnection(lsn, conn2)
-
-			connect := []byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 100, 0, 0, 2, 'a', 'b'}
-			_, _ = conn1.Write(connect)
-
-			connack := make([]byte, 4)
-			_, err := conn1.Read(connack)
-			s.Require().ErrorIs(err, io.EOF)
+			_, err := nc.Read(nil)
+			if !errors.Is(err, io.EOF) {
+				t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+			}
 		})
 	}
-}
-
-func TestServerTestSuite(t *testing.T) {
-	suite.Run(t, new(ServerTestSuite))
 }
 
 func BenchmarkHandleConnect(b *testing.B) {
-	srv, _ := akira.NewServer(akira.NewDefaultOptions())
-	defer srv.Close()
+	testCases := []struct {
+		connect string
+		connack string
+	}{
+		{"V3.1", "V3 Accepted"},
+		{"V3.1.1", "V3 Accepted"},
+		{"V5.0", "V5.0 Success"},
+	}
 
-	err := srv.AddListener(listener.NewTCP(":1883", nil))
+	for _, tc := range testCases {
+		b.Run(tc.connect, func(b *testing.B) {
+			connect := readPacketFixture(b, "connect.json", tc.connect)
+			connack := readPacketFixture(b, "connack.json", tc.connack)
+
+			s := newServer(b)
+			defer s.Close()
+			startServer(b, s)
+
+			for i := 0; i < b.N; i++ {
+				nc, conn := newConnection(b)
+
+				err := s.Serve(conn)
+				if err != nil {
+					b.Fatalf("Unexpected error: %s", err)
+				}
+
+				sendPacket(b, nc, connect.Packet)
+				_ = receivePacket(b, nc, len(connack.Packet))
+
+				err = nc.Close()
+				if err != nil {
+					b.Fatalf("Unexpected error: %s", err)
+				}
+			}
+		})
+	}
+}
+
+func readPacketFixture(tb testing.TB, path, name string) testdata.PacketFixture {
+	tb.Helper()
+	fixture, err := testdata.ReadPacketFixture(path, name)
 	if err != nil {
-		b.Fatalf("Unexpected error: %s", err)
+		tb.Fatalf("Unexpected error\n%v", err)
 	}
+	return fixture
+}
 
-	err = srv.Start()
+func newServer(tb testing.TB, opts ...OptionsFunc) *Server {
+	tb.Helper()
+	s, err := NewServer(opts...)
 	if err != nil {
-		b.Fatalf("Unexpected error: %s", err)
+		tb.Fatalf("Unexpected error\n%v", err)
 	}
-
-	for i := 0; i < b.N; i++ {
-		var conn net.Conn
-
-		conn, err = net.Dial("tcp", ":1883")
-		if err != nil {
-			b.Fatalf("Unexpected error: %s", err)
-		}
-
-		connect := []byte{0x10, 15, 0, 4, 'M', 'Q', 'T', 'T', 5, 0, 0, 100, 0, 0, 2, 'a', 'b'}
-		_, err = conn.Write(connect)
-		if err != nil {
-			b.Fatalf("Unexpected error: %s", err)
-		}
-
-		connack := make([]byte, 5)
-		_, err = conn.Read(connack)
-		if err != nil {
-			b.Fatalf("Unexpected error: %s", err)
-		}
-
-		tcpCon := conn.(*net.TCPConn)
-
-		err = tcpCon.SetLinger(0)
-		if err != nil {
-			b.Fatalf("Unexpected error: %s", err)
-		}
-
-		err = tcpCon.Close()
-		if err != nil {
-			b.Fatalf("Unexpected error: %s", err)
-		}
+	if s == nil {
+		tb.Fatal("A server was expected")
 	}
+	return s
+}
+
+func startServer(tb testing.TB, s *Server) {
+	tb.Helper()
+	err := s.Start()
+	if err != nil {
+		tb.Fatalf("Unexpected error\n%v", err)
+	}
+}
+
+func stopServer(tb testing.TB, s *Server) {
+	tb.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	err := s.Stop(ctx)
+	if err != nil {
+		tb.Fatalf("Unexpected error\n%v", err)
+	}
+}
+
+func serveConnection(tb testing.TB, s *Server, c *Connection) {
+	tb.Helper()
+	err := s.Serve(c)
+	if err != nil {
+		tb.Fatalf("Unexpected error\n%v", err)
+	}
+}
+
+func sendPacket(tb testing.TB, nc net.Conn, p []byte) {
+	tb.Helper()
+	_, err := nc.Write(p)
+	if err != nil {
+		tb.Fatalf("Unexpected error\n%v", err)
+	}
+}
+
+func receivePacket(tb testing.TB, nc net.Conn, size int) []byte {
+	tb.Helper()
+	p := make([]byte, size)
+	n, err := nc.Read(p)
+	if err != nil {
+		tb.Fatalf("Unexpected error\n%v", err)
+	}
+	if n != size {
+		tb.Errorf("Unexpected number of bytes read\nwant: %v\ngot:  %v", size, n)
+	}
+	return p
 }
