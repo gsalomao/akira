@@ -92,10 +92,10 @@ unit: ## Run unit tests
 	@gotestsum --format testname --packages ./... -- -timeout 10s -race
 	$(call print_task_result,"Running unit tests","done")
 
-.PHONY: unit/dev
-unit/dev: ## Run unit tests in development mode
-	$(call print_task,"Running unit tests in development mode")
-	@gotestsum --format testname --packages ./... --watch -- -timeout 5s -race
+.PHONY: unit/watch
+unit/watch: ## Run unit tests in watch mode
+	$(call print_task,"Running unit tests in watch mode")
+	@gotestsum --format pkgname --packages ./... --watch -- -timeout 5s -race
 
 .PHONY: coverage
 coverage: ## Run unit tests with coverage report
