@@ -15,10 +15,7 @@
 package akira
 
 import (
-	"math"
-	"net"
 	"sync/atomic"
-	"time"
 
 	"github.com/gsalomao/akira/packet"
 )
@@ -28,11 +25,11 @@ type Client struct {
 	// ID represents the client identifier.
 	ID []byte `json:"id"`
 
-	// Connection represents the client's connection.
-	Connection Connection `json:"connection"`
-
 	// Session represents the client's session.
 	Session Session `json:"session"`
+
+	// Connection represents the client's connection.
+	Connection *Connection `json:"connection"`
 
 	connected atomic.Bool
 }
@@ -40,30 +37,6 @@ type Client struct {
 // Connected returns whether the client is connected or not.
 func (c *Client) Connected() bool {
 	return c.connected.Load()
-}
-
-func (c *Client) refreshDeadline(keepAlive uint16) {
-	var deadline time.Time
-
-	if keepAlive > 0 {
-		timeout := math.Ceil(float64(keepAlive) * 1.5)
-		deadline = time.Now().Add(time.Duration(timeout) * time.Second)
-	}
-
-	_ = c.Connection.netConn.SetDeadline(deadline)
-}
-
-// Connection represents the network connection with the client.
-type Connection struct {
-	netConn  net.Conn
-	listener Listener
-
-	// KeepAlive is a time interval, measured in seconds, that is permitted to elapse between the point at which
-	// the client finishes transmitting one control packet and the point it starts sending the next.
-	KeepAlive uint16
-
-	// Version represents the MQTT version.
-	Version packet.Version `json:"version"`
 }
 
 // Session represents the MQTT session.

@@ -49,57 +49,52 @@ type PacketEncodable interface {
 	Encode(buf []byte) (n int, err error)
 }
 
-func readPacket(r *bufio.Reader) (Packet, int, error) {
-	var err error
-	var hSize int
-	var header packet.FixedHeader
+func readPacket(r *bufio.Reader) (p Packet, n int, err error) {
+	var (
+		header packet.FixedHeader
+		pd     PacketDecodable
+	)
 
-	if hSize, err = header.Read(r); err != nil {
-		return nil, hSize, err
+	if n, err = header.Read(r); err != nil {
+		return nil, n, err
 	}
-
-	var p PacketDecodable
 
 	switch header.PacketType {
 	case packet.TypeConnect:
-		p = &packet.Connect{}
+		pd = &packet.Connect{}
 	default:
-		return nil, hSize, fmt.Errorf("unsupported packet type: %w: %v", packet.ErrProtocolError, header.PacketType)
+		return nil, n, fmt.Errorf("%w: %v: unsupported packet", packet.ErrProtocolError, header.PacketType)
 	}
 
-	// Allocate the slice which will be the backing data for the packet.
-	data := make([]byte, header.RemainingLength)
-
-	if _, err = io.ReadFull(r, data); err != nil {
-		return nil, hSize, err
+	// Read the remaining bytes.
+	buf := make([]byte, header.RemainingLength)
+	if _, err = io.ReadFull(r, buf); err != nil {
+		return nil, n, err
 	}
 
-	var pSize int
+	p = pd
+	n += header.RemainingLength
 
-	pSize, err = p.Decode(data, header)
-	n := hSize + pSize
+	var dSize int
+
+	dSize, err = pd.Decode(buf, header)
 	if err != nil {
-		return nil, n, fmt.Errorf("%w (%s)", err, p.Type())
+		return nil, n, fmt.Errorf("decode error: %s: %w", p.Type(), err)
 	}
-	if pSize != header.RemainingLength {
-		return nil, n, fmt.Errorf("packet size does not match: %w (%s)", packet.ErrMalformedPacket, p.Type())
+	if dSize != header.RemainingLength {
+		return nil, n, fmt.Errorf("%w: %s: packet size mismatch", packet.ErrMalformedPacket, p.Type())
 	}
 
 	return p, n, nil
 }
 
-func writePacket(w io.Writer, p PacketEncodable) error {
+func writePacket(w io.Writer, p PacketEncodable) (n int, err error) {
 	buf := make([]byte, p.Size())
 
-	_, err := p.Encode(buf)
+	_, err = p.Encode(buf)
 	if err != nil {
-		return err
+		return n, err
 	}
 
-	_, err = w.Write(buf)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return w.Write(buf)
 }
