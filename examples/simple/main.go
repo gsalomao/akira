@@ -27,7 +27,7 @@ import (
 )
 
 func main() {
-	server, err := akira.NewServer(akira.NewDefaultOptions())
+	server, err := akira.NewServer()
 	if err != nil {
 		log.Println("Failed to create server")
 		os.Exit(1)

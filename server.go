@@ -61,14 +61,14 @@ var ErrServerStopped = errors.New("server stopped")
 // ServerState represents the current state of the Server.
 type ServerState uint32
 
-// Server is a MQTT broker responsible for implementing the MQTT 3.1, 3.1.1, and 5.0 specifications.
-// To create a Server instance, use the NewServer factory method.
+// Server is a MQTT broker responsible for implementing the MQTT 3.1, 3.1.1, and 5.0 specifications. To create a Server
+// instance, use the NewServer or NewServerWithOptions factory functions.
 type Server struct {
 	config      Config
 	store       store
 	listeners   *listeners
 	hooks       *hooks
-	readBufPool sync.Pool
+	readersPool sync.Pool
 	ctx         context.Context
 	cancelCtx   context.CancelCauseFunc
 	state       atomic.Uint32
@@ -76,10 +76,19 @@ type Server struct {
 	stopOnce    sync.Once
 }
 
-// NewServer creates a new Server.
-// If the Options parameter is not provided, it uses the default options. If the provided Options does not contain the
-// Config, it uses the default configuration.
-func NewServer(opts *Options) (s *Server, err error) {
+// NewServer creates a new Server. If no options functions are provided, the server is created with the default
+// options.
+func NewServer(f ...OptionsFunc) (s *Server, err error) {
+	opts := NewDefaultOptions()
+	for _, opt := range f {
+		opt(opts)
+	}
+	return NewServerWithOptions(opts)
+}
+
+// NewServerWithOptions creates a new Server. If the Options parameter is not provided, it uses the default options.
+// If the provided Options does not contain the Config, it uses the default configuration.
+func NewServerWithOptions(opts *Options) (s *Server, err error) {
 	if opts == nil {
 		opts = NewDefaultOptions()
 	}
@@ -92,20 +101,17 @@ func NewServer(opts *Options) (s *Server, err error) {
 		store:     store{sessionStore: opts.SessionStore},
 		listeners: newListeners(),
 		hooks:     newHooks(),
-		readBufPool: sync.Pool{
+		readersPool: sync.Pool{
 			New: func() any { return bufio.NewReaderSize(nil, s.config.ReadBufferSize) },
 		},
 	}
 
 	for _, l := range opts.Listeners {
-		err = s.AddListener(l)
-		if err != nil {
-			return nil, err
-		}
+		s.listeners.add(l)
 	}
 
 	for _, h := range opts.Hooks {
-		err = s.AddHook(h)
+		err = s.hooks.add(h)
 		if err != nil {
 			return nil, err
 		}
@@ -341,8 +347,8 @@ func (s *Server) receivePacket(c *Client) (p Packet, err error) {
 		return nil, err
 	}
 
-	buf := s.readBufPool.Get().(*bufio.Reader)
-	defer s.readBufPool.Put(buf)
+	r := s.readersPool.Get().(*bufio.Reader)
+	defer s.readersPool.Put(r)
 
 	p, _, err = c.Connection.receivePacket(r)
 	if err != nil {

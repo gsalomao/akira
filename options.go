@@ -31,6 +31,37 @@ type Options struct {
 	SessionStore SessionStore
 }
 
+// OptionsFunc is the function called by NewServer factory method to set the Options.
+type OptionsFunc func(opts *Options)
+
+// WithConfig sets the config into the Options.
+func WithConfig(c *Config) OptionsFunc {
+	return func(opts *Options) {
+		opts.Config = c
+	}
+}
+
+// WithListeners sets the listeners into the Options.
+func WithListeners(l []Listener) OptionsFunc {
+	return func(opts *Options) {
+		opts.Listeners = l
+	}
+}
+
+// WithHooks sets the hooks into the Options.
+func WithHooks(h []Hook) OptionsFunc {
+	return func(opts *Options) {
+		opts.Hooks = h
+	}
+}
+
+// WithSessionStore sets the session store into the Options.
+func WithSessionStore(s SessionStore) OptionsFunc {
+	return func(opts *Options) {
+		opts.SessionStore = s
+	}
+}
+
 // NewDefaultOptions creates a default Options.
 func NewDefaultOptions() *Options {
 	return &Options{Config: NewDefaultConfig()}
