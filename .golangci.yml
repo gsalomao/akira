@@ -103,7 +103,6 @@ linters-settings:
         allow:
           - $gostd
           - github.com/gsalomao/akira
-          - github.com/stretchr/testify
   dupl:
     threshold: 100
   gocognit:
