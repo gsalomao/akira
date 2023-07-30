@@ -22,7 +22,7 @@ env:
   FORCE_COLOR: true
 
 jobs:
-  lint:
+  inspect:
     runs-on: ubuntu-20.04
     steps:
       - name: Checkout repository
@@ -33,30 +33,7 @@ jobs:
           go-version-file: 'go.mod'
 
       - name: Install gitlint
-        run: |
-          pip install gitlint
-          gitlint --version
-
-      - name: Run gitlint
-        run: gitlint
-
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: v1.53
-
-      - name: Run vet
-        run: make vet
-
-  complexity-analysis:
-    runs-on: ubuntu-20.04
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - uses: actions/setup-go@v4
-        with:
-          go-version-file: 'go.mod'
+        run: pip install gitlint
 
       - name: Install gocyclo
         run: go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
@@ -64,8 +41,19 @@ jobs:
       - name: Install gocognit
         run: go install github.com/uudashr/gocognit/cmd/gocognit@latest
 
+      - name: Run gitlint
+        run: gitlint
+
+      - name: Run vet
+        run: make vet
+
       - name: Calculate cyclomatic complexities
         run: make complexity
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: v1.53
 
   build:
     runs-on: ubuntu-20.04
