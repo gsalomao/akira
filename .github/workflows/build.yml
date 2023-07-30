@@ -41,7 +41,9 @@ jobs:
         run: gitlint
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v2
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: v1.53
 
       - name: Run vet
         run: make vet
