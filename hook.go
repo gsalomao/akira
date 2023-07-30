@@ -286,8 +286,13 @@ func (h *hooks) onStart() error {
 
 	for _, hook := range h.hooks[onStartHook] {
 		hk := hook.(OnStartHook)
-		return hk.OnStart()
+
+		err := hk.OnStart()
+		if err != nil {
+			return err
+		}
 	}
+
 	return nil
 }
 
@@ -307,8 +312,13 @@ func (h *hooks) onServerStart() error {
 
 	for _, hook := range h.hooks[onServerStartHook] {
 		hk := hook.(OnServerStartHook)
-		return hk.OnServerStart()
+
+		err := hk.OnServerStart()
+		if err != nil {
+			return err
+		}
 	}
+
 	return nil
 }
 
@@ -362,8 +372,13 @@ func (h *hooks) onConnectionOpen(c *Connection) error {
 
 	for _, hook := range h.hooks[onConnectionOpenHook] {
 		hk := hook.(OnConnectionOpenHook)
-		return hk.OnConnectionOpen(c)
+
+		err := hk.OnConnectionOpen(c)
+		if err != nil {
+			return err
+		}
 	}
+
 	return nil
 }
 
@@ -419,8 +434,13 @@ func (h *hooks) onReceivePacket(c *Client) error {
 
 	for _, hook := range h.hooks[onReceivePacketHook] {
 		hk := hook.(OnReceivePacketHook)
-		return hk.OnReceivePacket(c)
+
+		err := hk.OnReceivePacket(c)
+		if err != nil {
+			return err
+		}
 	}
+
 	return nil
 }
 
@@ -468,8 +488,13 @@ func (h *hooks) onPacketReceived(c *Client, p Packet) error {
 
 	for _, hook := range h.hooks[onPacketReceivedHook] {
 		hk := hook.(OnPacketReceivedHook)
-		return hk.OnPacketReceived(c, p)
+
+		err := hk.OnPacketReceived(c, p)
+		if err != nil {
+			return err
+		}
 	}
+
 	return nil
 }
 
@@ -483,8 +508,13 @@ func (h *hooks) onPacketSend(c *Client, p Packet) error {
 
 	for _, hook := range h.hooks[onPacketSendHook] {
 		hk := hook.(OnPacketSendHook)
-		return hk.OnPacketSend(c, p)
+
+		err := hk.OnPacketSend(c, p)
+		if err != nil {
+			return err
+		}
 	}
+
 	return nil
 }
 
@@ -526,8 +556,13 @@ func (h *hooks) onConnect(c *Client, p *packet.Connect) error {
 
 	for _, hook := range h.hooks[onConnectHook] {
 		hk := hook.(OnConnectHook)
-		return hk.OnConnect(c, p)
+
+		err := hk.OnConnect(c, p)
+		if err != nil {
+			return err
+		}
 	}
+
 	return nil
 }
 
