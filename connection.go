@@ -49,9 +49,9 @@ func NewConnection(l Listener, nc net.Conn) *Connection {
 	return &Connection{Listener: l, netConn: nc}
 }
 
-func (c *Connection) readFixedHeader(r *bufio.Reader) (h packet.FixedHeader, n int, err error) {
+func (c *Connection) readFixedHeader(r *bufio.Reader, h *packet.FixedHeader) (n int, err error) {
 	if c == nil {
-		return h, 0, io.EOF
+		return 0, io.EOF
 	}
 
 	r.Reset(c.netConn)
@@ -59,10 +59,10 @@ func (c *Connection) readFixedHeader(r *bufio.Reader) (h packet.FixedHeader, n i
 
 	n, err = h.Read(r)
 	if err != nil {
-		return h, n, fmt.Errorf("failed to read fixed header: %w", err)
+		return n, fmt.Errorf("failed to read fixed header: %w", err)
 	}
 
-	return h, n, nil
+	return n, nil
 }
 
 func (c *Connection) receivePacket(r *bufio.Reader, h packet.FixedHeader) (p Packet, n int, err error) {

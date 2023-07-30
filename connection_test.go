@@ -92,8 +92,9 @@ func TestConnectionReceivePacket(t *testing.T) {
 			}()
 
 			r := bufio.NewReader(nil)
+			var h packet.FixedHeader
 
-			h, hSize, readErr := conn.readFixedHeader(r)
+			hSize, readErr := conn.readFixedHeader(r, &h)
 			if readErr != nil {
 				t.Fatalf("Unexpected read error\n%v", readErr)
 			}
@@ -165,8 +166,9 @@ func TestConnectionReceivePacketError(t *testing.T) {
 			}()
 
 			r := bufio.NewReader(nil)
+			var h packet.FixedHeader
 
-			h, hSize, readErr := conn.readFixedHeader(r)
+			hSize, readErr := conn.readFixedHeader(r, &h)
 			if readErr != nil {
 				t.Fatalf("Unexpected read error\n%v", readErr)
 			}

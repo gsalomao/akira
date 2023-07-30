@@ -391,7 +391,7 @@ func (s *Server) receivePacket(c *Client) (p Packet, err error) {
 
 	var h packet.FixedHeader
 
-	h, _, err = c.Connection.readFixedHeader(r)
+	_, err = c.Connection.readFixedHeader(r, &h)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read fixed header: %w", err)
 	}
