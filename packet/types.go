@@ -177,14 +177,12 @@ func sizeVarInteger(val int) int {
 
 func sizeUint[T integer](val T) int {
 	switch any(val).(type) {
-	case int8, uint8, bool:
-		return 1
-	case int16, uint16:
-		return 2
 	case int32, uint32:
 		return 4
+	case int16, uint16:
+		return 2
 	default:
-		return 8
+		return 1
 	}
 }
 
