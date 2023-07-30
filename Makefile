@@ -42,12 +42,6 @@ fmt: ## Format source code
 	@go fmt ./...
 	$(call print_task_result,"Formatting source code","done")
 
-.PHONY: generate
-generate: ## Generate files
-	$(call print_task,"Generating mock files")
-	@mockery --quiet
-	$(call print_task_result,"Generating mock files","done")
-
 ## Build
 .PHONY: build
 build: ## Build application
