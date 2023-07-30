@@ -84,7 +84,7 @@ func (c *Connection) receivePacket(r *bufio.Reader, h packet.FixedHeader) (p Pac
 
 	buf := make([]byte, h.RemainingLength)
 	if _, err = io.ReadFull(r, buf); err != nil {
-		return nil, n, err
+		return nil, n, fmt.Errorf("failed to read remaining bytes: %w", err)
 	}
 
 	p = pd
@@ -112,7 +112,7 @@ func (c *Connection) sendPacket(p PacketEncodable) (n int, err error) {
 
 	_, err = p.Encode(buf)
 	if err != nil {
-		return n, err
+		return n, fmt.Errorf("failed to encode packet: %w", err)
 	}
 
 	return c.netConn.Write(buf)
