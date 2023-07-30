@@ -134,6 +134,16 @@ complexity: ## Calculates cyclomatic complexity
 	@gocyclo -over 12 -avg .
 	$(call print_task_result,"Calculating cyclomatic complexity","done")
 
+.PHONY: security
+security: ## Run security checks
+	$(call print_task,"Running govulncheck")
+	@govulncheck ./...
+	$(call print_task_result,"Running govulncheck","done")
+
+	$(call print_task,"Running gosec")
+	@gosec -quiet -exclude-dir testdata ./...
+	$(call print_task_result,"Running gosec","done")
+
 ## Help
 .PHONY: help
 help: ## Show this help
