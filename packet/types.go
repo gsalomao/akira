@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"strings"
 	"unicode/utf8"
-	"unsafe"
 )
 
 const (
@@ -177,7 +176,16 @@ func sizeVarInteger(val int) int {
 }
 
 func sizeUint[T integer](val T) int {
-	return int(unsafe.Sizeof(val))
+	switch any(val).(type) {
+	case int8, uint8, bool:
+		return 1
+	case int16, uint16:
+		return 2
+	case int32, uint32:
+		return 4
+	default:
+		return 8
+	}
 }
 
 func sizeBinary(data []byte) int {
@@ -247,7 +255,7 @@ func decodeVarInteger(buf []byte, val *int) (int, error) {
 func decodeUint[T integer](data []byte) (T, error) {
 	var v T
 
-	if int(unsafe.Sizeof(v)) > len(data) {
+	if sizeUint(v) > len(data) {
 		return v, errors.New("not enough bytes to decode integer")
 	}
 
