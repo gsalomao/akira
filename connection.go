@@ -55,7 +55,10 @@ func (c *Connection) readFixedHeader(r *bufio.Reader, h *packet.FixedHeader) (n 
 	}
 
 	r.Reset(c.netConn)
-	c.setReadDeadline()
+	err = c.setReadDeadline()
+	if err != nil {
+		return 0, fmt.Errorf("failed to set read deadline: %w", err)
+	}
 
 	n, err = h.Read(r)
 	if err != nil {
@@ -115,11 +118,11 @@ func (c *Connection) sendPacket(p PacketEncodable) (n int, err error) {
 	return c.netConn.Write(buf)
 }
 
-func (c *Connection) setReadDeadline() {
+func (c *Connection) setReadDeadline() error {
 	var deadline time.Time
 	if c.KeepAliveMs > 0 {
 		timeout := math.Ceil(float64(c.KeepAliveMs) * 1.5)
 		deadline = time.Now().Add(time.Duration(timeout) * time.Millisecond)
 	}
-	_ = c.netConn.SetReadDeadline(deadline)
+	return c.netConn.SetReadDeadline(deadline)
 }
