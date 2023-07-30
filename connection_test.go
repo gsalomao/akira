@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"reflect"
 	"sync"
 	"testing"
@@ -118,6 +119,18 @@ func TestConnectionReceivePacket(t *testing.T) {
 				t.Fatalf("Unexpected write error\n%v", writeErr)
 			}
 		})
+	}
+}
+
+func TestConnectionReadFixedHeaderOnNilConnection(t *testing.T) {
+	var conn *Connection
+
+	n, err := conn.readFixedHeader(bufio.NewReader(nil), &packet.FixedHeader{})
+	if !errors.Is(err, io.EOF) {
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+	}
+	if n != 0 {
+		t.Errorf("Unexpected number of bytes read\nwant: %v\ngot:  %v", 0, n)
 	}
 }
 
@@ -254,5 +267,17 @@ func TestConnectionSendPacketError(t *testing.T) {
 	}
 	if n != 0 {
 		t.Errorf("Unexpected number of bytes written\nwant: %v\ngot:  %v", 0, n)
+	}
+}
+
+func TestConnectSendPacketTimeout(t *testing.T) {
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+	conn.sendTimeoutMs = 10
+
+	p := &packet.ConnAck{Version: packet.MQTT50}
+	_, err := conn.sendPacket(p)
+	if !errors.Is(err, os.ErrDeadlineExceeded) {
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", os.ErrDeadlineExceeded, err)
 	}
 }

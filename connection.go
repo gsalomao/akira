@@ -31,7 +31,8 @@ var ErrInvalidConnection = errors.New("invalid connection")
 
 // Connection represents the network connection with the client.
 type Connection struct {
-	netConn net.Conn
+	netConn       net.Conn
+	sendTimeoutMs int
 
 	// Listener is the Listener which accepted the connection.
 	Listener Listener `json:"-"`
@@ -115,6 +116,11 @@ func (c *Connection) sendPacket(p PacketEncodable) (n int, err error) {
 		return n, fmt.Errorf("failed to encode packet: %w", err)
 	}
 
+	err = c.setWriteDeadline()
+	if err != nil {
+		return 0, fmt.Errorf("failed to set write deadline: %w", err)
+	}
+
 	return c.netConn.Write(buf)
 }
 
@@ -125,4 +131,12 @@ func (c *Connection) setReadDeadline() error {
 		deadline = time.Now().Add(time.Duration(timeout) * time.Millisecond)
 	}
 	return c.netConn.SetReadDeadline(deadline)
+}
+
+func (c *Connection) setWriteDeadline() error {
+	var deadline time.Time
+	if c.sendTimeoutMs > 0 {
+		deadline = time.Now().Add(time.Duration(c.sendTimeoutMs) * time.Millisecond)
+	}
+	return c.netConn.SetWriteDeadline(deadline)
 }

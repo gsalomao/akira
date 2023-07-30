@@ -266,6 +266,7 @@ func (s *Server) Serve(c *Connection) error {
 	}
 
 	c.KeepAliveMs = s.config.ConnectTimeoutMs
+	c.sendTimeoutMs = s.config.SendPacketTimeoutMs
 
 	if err := s.hooks.onConnectionOpen(c); err != nil {
 		_ = c.netConn.Close()

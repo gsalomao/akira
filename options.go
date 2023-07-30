@@ -69,6 +69,9 @@ func NewDefaultOptions() *Options {
 
 // Config contains the Server configuration.
 type Config struct {
+	// SendPacketTimeoutMs is the timeout, in milliseconds, to wait for a packet to be sent.
+	SendPacketTimeoutMs int `json:"send_packet_timeout_ms"`
+
 	// MaxClientIDSize is the maximum length for client identifier, in bytes, allowed by the server.
 	MaxClientIDSize int `json:"max_client_id_size"`
 
@@ -115,6 +118,7 @@ type Config struct {
 // NewDefaultConfig creates a default Config.
 func NewDefaultConfig() *Config {
 	c := Config{
+		SendPacketTimeoutMs:           1000,
 		MaxClientIDSize:               23,
 		ReadBufferSize:                1024,
 		ConnectTimeoutMs:              10000,
