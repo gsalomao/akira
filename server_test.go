@@ -707,6 +707,44 @@ func TestServerClosesConnectionWhenReceivesInvalidPacket(t *testing.T) {
 	}
 }
 
+func TestServerClosesConnectionWhenMaxPacketSizeExceeded(t *testing.T) {
+	fixture := readPacketFixture(t, "connect.json", "V5.0")
+	onPacketReceive := &mockOnPacketReceiveHook{}
+	onPacketReceiveFailed := &mockOnPacketReceiveFailedHook{}
+
+	c := NewDefaultConfig()
+	c.MaxPacketSize = 1
+
+	s := newServer(t, WithConfig(c), WithHooks([]Hook{onPacketReceive, onPacketReceiveFailed}))
+	defer s.Close()
+	startServer(t, s)
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+
+	receiveErr := make(chan error)
+	onPacketReceiveFailed.cb = func(_ *Client, err error) { receiveErr <- err }
+
+	serveConnection(t, s, conn)
+	sendPacket(t, nc, fixture.Packet)
+
+	err := <-receiveErr
+	if !errors.Is(err, ErrPacketSizeExceeded) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", ErrPacketSizeExceeded, err)
+	}
+	if onPacketReceive.calls() != 0 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 0, onPacketReceive.calls())
+	}
+	if onPacketReceiveFailed.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onPacketReceiveFailed.calls())
+	}
+
+	_, err = nc.Read(nil)
+	if !errors.Is(err, io.EOF) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+	}
+}
+
 func TestServerClosesConnectionWhenOnReceivePacketReturnsError(t *testing.T) {
 	h := &mockOnReceivePacketHook{cb: func(_ *Client) error { return errHookFailed }}
 

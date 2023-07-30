@@ -390,11 +390,19 @@ func (s *Server) receivePacket(c *Client) (p Packet, err error) {
 	r := s.readersPool.Get().(*bufio.Reader)
 	defer s.readersPool.Put(r)
 
-	var h packet.FixedHeader
+	var (
+		h packet.FixedHeader
+		n int
+	)
 
-	_, err = c.Connection.readFixedHeader(r, &h)
+	n, err = c.Connection.readFixedHeader(r, &h)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read fixed header: %w", err)
+	}
+
+	pSize := n + h.RemainingLength
+	if s.config.MaxPacketSize > 0 && pSize > int(s.config.MaxPacketSize) {
+		return nil, ErrPacketSizeExceeded
 	}
 
 	err = s.hooks.onPacketReceive(c, h)

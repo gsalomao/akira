@@ -15,8 +15,14 @@
 package akira
 
 import (
+	"errors"
+
 	"github.com/gsalomao/akira/packet"
 )
+
+// ErrPacketSizeExceeded indicates that the packet was rejected due to its size has exceeded the maximum packet size
+// set in Config.
+var ErrPacketSizeExceeded = errors.New("packet size exceeded")
 
 // Packet is the interface representing all MQTT packets.
 type Packet interface {
