@@ -52,6 +52,13 @@ func (l *listeners) add(lsn Listener) {
 	l.internal = append(l.internal, lsn)
 }
 
+func (l *listeners) len() int {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	return len(l.internal)
+}
+
 func (l *listeners) listenAll(h Handler) error {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
