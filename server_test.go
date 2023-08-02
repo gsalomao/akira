@@ -404,6 +404,23 @@ func TestServerAddHookFailsWhenOnStartReturnsError(t *testing.T) {
 	}
 }
 
+func TestServerAddHookFailsWhenHookAlreadyAdded(t *testing.T) {
+	s := newServer(t)
+	defer s.Close()
+	startServer(t, s)
+
+	h := &mockOnStartHook{}
+	err := s.AddHook(h)
+	if err != nil {
+		t.Fatalf("Unexpected error\n%v", err)
+	}
+
+	err = s.AddHook(h)
+	if !errors.Is(err, ErrHookAlreadyExists) {
+		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", ErrHookAlreadyExists, err)
+	}
+}
+
 func TestServerStop(t *testing.T) {
 	s := newServer(t)
 	defer s.Close()
