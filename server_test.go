@@ -31,6 +31,31 @@ import (
 	"github.com/gsalomao/akira/testdata"
 )
 
+func TestServerStateString(t *testing.T) {
+	testCases := []struct {
+		state ServerState
+		str   string
+	}{
+		{ServerNotStarted, "Not Started"},
+		{ServerStarting, "Starting"},
+		{ServerRunning, "Running"},
+		{ServerStopping, "Stopping"},
+		{ServerStopped, "Stopped"},
+		{ServerFailed, "Failed"},
+		{ServerClosed, "Closed"},
+		{ServerState(100), "Invalid"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.str, func(t *testing.T) {
+			str := tc.state.String()
+			if str != tc.str {
+				t.Errorf("Unexpected string\nwant: %s\ngot:  %s", tc.str, str)
+			}
+		})
+	}
+}
+
 func TestNewServer(t *testing.T) {
 	s, err := NewServer()
 	if err != nil {
@@ -112,6 +137,23 @@ func TestNewServerWithHooksErrorDuplicatedHook(t *testing.T) {
 	}
 	if s != nil {
 		t.Error("No server should be created")
+	}
+}
+
+func TestNewServerWithLogger(t *testing.T) {
+	l := &noOpLogger{}
+
+	s, err := NewServer(WithLogger(l))
+	if err != nil {
+		t.Fatalf("Unexpected error\n%v", err)
+	}
+	if s == nil {
+		t.Fatal("A server was expected")
+	}
+	defer s.Close()
+
+	if s.logger != l {
+		t.Fatalf("Unexpected log\nwant: %+v\ngot:  %+v", l, s.logger)
 	}
 }
 

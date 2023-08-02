@@ -63,11 +63,34 @@ var ErrServerNotRunning = errors.New("server not running")
 // ServerState represents the current state of the Server.
 type ServerState uint32
 
+// String returns a human-friendly name for the ServerState.
+func (s ServerState) String() string {
+	switch s {
+	case ServerNotStarted:
+		return "Not Started"
+	case ServerStarting:
+		return "Starting"
+	case ServerRunning:
+		return "Running"
+	case ServerStopping:
+		return "Stopping"
+	case ServerStopped:
+		return "Stopped"
+	case ServerFailed:
+		return "Failed"
+	case ServerClosed:
+		return "Closed"
+	default:
+		return "Invalid"
+	}
+}
+
 // Server is a MQTT broker responsible for implementing the MQTT 3.1, 3.1.1, and 5.0 specifications. To create a Server
 // instance, use the NewServer or NewServerWithOptions factory functions.
 type Server struct {
 	config      Config
 	store       store
+	logger      Logger
 	listeners   *listeners
 	hooks       *hooks
 	readersPool sync.Pool
@@ -97,10 +120,14 @@ func NewServerWithOptions(opts *Options) (s *Server, err error) {
 	if opts.Config == nil {
 		opts.Config = NewDefaultConfig()
 	}
+	if opts.Logger == nil {
+		opts.Logger = &noOpLogger{}
+	}
 
 	s = &Server{
 		config:    *opts.Config,
 		store:     store{sessionStore: opts.SessionStore},
+		logger:    opts.Logger,
 		listeners: newListeners(),
 		hooks:     newHooks(),
 		readersPool: sync.Pool{
@@ -131,13 +158,19 @@ func NewServerWithOptions(opts *Options) (s *Server, err error) {
 // For listeners which should not be managed by the server, don't add them into the server and call the Serve
 // method for each Connection to be served.
 func (s *Server) AddListener(l Listener) error {
+	s.logger.Log("Adding listener", "listeners", s.listeners.len(), "state", s.State().String())
+
 	if s.State() == ServerRunning {
 		err := l.Listen(s.Serve)
 		if err != nil {
+			s.logger.Log("Failed to start listener", "error", err, "listeners", s.listeners.len(),
+				"state", s.State().String())
 			return err
 		}
 	}
 	s.listeners.add(l)
+	s.logger.Log("Listener added with success", "listeners", s.listeners.len(),
+		"state", s.State().String())
 	return nil
 }
 
@@ -147,15 +180,29 @@ func (s *Server) AddListener(l Listener) error {
 // hook, if this hook implements it. If the OnStart hook returns an error, the hook is not added into the server
 // and the error is returned.
 func (s *Server) AddHook(h Hook) error {
+	s.logger.Log("Adding hook", "hook", h.Name(), "hooks", s.hooks.len(), "state", s.State().String())
+
 	if s.State() == ServerRunning {
 		if hook, ok := h.(OnStartHook); ok {
 			err := hook.OnStart()
 			if err != nil {
+				s.logger.Log("Failed to start hook", "hook", h.Name(), "hooks", s.hooks.len(),
+					"error", err)
 				return err
 			}
 		}
 	}
-	return s.hooks.add(h)
+
+	err := s.hooks.add(h)
+	if err != nil {
+		s.logger.Log("Failed to add hook", "hook", h.Name(), "hooks", s.hooks.len(), "error", err,
+			"state", s.State().String())
+		return err
+	}
+
+	s.logger.Log("Hook added with success", "hook", h.Name(), "hooks", s.hooks.len(),
+		"state", s.State().String())
+	return nil
 }
 
 // Start starts the Server and returns immediately.
@@ -166,12 +213,18 @@ func (s *Server) AddHook(h Hook) error {
 // If the server is not in the ServerNotStarted or ServerStopped state, it returns ErrInvalidServerState.
 func (s *Server) Start() error {
 	state := s.State()
+	s.logger.Log("Starting server", "state", state.String())
+
 	if state != ServerNotStarted && state != ServerStopped {
+		s.logger.Log("Failed start server due to invalid start", "state", state.String())
 		return ErrInvalidServerState
 	}
 
 	err := s.setState(ServerStarting, nil)
 	if err != nil {
+		s.logger.Log("Failed to set server to starting state", "error", err, "state", state.String())
+
+		// The setState method never returns error when setting to ServerFailed.
 		_ = s.setState(ServerFailed, err)
 		return err
 	}
@@ -181,6 +234,9 @@ func (s *Server) Start() error {
 
 	err = s.listeners.listenAll(s.Serve)
 	if err != nil {
+		s.logger.Log("Failed to start listeners", "error", err, "state", state.String())
+
+		// The setState method never returns error when setting to ServerFailed.
 		_ = s.setState(ServerFailed, err)
 		return err
 	}
@@ -197,7 +253,11 @@ func (s *Server) Start() error {
 	}()
 
 	<-readyCh
+
+	// The setState method never returns error when setting to ServerRunning.
 	_ = s.setState(ServerRunning, nil)
+	s.logger.Log("Server started with success", "state", s.State().String())
+
 	return nil
 }
 
@@ -208,7 +268,11 @@ func (s *Server) Start() error {
 //
 // If the server is not in the ServerRunning state, this function has no side effect.
 func (s *Server) Stop(ctx context.Context) error {
-	if s.State() != ServerRunning {
+	state := s.State()
+	s.logger.Log("Stopping server", "state", state.String())
+
+	if state != ServerRunning {
+		s.logger.Log("Server not running", "state", state.String())
 		return nil
 	}
 
@@ -225,8 +289,10 @@ func (s *Server) Stop(ctx context.Context) error {
 
 	select {
 	case <-ctx.Done():
+		s.logger.Log("Stop server cancelled", "state", s.State().String())
 		return ctx.Err()
 	case <-stoppedCh:
+		s.logger.Log("Server stopped with success", "state", s.State().String())
 		return nil
 	}
 }
@@ -236,18 +302,22 @@ func (s *Server) Stop(ctx context.Context) error {
 // When the Server is closed, it cannot be started again. If the server is in ServerRunning state, it stops
 // the server first before close it.
 func (s *Server) Close() {
-	switch s.State() {
-	case ServerNotStarted, ServerStopped, ServerFailed:
-		_ = s.setState(ServerClosed, nil)
+	state := s.State()
+	s.logger.Log("Closing server", "state", state.String())
+
+	if state == ServerClosed {
+		s.logger.Log("Server already closed", "state", state.String())
 		return
-	case ServerRunning:
-		s.stop()
-		_ = s.setState(ServerStopped, nil)
-	case ServerClosed:
-		return
-	default:
 	}
+	if state == ServerRunning {
+		s.stop()
+		// The setState method never returns error when setting to ServerStopped.
+		_ = s.setState(ServerStopped, nil)
+	}
+
+	// The setState method never returns error when setting to ServerClosed.
 	_ = s.setState(ServerClosed, nil)
+	s.logger.Log("Server closed with success", "state", s.State().String())
 }
 
 // Serve serves the provided Connection.
@@ -258,11 +328,15 @@ func (s *Server) Close() {
 // When this method is called, the server creates a Client, associate the client with the connection, and
 // returns immediately. If this method is called while the server is not running, it returns ErrServerNotRunning.
 func (s *Server) Serve(c *Connection) error {
-	if s.State() != ServerRunning {
-		return ErrServerNotRunning
-	}
+	state := s.State()
 	if c == nil || c.Listener == nil || c.netConn == nil {
+		s.logger.Log("Cannot serve connection as it is invalid", "connection", c, "state", state.String())
 		return ErrInvalidConnection
+	}
+	if state != ServerRunning {
+		s.logger.Log("Cannot serve connection as server not running", "address", c.Address,
+			"state", state.String())
+		return ErrServerNotRunning
 	}
 
 	c.Address = c.netConn.RemoteAddr().String()
@@ -272,6 +346,8 @@ func (s *Server) Serve(c *Connection) error {
 	if err := s.hooks.onConnectionOpen(c); err != nil {
 		_ = c.netConn.Close()
 		s.hooks.onConnectionClosed(c, err)
+		s.logger.Log("Cannot serve connection due to an error from OnConnectionOpen", "address", c.Address,
+			"error", err)
 		return err
 	}
 
@@ -283,8 +359,14 @@ func (s *Server) Serve(c *Connection) error {
 
 	// The inbound goroutine is responsible for receive and handle the received packets from client.
 	go func() {
-		defer s.wg.Done()
-		defer cancelInboundCtx()
+		s.logger.Log("Running inbound loop", "address", c.Address)
+		defer func() {
+			s.logger.Log("Stopping inbound loop", "address", c.Address, "id", string(client.ID),
+				"state", s.State().String())
+
+			cancelInboundCtx()
+			s.wg.Done()
+		}()
 
 		err := s.inboundLoop(client)
 		if err != nil {
@@ -294,21 +376,34 @@ func (s *Server) Serve(c *Connection) error {
 
 	// The outbound goroutine is responsible to send outbound packets to client.
 	go func() {
-		defer s.wg.Done()
+		s.logger.Log("Running outbound loop", "address", c.Address)
+		defer func() {
+			s.logger.Log("Stopping outbound loop", "address", c.Address, "id", string(client.ID),
+				"state", s.State().String())
+			s.wg.Done()
+		}()
 
 		err := s.outboundLoop(outboundCtx)
-		if err != nil {
-			s.hooks.onClientClose(client, err)
-			_ = client.Connection.netConn.Close()
-			<-inboundCtx.Done()
+		s.hooks.onClientClose(client, err)
 
-			conn := client.Connection
-			client.Connection = nil
-			s.hooks.onConnectionClosed(conn, err)
+		_ = client.Connection.netConn.Close()
+		<-inboundCtx.Done()
+
+		if errors.Is(err, io.EOF) || errors.Is(err, ErrServerStopped) {
+			s.logger.Log("Client closed", "address", c.Address, "id", string(client.ID),
+				"state", s.State().String())
+		} else {
+			s.logger.Log("Client closed due to an error", "address", c.Address, "error", err,
+				"id", string(client.ID), "state", s.State().String())
 		}
+
+		conn := client.Connection
+		client.Connection = nil
+		s.hooks.onConnectionClosed(conn, err)
 	}()
 
 	s.hooks.onClientOpened(client)
+	s.logger.Log("Serving connection", "address", c.Address)
 	return nil
 }
 
@@ -325,15 +420,17 @@ func (s *Server) setState(state ServerState, err error) error {
 		if err == nil {
 			err = s.hooks.onStart()
 		}
+	case ServerRunning:
+		s.hooks.onServerStarted()
 	case ServerStopping:
 		s.hooks.onServerStop()
 		s.hooks.onStop()
 	case ServerStopped:
 		s.hooks.onServerStopped()
-	case ServerRunning:
-		s.hooks.onServerStarted()
 	case ServerFailed:
 		s.hooks.onServerStartFailed(err)
+	case ServerClosed:
+		// The closed state doesn't have any hook.
 	default:
 		err = ErrInvalidServerState
 	}
@@ -365,6 +462,9 @@ func (s *Server) inboundLoop(c *Client) error {
 			s.hooks.onPacketReceiveFailed(c, err)
 			return err
 		}
+
+		s.logger.Log("Received packet from client", "address", c.Connection.Address, "id", string(c.ID),
+			"packet", p.Type().String(), "size", p.Size())
 
 		err = s.hooks.onPacketReceived(c, p)
 		if err != nil {
@@ -435,9 +535,14 @@ func (s *Server) handlePacketConnect(c *Client, connect *packet.Connect) error {
 
 	err := s.hooks.onConnect(c, connect)
 	if err != nil {
+		s.logger.Log("Stopping to connect client due to an error from OnConnect",
+			"address", c.Connection.Address, "error", err)
+
 		var pktErr packet.Error
 		if errors.As(err, &pktErr) {
 			if pktErr.Code != packet.ReasonCodeSuccess && pktErr.Code != packet.ReasonCodeMalformedPacket {
+				// As the client is going to be closed, there's nothing else to do with the error returned from the
+				// sendConnAck, as it was already logged.
 				_ = s.sendConnAck(c, pktErr.Code, false, nil)
 			}
 		}
@@ -461,11 +566,17 @@ func (s *Server) connectClient(c *Client, connect *packet.Connect) error {
 	)
 
 	if !isClientIDValid(connect.Version, len(connect.ClientID), &s.config) {
+		s.logger.Log("Failed to connect client due to invalid client ID", "address", c.Connection.Address,
+			"id", string(connect.ClientID))
+
 		_ = s.sendConnAck(c, packet.ReasonCodeClientIDNotValid, false, nil)
 		return packet.ErrClientIDNotValid
 	}
 
 	if !isKeepAliveValid(connect.Version, connect.KeepAlive, s.config.MaxKeepAliveSec) {
+		s.logger.Log("Failed to connect client due to invalid keep alive", "address", c.Connection.Address,
+			"id", string(connect.ClientID), "keep_alive", connect.KeepAlive)
+
 		// For MQTT v3.1 and v3.1.1, there is no mechanism to tell the clients what Keep Alive value they should use.
 		// If an MQTT v3.1 or v3.1.1 client specifies a Keep Alive time greater than maximum keep alive, the CONNACK
 		// packet shall be sent with the reason code "identifier rejected".
@@ -484,9 +595,13 @@ func (s *Server) connectClient(c *Client, connect *packet.Connect) error {
 		}
 	}
 	if err != nil && !errors.Is(err, ErrSessionNotFound) {
+		s.logger.Log("Failed to get/delete session", "address", c.Connection.Address,
+			"clean_start", connect.Flags.CleanStart(), "id", string(connect.ClientID), "error", err)
+
 		// If the session store fails to get the session, or to delete the session, the server replies to client
 		// indicating that the service is unavailable.
 		pErr := packet.ErrServerUnavailable
+
 		_ = s.sendConnAck(c, pErr.Code, false, nil)
 		return fmt.Errorf("%w: %s", pErr, err.Error())
 	}
@@ -501,9 +616,13 @@ func (s *Server) connectClient(c *Client, connect *packet.Connect) error {
 	if (c.Connection.Version != packet.MQTT50 && !connect.Flags.CleanStart()) || sessionExpiryInterval(&c.Session) > 0 {
 		err = s.store.saveSession(c.ID, &c.Session)
 		if err != nil {
+			s.logger.Log("Failed save session", "address", c.Connection.Address, "error", err,
+				"id", string(c.ID))
+
 			// If the session store fails to save the session, the server replies to client indicating that the
 			// service is unavailable.
 			pErr := packet.ErrServerUnavailable
+
 			_ = s.sendConnAck(c, pErr.Code, false, nil)
 			return fmt.Errorf("%w: %s", pErr, err.Error())
 		}
@@ -515,6 +634,8 @@ func (s *Server) connectClient(c *Client, connect *packet.Connect) error {
 	}
 
 	c.connected.Store(true)
+	s.logger.Log("Client connected with success", "address", c.Connection.Address, "id", string(c.ID),
+		"keep_alive", c.Connection.KeepAliveMs/1000)
 	return nil
 }
 
@@ -537,11 +658,16 @@ func (s *Server) sendConnAck(c *Client, code packet.ReasonCode, present bool, co
 func (s *Server) sendPacket(c *Client, p PacketEncodable) error {
 	err := s.hooks.onPacketSend(c, p)
 	if err != nil {
+		s.logger.Log("Stopping to send packet to client due to an error from OnPacketSend",
+			"address", c.Connection.Address, "error", err, "id", string(c.ID), "packet", p.Type().String())
 		return err
 	}
 
 	_, err = c.Connection.sendPacket(p)
 	if err != nil {
+		s.logger.Log("Failed to send packet to client", "address", c.Connection.Address, "error", err,
+			"id", string(c.ID), "packet", p.Type().String())
+
 		if !errors.Is(err, io.EOF) {
 			s.hooks.onPacketSendFailed(c, p, err)
 		}
@@ -549,5 +675,7 @@ func (s *Server) sendPacket(c *Client, p PacketEncodable) error {
 	}
 
 	s.hooks.onPacketSent(c, p)
+	s.logger.Log("Packet sent to client", "address", c.Connection.Address, "id", string(c.ID),
+		"packet", p.Type().String(), "size", p.Size())
 	return nil
 }

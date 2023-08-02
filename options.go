@@ -29,6 +29,14 @@ type Options struct {
 
 	// SessionStore is the store responsible for persist the Session in a non-volatile memory.
 	SessionStore SessionStore
+
+	// Logger is the logger responsible for logging the messages created by the server.
+	Logger Logger
+}
+
+// NewDefaultOptions creates a default Options.
+func NewDefaultOptions() *Options {
+	return &Options{Config: NewDefaultConfig()}
 }
 
 // OptionsFunc is the function called by NewServer factory method to set the Options.
@@ -62,9 +70,11 @@ func WithSessionStore(s SessionStore) OptionsFunc {
 	}
 }
 
-// NewDefaultOptions creates a default Options.
-func NewDefaultOptions() *Options {
-	return &Options{Config: NewDefaultConfig()}
+// WithLogger sets the logger into the Options.
+func WithLogger(l Logger) OptionsFunc {
+	return func(opts *Options) {
+		opts.Logger = l
+	}
 }
 
 // Config contains the Server configuration.
