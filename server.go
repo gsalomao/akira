@@ -432,7 +432,7 @@ func (s *Server) setState(state ServerState, err error) error {
 	case ServerClosed:
 		// The closed state doesn't have any hook.
 	default:
-		err = ErrInvalidServerState
+		panic(fmt.Sprintf("invalid server state: %v", state))
 	}
 	return err
 }
