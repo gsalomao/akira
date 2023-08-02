@@ -265,6 +265,7 @@ func (s *Server) Serve(c *Connection) error {
 		return ErrInvalidConnection
 	}
 
+	c.Address = c.netConn.RemoteAddr().String()
 	c.KeepAliveMs = s.config.ConnectTimeoutMs
 	c.sendTimeoutMs = s.config.SendPacketTimeoutMs
 

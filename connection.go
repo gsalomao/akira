@@ -34,6 +34,9 @@ type Connection struct {
 	netConn       net.Conn
 	sendTimeoutMs int
 
+	// Address is the network address of the connection.
+	Address string `json:"address"`
+
 	// Listener is the Listener which accepted the connection.
 	Listener Listener `json:"-"`
 
