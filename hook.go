@@ -238,6 +238,7 @@ func registerHook[T any](h *hooks, hook Hook, t hookType) {
 
 type hooks struct {
 	mutex       sync.RWMutex
+	cnt         int
 	hookNames   [maxHooks]map[string]struct{}
 	hooks       [maxHooks][]Hook
 	hookPresent [maxHooks]atomic.Bool
@@ -277,7 +278,15 @@ func (h *hooks) add(hook Hook) error {
 		hooksRegistryFunc[t](h, hook, t)
 	}
 
+	h.cnt++
 	return nil
+}
+
+func (h *hooks) len() int {
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+
+	return h.cnt
 }
 
 func (h *hooks) onStart() error {
