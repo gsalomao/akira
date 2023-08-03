@@ -1835,6 +1835,65 @@ func TestServerConnectUnavailableWhenSaveSessionReturnsError(t *testing.T) {
 	}
 }
 
+func TestServerConnectProtocolErrorOnDuplicatePacket(t *testing.T) {
+	testCases := []struct {
+		connect string
+		connack []string
+	}{
+		{"V3.1", []string{"V3 Accepted"}},
+		{"V3.1.1", []string{"V3 Accepted"}},
+		{"V5.0", []string{"V5.0 Success", "V5.0 Protocol Error"}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.connect, func(t *testing.T) {
+			connect := readPacketFixture(t, "connect.json", tc.connect)
+			connack := make([]testdata.PacketFixture, 0, len(tc.connack))
+			for _, p := range tc.connack {
+				connack = append(connack, readPacketFixture(t, "connack.json", p))
+			}
+
+			connClosedErr := make(chan error, 1)
+			h := &mockOnConnectionClosedHook{cb: func(_ *Connection, err error) {
+				connClosedErr <- err
+			}}
+
+			s := newServer(t, WithHooks([]Hook{h}))
+			defer s.Close()
+			startServer(t, s)
+
+			nc, conn := newConnection(t)
+			defer func() { _ = nc.Close() }()
+
+			serveConnection(t, s, conn)
+			sendPacket(t, nc, connect.Packet)
+
+			p := receivePacket(t, nc, len(connack[0].Packet))
+			if !bytes.Equal(connack[0].Packet, p) {
+				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack[0].Packet, p)
+			}
+
+			sendPacket(t, nc, connect.Packet)
+			if len(connack) > 1 {
+				p = receivePacket(t, nc, len(connack[1].Packet))
+				if !bytes.Equal(connack[1].Packet, p) {
+					t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack[1].Packet, p)
+				}
+			}
+
+			_, err := nc.Read(nil)
+			if !errors.Is(err, io.EOF) {
+				t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+			}
+
+			err = <-connClosedErr
+			if !errors.Is(err, packet.ErrProtocolError) {
+				t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", packet.ErrProtocolError, err)
+			}
+		})
+	}
+}
+
 func TestServerConnectWithOnConnectReturningValidPacketError(t *testing.T) {
 	testCases := []struct {
 		connect string

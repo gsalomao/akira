@@ -529,6 +529,18 @@ func (s *Server) handlePacket(c *Client, p Packet) error {
 }
 
 func (s *Server) handlePacketConnect(c *Client, connect *packet.Connect) error {
+	if c.Connected() {
+		s.logger.Log("Duplicate CONNECT packet", "address", c.Connection.Address, "id", string(c.ID),
+			"version", connect.Version.String())
+
+		if connect.Version == packet.MQTT50 {
+			// As the client is going to be closed, there's nothing else to do with the error returned from the
+			// sendConnAck, as it was already logged.
+			_ = s.sendConnAck(c, packet.ReasonCodeProtocolError, false, nil)
+		}
+		return fmt.Errorf("%w: duplicate CONNECT packet", packet.ErrProtocolError)
+	}
+
 	// The first step must be to set the version of the MQTT connection as this information is required for further
 	// processing.
 	c.Connection.Version = connect.Version

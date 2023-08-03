@@ -69,6 +69,10 @@
 			40, 0, 41, 0, 42, 0]
 	},
 	{
+		"name": "V5.0 Protocol Error",
+		"packet": [32, 3, 0, 130, 0]
+	},
+	{
 		"name": "V5.0 Client ID Not Valid",
 		"packet": [32, 3, 0, 133, 0]
 	},
