@@ -112,7 +112,7 @@ coverage/html: coverage ## Open the coverage report in the browser
 
 ## Analyze
 .PHONY: inspect
-inspect: vet lint complexity ## Run vet and lint commands
+inspect: vet lint complexity security ## Run vet and lint commands
 
 .PHONY: vet
 vet: ## Examine source code
