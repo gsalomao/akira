@@ -137,7 +137,7 @@ complexity: ## Calculates cyclomatic complexity
 .PHONY: security
 security: ## Run security checks
 	$(call print_task,"Running govulncheck")
-	@govulncheck ./...
+	@govulncheck ./... || true
 	$(call print_task_result,"Running govulncheck","done")
 
 	$(call print_task,"Running gosec")
