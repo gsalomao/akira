@@ -362,7 +362,7 @@ func (s *Server) Serve(c *Connection) error {
 		s.logger.Log("Running inbound loop", "address", c.Address)
 		defer func() {
 			s.logger.Log("Stopping inbound loop", "address", c.Address, "id", string(client.ID),
-				"state", s.State().String())
+				"state", s.State().String(), "version", c.Version.String())
 
 			cancelInboundCtx()
 			s.wg.Done()
@@ -379,7 +379,7 @@ func (s *Server) Serve(c *Connection) error {
 		s.logger.Log("Running outbound loop", "address", c.Address)
 		defer func() {
 			s.logger.Log("Stopping outbound loop", "address", c.Address, "id", string(client.ID),
-				"state", s.State().String())
+				"state", s.State().String(), "version", c.Version.String())
 			s.wg.Done()
 		}()
 
@@ -391,10 +391,10 @@ func (s *Server) Serve(c *Connection) error {
 
 		if errors.Is(err, io.EOF) || errors.Is(err, ErrServerStopped) {
 			s.logger.Log("Client closed", "address", c.Address, "id", string(client.ID),
-				"state", s.State().String())
+				"state", s.State().String(), "version", client.Connection.Version.String())
 		} else {
 			s.logger.Log("Client closed due to an error", "address", c.Address, "error", err,
-				"id", string(client.ID), "state", s.State().String())
+				"id", string(client.ID), "state", s.State().String(), "version", client.Connection.Version.String())
 		}
 
 		conn := client.Connection
@@ -464,7 +464,7 @@ func (s *Server) inboundLoop(c *Client) error {
 		}
 
 		s.logger.Log("Received packet from client", "address", c.Connection.Address, "id", string(c.ID),
-			"packet", p.Type().String(), "size", p.Size())
+			"packet", p.Type().String(), "size", p.Size(), "version", c.Connection.Version.String())
 
 		err = s.hooks.onPacketReceived(c, p)
 		if err != nil {
@@ -536,7 +536,7 @@ func (s *Server) handlePacketConnect(c *Client, connect *packet.Connect) error {
 	err := s.hooks.onConnect(c, connect)
 	if err != nil {
 		s.logger.Log("Stopping to connect client due to an error from OnConnect",
-			"address", c.Connection.Address, "error", err)
+			"address", c.Connection.Address, "error", err, "version", connect.Version.String())
 
 		var pktErr packet.Error
 		if errors.As(err, &pktErr) {
@@ -567,7 +567,7 @@ func (s *Server) connectClient(c *Client, connect *packet.Connect) error {
 
 	if !isClientIDValid(connect.Version, len(connect.ClientID), &s.config) {
 		s.logger.Log("Failed to connect client due to invalid client ID", "address", c.Connection.Address,
-			"id", string(connect.ClientID))
+			"id", string(connect.ClientID), "version", connect.Version.String())
 
 		_ = s.sendConnAck(c, packet.ReasonCodeClientIDNotValid, false, nil)
 		return packet.ErrClientIDNotValid
@@ -575,7 +575,7 @@ func (s *Server) connectClient(c *Client, connect *packet.Connect) error {
 
 	if !isKeepAliveValid(connect.Version, connect.KeepAlive, s.config.MaxKeepAliveSec) {
 		s.logger.Log("Failed to connect client due to invalid keep alive", "address", c.Connection.Address,
-			"id", string(connect.ClientID), "keep_alive", connect.KeepAlive)
+			"id", string(connect.ClientID), "keep_alive", connect.KeepAlive, "version", connect.Version.String())
 
 		// For MQTT v3.1 and v3.1.1, there is no mechanism to tell the clients what Keep Alive value they should use.
 		// If an MQTT v3.1 or v3.1.1 client specifies a Keep Alive time greater than maximum keep alive, the CONNACK
@@ -596,7 +596,8 @@ func (s *Server) connectClient(c *Client, connect *packet.Connect) error {
 	}
 	if err != nil && !errors.Is(err, ErrSessionNotFound) {
 		s.logger.Log("Failed to get/delete session", "address", c.Connection.Address,
-			"clean_start", connect.Flags.CleanStart(), "id", string(connect.ClientID), "error", err)
+			"clean_start", connect.Flags.CleanStart(), "id", string(connect.ClientID), "error", err,
+			"version", connect.Version.String())
 
 		// If the session store fails to get the session, or to delete the session, the server replies to client
 		// indicating that the service is unavailable.
@@ -617,7 +618,7 @@ func (s *Server) connectClient(c *Client, connect *packet.Connect) error {
 		err = s.store.saveSession(c.ID, &c.Session)
 		if err != nil {
 			s.logger.Log("Failed save session", "address", c.Connection.Address, "error", err,
-				"id", string(c.ID))
+				"id", string(c.ID), "version", connect.Version.String())
 
 			// If the session store fails to save the session, the server replies to client indicating that the
 			// service is unavailable.
@@ -635,7 +636,7 @@ func (s *Server) connectClient(c *Client, connect *packet.Connect) error {
 
 	c.connected.Store(true)
 	s.logger.Log("Client connected with success", "address", c.Connection.Address, "id", string(c.ID),
-		"keep_alive", c.Connection.KeepAliveMs/1000)
+		"keep_alive", c.Connection.KeepAliveMs/1000, "version", c.Connection.Version.String())
 	return nil
 }
 
@@ -666,7 +667,7 @@ func (s *Server) sendPacket(c *Client, p PacketEncodable) error {
 	_, err = c.Connection.sendPacket(p)
 	if err != nil {
 		s.logger.Log("Failed to send packet to client", "address", c.Connection.Address, "error", err,
-			"id", string(c.ID), "packet", p.Type().String())
+			"id", string(c.ID), "packet", p.Type().String(), "version", c.Connection.Version.String())
 
 		if !errors.Is(err, io.EOF) {
 			s.hooks.onPacketSendFailed(c, p, err)
@@ -676,6 +677,6 @@ func (s *Server) sendPacket(c *Client, p PacketEncodable) error {
 
 	s.hooks.onPacketSent(c, p)
 	s.logger.Log("Packet sent to client", "address", c.Connection.Address, "id", string(c.ID),
-		"packet", p.Type().String(), "size", p.Size())
+		"packet", p.Type().String(), "size", p.Size(), "version", c.Connection.Version.String())
 	return nil
 }
