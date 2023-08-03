@@ -70,6 +70,13 @@ func hasSessionExpiryInterval(s *Session, connect *packet.Connect) bool {
 	return false
 }
 
+func isPersistentSession(v packet.Version, cleanStart bool, sessionExpiryInterval uint32) bool {
+	if (v != packet.MQTT50 && !cleanStart) || sessionExpiryInterval > 0 {
+		return true
+	}
+	return false
+}
+
 func sessionExpiryInterval(s *Session) uint32 {
 	if !s.Properties.Has(packet.PropertySessionExpiryInterval) {
 		return 0

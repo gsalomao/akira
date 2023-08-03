@@ -88,9 +88,12 @@ func (s ServerState) String() string {
 // Server is a MQTT broker responsible for implementing the MQTT 3.1, 3.1.1, and 5.0 specifications. To create a Server
 // instance, use the NewServer or NewServerWithOptions factory functions.
 type Server struct {
+	// Metrics provides the server metrics.
+	Metrics Metrics
+
 	config      Config
-	store       store
 	logger      Logger
+	store       store
 	listeners   *listeners
 	hooks       *hooks
 	readersPool sync.Pool
@@ -463,9 +466,6 @@ func (s *Server) inboundLoop(c *Client) error {
 			return err
 		}
 
-		s.logger.Log("Received packet from client", "address", c.Connection.Address, "id", string(c.ID),
-			"packet", p.Type().String(), "size", p.Size(), "version", c.Connection.Version.String())
-
 		err = s.hooks.onPacketReceived(c, p)
 		if err != nil {
 			return err
@@ -487,21 +487,18 @@ func (s *Server) backgroundLoop(ctx context.Context) {
 	<-ctx.Done()
 }
 
-func (s *Server) receivePacket(c *Client) (p Packet, err error) {
+func (s *Server) receivePacket(c *Client) (Packet, error) {
+	var h packet.FixedHeader
+
 	r := s.readersPool.Get().(*bufio.Reader)
 	defer s.readersPool.Put(r)
 
-	var (
-		h packet.FixedHeader
-		n int
-	)
-
-	n, err = c.Connection.readFixedHeader(r, &h)
+	headerSize, err := c.Connection.readFixedHeader(r, &h)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read fixed header: %w", err)
 	}
 
-	pSize := n + h.RemainingLength
+	pSize := headerSize + h.RemainingLength
 	if s.config.MaxPacketSize > 0 && pSize > int(s.config.MaxPacketSize) {
 		return nil, ErrPacketSizeExceeded
 	}
@@ -511,11 +508,22 @@ func (s *Server) receivePacket(c *Client) (p Packet, err error) {
 		return nil, err
 	}
 
-	p, _, err = c.Connection.receivePacket(r, h)
+	var (
+		p Packet
+		n int
+	)
+
+	p, n, err = c.Connection.receivePacket(r, h)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read packet: %w", err)
 	}
 
+	pSize = headerSize + n
+	s.Metrics.PacketReceived.value.Add(1)
+	s.Metrics.BytesReceived.value.Add(uint64(pSize))
+
+	s.logger.Log("Received packet from client", "address", c.Connection.Address, "id", string(c.ID),
+		"packet", p.Type().String(), "size", pSize, "version", c.Connection.Version.String())
 	return p, nil
 }
 
@@ -626,7 +634,10 @@ func (s *Server) connectClient(c *Client, connect *packet.Connect) error {
 	c.Session.LastWill = lastWill(connect)
 	c.Connection.KeepAliveMs = uint32(sessionKeepAlive(connect.KeepAlive, s.config.MaxKeepAliveSec)) * 1000
 
-	if (c.Connection.Version != packet.MQTT50 && !connect.Flags.CleanStart()) || sessionExpiryInterval(&c.Session) > 0 {
+	persistentSession := isPersistentSession(c.Connection.Version, connect.Flags.CleanStart(),
+		sessionExpiryInterval(&c.Session))
+
+	if persistentSession {
 		err = s.store.saveSession(c.ID, &c.Session)
 		if err != nil {
 			s.logger.Log("Failed save session", "address", c.Connection.Address, "error", err,
@@ -647,9 +658,15 @@ func (s *Server) connectClient(c *Client, connect *packet.Connect) error {
 	}
 
 	c.connected.Store(true)
+	s.Metrics.ClientsConnected.value.Add(1)
+
+	if persistentSession {
+		s.Metrics.PersistentSessions.value.Add(1)
+	}
+
 	s.logger.Log("Client connected with success", "address", c.Connection.Address, "id", string(c.ID),
-		"keep_alive", c.Connection.KeepAliveMs/1000, "session_present", sessionPresent,
-		"version", c.Connection.Version.String())
+		"keep_alive", c.Connection.KeepAliveMs/1000, "persistent_session", persistentSession,
+		"session_present", sessionPresent, "version", c.Connection.Version.String())
 	return nil
 }
 
@@ -677,7 +694,9 @@ func (s *Server) sendPacket(c *Client, p PacketEncodable) error {
 		return err
 	}
 
-	_, err = c.Connection.sendPacket(p)
+	var pSize int
+
+	pSize, err = c.Connection.sendPacket(p)
 	if err != nil {
 		s.logger.Log("Failed to send packet to client", "address", c.Connection.Address, "error", err,
 			"id", string(c.ID), "packet", p.Type().String(), "version", c.Connection.Version.String())
@@ -689,6 +708,10 @@ func (s *Server) sendPacket(c *Client, p PacketEncodable) error {
 	}
 
 	s.hooks.onPacketSent(c, p)
+
+	s.Metrics.PacketSent.value.Add(1)
+	s.Metrics.BytesSent.value.Add(uint64(pSize))
+
 	s.logger.Log("Packet sent to client", "address", c.Connection.Address, "id", string(c.ID),
 		"packet", p.Type().String(), "size", p.Size(), "version", c.Connection.Version.String())
 	return nil

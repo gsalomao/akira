@@ -1,0 +1,9 @@
+{
+  "packet_received": 10,
+	"packet_sent": 8,
+	"bytes_received": 300,
+	"bytes_sent": 100,
+	"clients_connected": 5,
+	"clients_maximum": 8,
+	"persistent_sessions": 3
+}

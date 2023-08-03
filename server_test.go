@@ -1099,6 +1099,68 @@ func TestServerConnectAcceptedWithHooks(t *testing.T) {
 	}
 }
 
+func TestServerConnectAcceptedMetrics(t *testing.T) {
+	testCases := []struct {
+		connect string
+		connack string
+	}{
+		{"V3.1", "V3 Accepted"},
+		{"V3.1.1", "V3 Accepted"},
+		{"V5.0", "V5.0 Success"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.connect, func(t *testing.T) {
+			connect := readPacketFixture(t, "connect.json", tc.connect)
+			connack := readPacketFixture(t, "connack.json", tc.connack)
+
+			onConnect := &mockOnConnectHook{}
+			onConnected := &mockOnConnectedHook{}
+			onPacketSend := &mockOnPacketSendHook{}
+			onPacketSent := &mockOnPacketSentHook{}
+
+			s := newServer(t, WithHooks([]Hook{onConnect, onConnected, onPacketSend, onPacketSent}))
+			defer s.Close()
+			startServer(t, s)
+
+			nc, conn := newConnection(t)
+			defer func() { _ = nc.Close() }()
+
+			connected := make(chan struct{})
+			onConnected.cb = func(_ *Client) { close(connected) }
+
+			serveConnection(t, s, conn)
+			sendPacket(t, nc, connect.Packet)
+
+			p := receivePacket(t, nc, len(connack.Packet))
+			if !bytes.Equal(connack.Packet, p) {
+				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+			}
+
+			<-connected
+			if s.Metrics.ClientsConnected.Value() != 1 {
+				t.Errorf("Unexpected metric value\nwant: %v\ngot:  %v",
+					1, s.Metrics.ClientsConnected.Value())
+			}
+			if s.Metrics.PacketReceived.Value() != 1 {
+				t.Errorf("Unexpected metric value\nwant: %v\ngot:  %v",
+					1, s.Metrics.PacketReceived.Value())
+			}
+			if s.Metrics.PacketSent.Value() != 1 {
+				t.Errorf("Unexpected metric value\nwant: %v\ngot:  %v", 1, s.Metrics.PacketSent.Value())
+			}
+			if s.Metrics.BytesReceived.Value() != uint64(len(connect.Packet)) {
+				t.Errorf("Unexpected metric value\nwant: %v\ngot:  %v",
+					len(connect.Packet), s.Metrics.BytesReceived.Value())
+			}
+			if s.Metrics.BytesSent.Value() != uint64(len(connack.Packet)) {
+				t.Errorf("Unexpected metric value\nwant: %v\ngot:  %v",
+					len(connack.Packet), s.Metrics.BytesSent.Value())
+			}
+		})
+	}
+}
+
 func TestServerConnectRejectedDueToConfig(t *testing.T) {
 	testCases := []struct {
 		version packet.Version
@@ -1272,13 +1334,17 @@ func TestServerConnectPersistentSession(t *testing.T) {
 			connect := readPacketFixture(t, "connect.json", tc.connect)
 			connack := readPacketFixture(t, "connack.json", tc.connack)
 			ss := &mockSessionStore{}
+			h := &mockOnConnectedHook{}
 
-			s := newServer(t, WithSessionStore(ss))
+			s := newServer(t, WithSessionStore(ss), WithHooks([]Hook{h}))
 			defer s.Close()
 			startServer(t, s)
 
 			nc, conn := newConnection(t)
 			defer func() { _ = nc.Close() }()
+
+			connected := make(chan struct{})
+			h.cb = func(_ *Client) { close(connected) }
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
@@ -1287,8 +1353,14 @@ func TestServerConnectPersistentSession(t *testing.T) {
 			if !bytes.Equal(connack.Packet, p) {
 				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
 			}
+
+			<-connected
 			if ss.saveCalls() != 1 {
 				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, ss.saveCalls())
+			}
+			if s.Metrics.PersistentSessions.Value() != 1 {
+				t.Errorf("Unexpected metric value\nwant: %v\ngot:  %v",
+					1, s.Metrics.PersistentSessions.Value())
 			}
 		})
 	}
@@ -1309,13 +1381,17 @@ func TestServerConnectNoSessionPersistence(t *testing.T) {
 			connect := readPacketFixture(t, "connect.json", tc.connect)
 			connack := readPacketFixture(t, "connack.json", tc.connack)
 			ss := &mockSessionStore{}
+			h := &mockOnConnectedHook{}
 
-			s := newServer(t, WithSessionStore(ss))
+			s := newServer(t, WithSessionStore(ss), WithHooks([]Hook{h}))
 			defer s.Close()
 			startServer(t, s)
 
 			nc, conn := newConnection(t)
 			defer func() { _ = nc.Close() }()
+
+			connected := make(chan struct{})
+			h.cb = func(_ *Client) { close(connected) }
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
@@ -1324,8 +1400,14 @@ func TestServerConnectNoSessionPersistence(t *testing.T) {
 			if !bytes.Equal(connack.Packet, p) {
 				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
 			}
+
+			<-connected
 			if ss.saveCalls() != 0 {
 				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 0, ss.saveCalls())
+			}
+			if s.Metrics.PersistentSessions.Value() != 0 {
+				t.Errorf("Unexpected metric value\nwant: %v\ngot:  %v",
+					0, s.Metrics.PersistentSessions.Value())
 			}
 		})
 	}
