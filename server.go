@@ -630,7 +630,7 @@ func (s *Server) connectClient(c *Client, connect *packet.Connect) error {
 		err = s.store.saveSession(c.ID, &c.Session)
 		if err != nil {
 			s.logger.Log("Failed save session", "address", c.Connection.Address, "error", err,
-				"id", string(c.ID), "version", connect.Version.String())
+				"id", string(c.ID), "session_present", sessionPresent, "version", connect.Version.String())
 
 			// If the session store fails to save the session, the server replies to client indicating that the
 			// service is unavailable.
@@ -648,7 +648,8 @@ func (s *Server) connectClient(c *Client, connect *packet.Connect) error {
 
 	c.connected.Store(true)
 	s.logger.Log("Client connected with success", "address", c.Connection.Address, "id", string(c.ID),
-		"keep_alive", c.Connection.KeepAliveMs/1000, "version", c.Connection.Version.String())
+		"keep_alive", c.Connection.KeepAliveMs/1000, "session_present", sessionPresent,
+		"version", c.Connection.Version.String())
 	return nil
 }
 
