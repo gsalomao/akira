@@ -91,17 +91,17 @@ type Server struct {
 	// Metrics provides the server metrics.
 	Metrics Metrics
 
-	config      Config
-	logger      Logger
-	store       store
-	listeners   *listeners
-	hooks       *hooks
-	readersPool sync.Pool
-	ctx         context.Context
-	cancelCtx   context.CancelCauseFunc
-	state       atomic.Uint32
-	wg          sync.WaitGroup
-	stopOnce    sync.Once
+	config       Config
+	logger       Logger
+	sessionStore SessionStore
+	listeners    *listeners
+	hooks        *hooks
+	readersPool  sync.Pool
+	ctx          context.Context
+	cancelCtx    context.CancelCauseFunc
+	state        atomic.Uint32
+	wg           sync.WaitGroup
+	stopOnce     sync.Once
 }
 
 // NewServer creates a new Server. If no options functions are provided, the server is created with the default
@@ -126,13 +126,16 @@ func NewServerWithOptions(opts *Options) (s *Server, err error) {
 	if opts.Logger == nil {
 		opts.Logger = &noOpLogger{}
 	}
+	if opts.SessionStore == nil {
+		opts.SessionStore = newInMemorySessionStore()
+	}
 
 	s = &Server{
-		config:    *opts.Config,
-		store:     store{sessionStore: opts.SessionStore},
-		logger:    opts.Logger,
-		listeners: newListeners(),
-		hooks:     newHooks(),
+		config:       *opts.Config,
+		sessionStore: opts.SessionStore,
+		logger:       opts.Logger,
+		listeners:    newListeners(),
+		hooks:        newHooks(),
 		readersPool: sync.Pool{
 			New: func() any { return bufio.NewReaderSize(nil, s.config.ReadBufferSize) },
 		},

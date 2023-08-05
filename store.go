@@ -16,7 +16,10 @@ package akira
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"sync"
 )
 
 // ErrSessionNotFound indicates that the session was not found in the SessionStore.
@@ -39,27 +42,59 @@ type SessionStore interface {
 	DeleteSession(ctx context.Context, clientID []byte) error
 }
 
-type store struct {
-	sessionStore SessionStore
+type inMemorySessionStore struct {
+	mutex    sync.RWMutex
+	sessions map[string][]byte
 }
 
-func (st store) getSession(clientID []byte, s *Session) error {
-	if st.sessionStore == nil {
+func newInMemorySessionStore() *inMemorySessionStore {
+	return &inMemorySessionStore{
+		sessions: make(map[string][]byte),
+	}
+}
+
+func (ss *inMemorySessionStore) GetSession(_ context.Context, clientID []byte, s *Session) error {
+	ss.mutex.RLock()
+	defer ss.mutex.RUnlock()
+
+	encoded, ok := ss.sessions[string(clientID)]
+	if !ok {
 		return ErrSessionNotFound
 	}
-	return st.sessionStore.GetSession(clientID, s)
+
+	err := json.Unmarshal(encoded, s)
+	if err != nil {
+		// When it fails to unmarshal the session, it means there's a programmer error in the definition of the session.
+		// Due to this, it was decided to panic so that this error can be identified sooner.
+		panic(fmt.Sprintf("failed to get session: %s", err.Error()))
+	}
+	return nil
 }
 
-func (st store) saveSession(clientID []byte, s *Session) error {
-	if st.sessionStore == nil {
-		return nil
+func (ss *inMemorySessionStore) SaveSession(_ context.Context, clientID []byte, s *Session) error {
+	encoded, err := json.Marshal(s)
+	if err != nil {
+		// When it fails to marshal the session, it means there's a programmer error in the definition of the session.
+		// Due to this, it was decided to panic so that this error can be identified sooner.
+		panic(fmt.Sprintf("failed to save session: %s", err.Error()))
 	}
-	return st.sessionStore.SaveSession(clientID, s)
+
+	ss.mutex.Lock()
+	ss.sessions[string(clientID)] = encoded
+	ss.mutex.Unlock()
+	return nil
 }
 
-func (st store) deleteSession(clientID []byte) error {
-	if st.sessionStore == nil {
-		return nil
+func (ss *inMemorySessionStore) DeleteSession(_ context.Context, clientID []byte) error {
+	id := string(clientID)
+
+	ss.mutex.Lock()
+	defer ss.mutex.Unlock()
+
+	if _, ok := ss.sessions[id]; !ok {
+		return ErrSessionNotFound
 	}
-	return st.sessionStore.DeleteSession(clientID)
+
+	delete(ss.sessions, id)
+	return nil
 }
