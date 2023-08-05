@@ -357,8 +357,8 @@ func (s *Server) Serve(c *Connection) error {
 	client := &Client{Connection: c}
 	s.wg.Add(2)
 
+	clientCtx, cancelClientCtx := context.WithCancelCause(s.ctx)
 	inboundCtx, cancelInboundCtx := context.WithCancel(context.Background())
-	outboundCtx, cancelOutboundCtx := context.WithCancelCause(s.ctx)
 
 	// The inbound goroutine is responsible for receive and handle the received packets from client.
 	go func() {
@@ -379,14 +379,10 @@ func (s *Server) Serve(c *Connection) error {
 
 	// The outbound goroutine is responsible to send outbound packets to client.
 	go func() {
-		s.logger.Log("Running outbound loop", "address", c.Address)
-		defer func() {
-			s.logger.Log("Stopping outbound loop", "address", c.Address, "id", string(client.ID),
-				"state", s.State().String(), "version", c.Version.String())
-			s.wg.Done()
-		}()
+		defer s.wg.Done()
 
-		err := s.outboundLoop(outboundCtx)
+		s.logger.Log("Running outbound loop", "address", c.Address)
+		err := s.outboundLoop(clientCtx)
 		s.hooks.onClientClose(client, err)
 
 		_ = client.Connection.netConn.Close()
@@ -394,15 +390,18 @@ func (s *Server) Serve(c *Connection) error {
 
 		if errors.Is(err, io.EOF) || errors.Is(err, ErrServerStopped) {
 			s.logger.Log("Client closed", "address", c.Address, "id", string(client.ID),
-				"state", s.State().String(), "version", client.Connection.Version.String())
+				"state", s.State().String(), "version", c.Version.String())
 		} else {
 			s.logger.Log("Client closed due to an error", "address", c.Address, "error", err,
-				"id", string(client.ID), "state", s.State().String(), "version", client.Connection.Version.String())
+				"id", string(client.ID), "state", s.State().String(), "version", c.Version.String())
 		}
 
 		conn := client.Connection
 		client.Connection = nil
 		s.hooks.onConnectionClosed(conn, err)
+
+		s.logger.Log("Stopping outbound loop", "address", c.Address, "id", string(client.ID),
+			"state", s.State().String(), "version", c.Version.String())
 	}()
 
 	s.hooks.onClientOpened(client)
