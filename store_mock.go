@@ -15,6 +15,7 @@
 package akira
 
 import (
+	"context"
 	"errors"
 	"sync/atomic"
 )
@@ -30,7 +31,7 @@ type mockSessionStore struct {
 	deleteCB     func([]byte) error
 }
 
-func (m *mockSessionStore) GetSession(clientID []byte, s *Session) error {
+func (m *mockSessionStore) GetSession(_ context.Context, clientID []byte, s *Session) error {
 	m._getCalls.Add(1)
 	if m.getCB != nil {
 		return m.getCB(clientID, s)
@@ -38,7 +39,7 @@ func (m *mockSessionStore) GetSession(clientID []byte, s *Session) error {
 	return ErrSessionNotFound
 }
 
-func (m *mockSessionStore) SaveSession(clientID []byte, s *Session) error {
+func (m *mockSessionStore) SaveSession(_ context.Context, clientID []byte, s *Session) error {
 	m._saveCalls.Add(1)
 	if m.saveCB != nil {
 		return m.saveCB(clientID, s)
@@ -46,7 +47,7 @@ func (m *mockSessionStore) SaveSession(clientID []byte, s *Session) error {
 	return nil
 }
 
-func (m *mockSessionStore) DeleteSession(clientID []byte) error {
+func (m *mockSessionStore) DeleteSession(_ context.Context, clientID []byte) error {
 	m._deleteCalls.Add(1)
 	if m.deleteCB != nil {
 		return m.deleteCB(clientID)

@@ -362,19 +362,16 @@ func (s *Server) Serve(c *Connection) error {
 
 	// The inbound goroutine is responsible for receive and handle the received packets from client.
 	go func() {
+		defer s.wg.Done()
+
 		s.logger.Log("Running inbound loop", "address", c.Address)
-		defer func() {
-			s.logger.Log("Stopping inbound loop", "address", c.Address, "id", string(client.ID),
-				"state", s.State().String(), "version", c.Version.String())
+		err := s.inboundLoop(clientCtx, client)
 
-			cancelInboundCtx()
-			s.wg.Done()
-		}()
+		cancelClientCtx(err)
+		cancelInboundCtx()
 
-		err := s.inboundLoop(client)
-		if err != nil {
-			cancelOutboundCtx(err)
-		}
+		s.logger.Log("Stopping inbound loop", "address", c.Address, "id", string(client.ID),
+			"state", s.State().String(), "version", c.Version.String())
 	}()
 
 	// The outbound goroutine is responsible to send outbound packets to client.
@@ -447,7 +444,7 @@ func (s *Server) stop() {
 	})
 }
 
-func (s *Server) inboundLoop(c *Client) error {
+func (s *Server) inboundLoop(ctx context.Context, c *Client) error {
 	for {
 		var p Packet
 
@@ -470,7 +467,7 @@ func (s *Server) inboundLoop(c *Client) error {
 			return err
 		}
 
-		err = s.handlePacket(c, p)
+		err = s.handlePacket(ctx, c, p)
 		if err != nil {
 			return err
 		}
@@ -526,16 +523,16 @@ func (s *Server) receivePacket(c *Client) (Packet, error) {
 	return p, nil
 }
 
-func (s *Server) handlePacket(c *Client, p Packet) error {
+func (s *Server) handlePacket(ctx context.Context, c *Client, p Packet) error {
 	switch pkt := p.(type) {
 	case *packet.Connect:
-		return s.handlePacketConnect(c, pkt)
+		return s.handlePacketConnect(ctx, c, pkt)
 	default:
 		return errors.New("unsupported packet")
 	}
 }
 
-func (s *Server) handlePacketConnect(c *Client, connect *packet.Connect) error {
+func (s *Server) handlePacketConnect(ctx context.Context, c *Client, connect *packet.Connect) error {
 	if c.Connected() {
 		s.logger.Log("Duplicate CONNECT packet", "address", c.Connection.Address, "id", string(c.ID),
 			"version", connect.Version.String())
@@ -568,7 +565,7 @@ func (s *Server) handlePacketConnect(c *Client, connect *packet.Connect) error {
 		return err
 	}
 
-	err = s.connectClient(c, connect)
+	err = s.connectClient(ctx, c, connect)
 	if err != nil {
 		s.hooks.onConnectFailed(c, connect, err)
 		return err
@@ -578,7 +575,7 @@ func (s *Server) handlePacketConnect(c *Client, connect *packet.Connect) error {
 	return nil
 }
 
-func (s *Server) connectClient(c *Client, connect *packet.Connect) error {
+func (s *Server) connectClient(ctx context.Context, c *Client, connect *packet.Connect) error {
 	var (
 		sessionPresent bool
 		err            error
@@ -606,9 +603,9 @@ func (s *Server) connectClient(c *Client, connect *packet.Connect) error {
 	// If the client requested a clean start, the server must delete any existing session for the given client
 	// identifier. Otherwise, resume any existing session for the given client identifier.
 	if connect.Flags.CleanStart() {
-		err = s.store.deleteSession(connect.ClientID)
+		err = s.sessionStore.DeleteSession(ctx, connect.ClientID)
 	} else {
-		err = s.store.getSession(connect.ClientID, &c.Session)
+		err = s.sessionStore.GetSession(ctx, connect.ClientID, &c.Session)
 		if err == nil {
 			sessionPresent = true
 		}
@@ -637,7 +634,7 @@ func (s *Server) connectClient(c *Client, connect *packet.Connect) error {
 		sessionExpiryInterval(&c.Session))
 
 	if persistentSession {
-		err = s.store.saveSession(c.ID, &c.Session)
+		err = s.sessionStore.SaveSession(ctx, c.ID, &c.Session)
 		if err != nil {
 			s.logger.Log("Failed save session", "address", c.Connection.Address, "error", err,
 				"id", string(c.ID), "session_present", sessionPresent, "version", connect.Version.String())

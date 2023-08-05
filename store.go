@@ -14,7 +14,10 @@
 
 package akira
 
-import "errors"
+import (
+	"context"
+	"errors"
+)
 
 // ErrSessionNotFound indicates that the session was not found in the SessionStore.
 var ErrSessionNotFound = errors.New("session not found")
@@ -24,15 +27,16 @@ type SessionStore interface {
 	// GetSession gets the session from the SessionStore. The session is identified by the given clientID.
 	// If the SessionStore fails to get the session, it returns the error. If it fails due to the session does not
 	// exist, it returns ErrSessionNotFound.
-	GetSession(clientID []byte, s *Session) error
+	GetSession(ctx context.Context, clientID []byte, s *Session) error
 
 	// SaveSession saves the given session. If there's any existing session associated with the clientID, the existing
 	// session is overridden with tne new session. If the SessionStore fails to save the session, it returns the error.
-	SaveSession(clientID []byte, s *Session) error
+	SaveSession(ctx context.Context, clientID []byte, s *Session) error
 
 	// DeleteSession deletes the session associated wht the given client identifier. If the SessionStore fails to
-	// delete the session, it returns the error.
-	DeleteSession(clientID []byte) error
+	// delete the session, it returns the error. If it fails due to the session does not exist, it returns
+	// ErrSessionNotFound.
+	DeleteSession(ctx context.Context, clientID []byte) error
 }
 
 type store struct {
