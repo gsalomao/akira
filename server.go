@@ -164,19 +164,18 @@ func NewServerWithOptions(opts *Options) (s *Server, err error) {
 // For listeners which should not be managed by the server, don't add them into the server and call the Serve
 // method for each Connection to be served.
 func (s *Server) AddListener(l Listener) error {
-	s.logger.Log("Adding listener", "listeners", s.listeners.len(), "state", s.State().String())
+	st := s.State()
+	s.logger.Log("Adding listener", "listeners", s.listeners.len(), "state", st.String())
 
-	if s.State() == ServerRunning {
+	if st == ServerRunning {
 		err := l.Listen(s.Serve)
 		if err != nil {
-			s.logger.Log("Failed to start listener", "error", err, "listeners", s.listeners.len(),
-				"state", s.State().String())
+			s.logger.Log("Failed to start listener", "error", err, "listeners", s.listeners.len())
 			return err
 		}
 	}
 	s.listeners.add(l)
-	s.logger.Log("Listener added with success", "listeners", s.listeners.len(),
-		"state", s.State().String())
+	s.logger.Log("Listener added with success", "listeners", s.listeners.len(), "state", st.String())
 	return nil
 }
 
@@ -186,14 +185,14 @@ func (s *Server) AddListener(l Listener) error {
 // hook, if this hook implements it. If the OnStart hook returns an error, the hook is not added into the server
 // and the error is returned.
 func (s *Server) AddHook(h Hook) error {
-	s.logger.Log("Adding hook", "hook", h.Name(), "hooks", s.hooks.len(), "state", s.State().String())
+	st := s.State()
+	s.logger.Log("Adding hook", "hook", h.Name(), "hooks", s.hooks.len(), "state", st.String())
 
 	if s.State() == ServerRunning {
 		if hook, ok := h.(OnStartHook); ok {
 			err := hook.OnStart()
 			if err != nil {
-				s.logger.Log("Failed to start hook", "hook", h.Name(), "hooks", s.hooks.len(),
-					"error", err)
+				s.logger.Log("Failed to start hook", "error", err, "hook", h.Name(), "hooks", s.hooks.len())
 				return err
 			}
 		}
@@ -201,13 +200,11 @@ func (s *Server) AddHook(h Hook) error {
 
 	err := s.hooks.add(h)
 	if err != nil {
-		s.logger.Log("Failed to add hook", "hook", h.Name(), "hooks", s.hooks.len(), "error", err,
-			"state", s.State().String())
+		s.logger.Log("Failed to add hook", "error", err, "hook", h.Name(), "hooks", s.hooks.len())
 		return err
 	}
 
-	s.logger.Log("Hook added with success", "hook", h.Name(), "hooks", s.hooks.len(),
-		"state", s.State().String())
+	s.logger.Log("Hook added with success", "hook", h.Name(), "hooks", s.hooks.len(), "state", st.String())
 	return nil
 }
 
@@ -218,17 +215,17 @@ func (s *Server) AddHook(h Hook) error {
 //
 // If the server is not in the ServerNotStarted or ServerStopped state, it returns ErrInvalidServerState.
 func (s *Server) Start() error {
-	state := s.State()
-	s.logger.Log("Starting server", "state", state.String())
+	st := s.State()
+	s.logger.Log("Starting server", "state", st.String())
 
-	if state != ServerNotStarted && state != ServerStopped {
-		s.logger.Log("Failed start server due to invalid start", "state", state.String())
+	if st != ServerNotStarted && st != ServerStopped {
+		s.logger.Log("Failed start server due to invalid start", "state", st.String())
 		return ErrInvalidServerState
 	}
 
 	err := s.setState(ServerStarting, nil)
 	if err != nil {
-		s.logger.Log("Failed to set server to starting state", "error", err, "state", state.String())
+		s.logger.Log("Failed to set server to starting state", "error", err, "state", st.String())
 
 		// The setState method never returns error when setting to ServerFailed.
 		_ = s.setState(ServerFailed, err)
@@ -240,7 +237,7 @@ func (s *Server) Start() error {
 
 	err = s.listeners.listenAll(s.Serve)
 	if err != nil {
-		s.logger.Log("Failed to start listeners", "error", err, "state", state.String())
+		s.logger.Log("Failed to start listeners", "error", err, "state", st.String())
 
 		// The setState method never returns error when setting to ServerFailed.
 		_ = s.setState(ServerFailed, err)
@@ -274,11 +271,11 @@ func (s *Server) Start() error {
 //
 // If the server is not in the ServerRunning state, this function has no side effect.
 func (s *Server) Stop(ctx context.Context) error {
-	state := s.State()
-	s.logger.Log("Stopping server", "state", state.String())
+	st := s.State()
+	s.logger.Log("Stopping server", "state", st.String())
 
-	if state != ServerRunning {
-		s.logger.Log("Server not running", "state", state.String())
+	if st != ServerRunning {
+		s.logger.Log("Server not running", "state", st.String())
 		return nil
 	}
 
@@ -308,14 +305,14 @@ func (s *Server) Stop(ctx context.Context) error {
 // When the Server is closed, it cannot be started again. If the server is in ServerRunning state, it stops
 // the server first before close it.
 func (s *Server) Close() {
-	state := s.State()
-	s.logger.Log("Closing server", "state", state.String())
+	st := s.State()
+	s.logger.Log("Closing server", "state", st.String())
 
-	if state == ServerClosed {
-		s.logger.Log("Server already closed", "state", state.String())
+	if st == ServerClosed {
+		s.logger.Log("Server already closed", "state", st.String())
 		return
 	}
-	if state == ServerRunning {
+	if st == ServerRunning {
 		s.stop()
 		// The setState method never returns error when setting to ServerStopped.
 		_ = s.setState(ServerStopped, nil)
@@ -334,14 +331,14 @@ func (s *Server) Close() {
 // When this method is called, the server creates a Client, associate the client with the connection, and
 // returns immediately. If this method is called while the server is not running, it returns ErrServerNotRunning.
 func (s *Server) Serve(c *Connection) error {
-	state := s.State()
+	st := s.State()
 	if c == nil || c.Listener == nil || c.netConn == nil {
-		s.logger.Log("Cannot serve connection as it is invalid", "connection", c, "state", state.String())
+		s.logger.Log("Cannot serve connection as it is invalid", "connection", c, "state", st.String())
 		return ErrInvalidConnection
 	}
-	if state != ServerRunning {
+	if st != ServerRunning {
 		s.logger.Log("Cannot serve connection as server not running", "address", c.Address,
-			"state", state.String())
+			"state", st.String())
 		return ErrServerNotRunning
 	}
 
@@ -414,9 +411,9 @@ func (s *Server) State() ServerState {
 	return ServerState(s.state.Load())
 }
 
-func (s *Server) setState(state ServerState, err error) error {
-	s.state.Store(uint32(state))
-	switch state {
+func (s *Server) setState(st ServerState, err error) error {
+	s.state.Store(uint32(st))
+	switch st {
 	case ServerStarting:
 		err = s.hooks.onServerStart()
 		if err == nil {
@@ -434,7 +431,7 @@ func (s *Server) setState(state ServerState, err error) error {
 	case ServerClosed:
 		// The closed state doesn't have any hook.
 	default:
-		panic(fmt.Sprintf("invalid server state: %v", state))
+		panic(fmt.Sprintf("invalid server state: %v", st))
 	}
 	return err
 }
