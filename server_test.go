@@ -67,10 +67,10 @@ func TestNewServer(t *testing.T) {
 	defer s.Close()
 
 	if s.State() != ServerNotStarted {
-		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ServerNotStarted, s.State())
+		t.Errorf("Unexpected state\nwant: %v\ngot:  %v", ServerNotStarted, s.State())
 	}
 	if !reflect.DeepEqual(NewDefaultConfig(), &s.config) {
-		t.Fatalf("Unexpected config\nwant: %+v\ngot:  %+v", NewDefaultConfig(), &s.config)
+		t.Errorf("Unexpected config\nwant: %+v\ngot:  %+v", NewDefaultConfig(), &s.config)
 	}
 }
 
@@ -87,7 +87,7 @@ func TestNewServerWithConfig(t *testing.T) {
 	defer s.Close()
 
 	if !reflect.DeepEqual(c, &s.config) {
-		t.Fatalf("Unexpected config\nwant: %+v\ngot:  %+v", c, &s.config)
+		t.Errorf("Unexpected config\nwant: %+v\ngot:  %+v", c, &s.config)
 	}
 }
 
@@ -153,7 +153,7 @@ func TestNewServerWithLogger(t *testing.T) {
 	defer s.Close()
 
 	if s.logger != l {
-		t.Fatalf("Unexpected log\nwant: %+v\ngot:  %+v", l, s.logger)
+		t.Errorf("Unexpected log\nwant: %+v\ngot:  %+v", l, s.logger)
 	}
 }
 
@@ -168,10 +168,10 @@ func TestNewServerWithOptions(t *testing.T) {
 	defer s.Close()
 
 	if s.State() != ServerNotStarted {
-		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ServerNotStarted, s.State())
+		t.Errorf("Unexpected state\nwant: %v\ngot:  %v", ServerNotStarted, s.State())
 	}
 	if !reflect.DeepEqual(NewDefaultConfig(), &s.config) {
-		t.Fatalf("Unexpected config\nwant: %+v\ngot:  %+v", NewDefaultConfig(), &s.config)
+		t.Errorf("Unexpected config\nwant: %+v\ngot:  %+v", NewDefaultConfig(), &s.config)
 	}
 }
 
@@ -186,10 +186,10 @@ func TestNewServerWithOptionsNilIsTheSameAsDefaultConfig(t *testing.T) {
 	defer s.Close()
 
 	if s.State() != ServerNotStarted {
-		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ServerNotStarted, s.State())
+		t.Errorf("Unexpected state\nwant: %v\ngot:  %v", ServerNotStarted, s.State())
 	}
 	if !reflect.DeepEqual(NewDefaultConfig(), &s.config) {
-		t.Fatalf("Unexpected config\nwant: %+v\ngot:  %+v", NewDefaultConfig(), &s.config)
+		t.Errorf("Unexpected config\nwant: %+v\ngot:  %+v", NewDefaultConfig(), &s.config)
 	}
 }
 
@@ -204,7 +204,7 @@ func TestNewServerWithOptionsWithoutConfig(t *testing.T) {
 	defer s.Close()
 
 	if !reflect.DeepEqual(NewDefaultConfig(), &s.config) {
-		t.Fatalf("Unexpected config\nwant: %+v\ngot:  %+v", NewDefaultConfig(), &s.config)
+		t.Errorf("Unexpected config\nwant: %+v\ngot:  %+v", NewDefaultConfig(), &s.config)
 	}
 }
 
@@ -215,7 +215,7 @@ func TestServerAddHook(t *testing.T) {
 	h := &mockOnStartHook{}
 	err := s.AddHook(h)
 	if err != nil {
-		t.Fatalf("Unexpected error\n%v", err)
+		t.Errorf("Unexpected error\n%v", err)
 	}
 	if h.calls() != 0 {
 		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 0, h.calls())
@@ -228,7 +228,7 @@ func TestServerStart(t *testing.T) {
 
 	err := s.Start()
 	if err != nil {
-		t.Fatalf("Unexpected error\n%v", err)
+		t.Errorf("Unexpected error\n%v", err)
 	}
 	if s.State() != ServerRunning {
 		t.Errorf("Unexpected state\nwant: %v\ngot:  %v", ServerRunning, s.State())
@@ -247,7 +247,7 @@ func TestServerStartWithHooks(t *testing.T) {
 
 	err := s.Start()
 	if err != nil {
-		t.Fatalf("Unexpected error\n%v", err)
+		t.Errorf("Unexpected error\n%v", err)
 	}
 	if onStart.calls() != 1 {
 		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onStart.calls())
@@ -261,42 +261,46 @@ func TestServerStartWithHooks(t *testing.T) {
 }
 
 func TestServerStartFailsWhenOnServerStartReturnsError(t *testing.T) {
+	startErr := make(chan error, 1)
 	onServerStart := &mockOnServerStartHook{cb: func() error { return errHookFailed }}
-	onServerStartFailed := &mockOnServerStartFailedHook{cb: func(err error) {
-		if !errors.Is(err, errHookFailed) {
-			t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", errHookFailed, err)
-		}
-	}}
+	onServerStartFailed := &mockOnServerStartFailedHook{cb: func(err error) { startErr <- err }}
 
 	s := newServer(t, WithHooks([]Hook{onServerStart, onServerStartFailed}))
 	defer s.Close()
 
 	err := s.Start()
 	if !errors.Is(err, errHookFailed) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", errHookFailed, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", errHookFailed, err)
 	}
 	if s.State() != ServerFailed {
 		t.Errorf("Unexpected state\nwant: %v\ngot:  %v", ServerFailed, s.State())
 	}
+
+	err = <-startErr
+	if !errors.Is(err, errHookFailed) {
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", errHookFailed, err)
+	}
 }
 
 func TestServerStartFailsWhenOnStartReturnsError(t *testing.T) {
+	startErr := make(chan error, 1)
 	onStart := &mockOnStartHook{cb: func() error { return errHookFailed }}
-	onServerStartFailed := &mockOnServerStartFailedHook{cb: func(err error) {
-		if !errors.Is(err, errHookFailed) {
-			t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", errHookFailed, err)
-		}
-	}}
+	onServerStartFailed := &mockOnServerStartFailedHook{cb: func(err error) { startErr <- err }}
 
 	s := newServer(t, WithHooks([]Hook{onStart, onServerStartFailed}))
 	defer s.Close()
 
 	err := s.Start()
 	if !errors.Is(err, errHookFailed) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", errHookFailed, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", errHookFailed, err)
 	}
 	if s.State() != ServerFailed {
 		t.Errorf("Unexpected state\nwant: %v\ngot:  %v", ServerFailed, s.State())
+	}
+
+	err = <-startErr
+	if !errors.Is(err, errHookFailed) {
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", errHookFailed, err)
 	}
 }
 
@@ -306,7 +310,7 @@ func TestServerStartFailsWhenServerClosed(t *testing.T) {
 
 	err := s.Start()
 	if !errors.Is(err, ErrInvalidServerState) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", ErrInvalidServerState, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", ErrInvalidServerState, err)
 	}
 	if s.State() != ServerClosed {
 		t.Errorf("Unexpected state\nwant: %v\ngot:  %v", ServerClosed, s.State())
@@ -320,7 +324,7 @@ func TestServerAddListener(t *testing.T) {
 	l := &mockListener{}
 	err := s.AddListener(l)
 	if err != nil {
-		t.Fatalf("Unexpected error\n%v", err)
+		t.Errorf("Unexpected error\n%v", err)
 	}
 	if l.listenCalls() != 0 {
 		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 0, l.listenCalls())
@@ -335,7 +339,7 @@ func TestServerAddListenerWhenServerRunning(t *testing.T) {
 	l := &mockListener{}
 	err := s.AddListener(l)
 	if err != nil {
-		t.Fatalf("Unexpected error\n%v", err)
+		t.Errorf("Unexpected error\n%v", err)
 	}
 	if l.listenCalls() != 1 {
 		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, l.listenCalls())
@@ -350,30 +354,32 @@ func TestServerAddListenerFailsWhenListenReturnsError(t *testing.T) {
 	l := &mockListener{listenCB: func(_ Handler) error { return errListenerFailed }}
 	err := s.AddListener(l)
 	if !errors.Is(err, errListenerFailed) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", errListenerFailed, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", errListenerFailed, err)
 	}
 }
 
 func TestServerStartFailsWhenListenReturnsError(t *testing.T) {
+	startErr := make(chan error, 1)
 	l := &mockListener{listenCB: func(_ Handler) error { return errListenerFailed }}
-	h := &mockOnServerStartFailedHook{cb: func(err error) {
-		if !errors.Is(err, errListenerFailed) {
-			t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", errListenerFailed, err)
-		}
-	}}
+	h := &mockOnServerStartFailedHook{cb: func(err error) { startErr <- err }}
 
 	s := newServer(t, WithListeners([]Listener{l}), WithHooks([]Hook{h}))
 	defer s.Close()
 
 	err := s.Start()
 	if !errors.Is(err, errListenerFailed) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", errListenerFailed, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", errListenerFailed, err)
 	}
 	if s.State() != ServerFailed {
 		t.Errorf("Unexpected state\nwant: %v\ngot:  %v", ServerFailed, s.State())
 	}
 	if h.calls() != 1 {
 		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, h.calls())
+	}
+
+	err = <-startErr
+	if !errors.Is(err, errListenerFailed) {
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", errListenerFailed, err)
 	}
 }
 
@@ -385,7 +391,7 @@ func TestServerAddHookStartsHookWhenServerRunning(t *testing.T) {
 	h := &mockOnStartHook{}
 	err := s.AddHook(h)
 	if err != nil {
-		t.Fatalf("Unexpected error\n%v", err)
+		t.Errorf("Unexpected error\n%v", err)
 	}
 	if h.calls() != 1 {
 		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, h.calls())
@@ -400,7 +406,7 @@ func TestServerAddHookFailsWhenOnStartReturnsError(t *testing.T) {
 	h := &mockOnStartHook{cb: func() error { return errHookFailed }}
 	err := s.AddHook(h)
 	if !errors.Is(err, errHookFailed) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", errHookFailed, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", errHookFailed, err)
 	}
 }
 
@@ -412,12 +418,12 @@ func TestServerAddHookFailsWhenHookAlreadyAdded(t *testing.T) {
 	h := &mockOnStartHook{}
 	err := s.AddHook(h)
 	if err != nil {
-		t.Fatalf("Unexpected error\n%v", err)
+		t.Errorf("Unexpected error\n%v", err)
 	}
 
 	err = s.AddHook(h)
 	if !errors.Is(err, ErrHookAlreadyExists) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", ErrHookAlreadyExists, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", ErrHookAlreadyExists, err)
 	}
 }
 
@@ -431,7 +437,7 @@ func TestServerStop(t *testing.T) {
 
 	err := s.Stop(ctx)
 	if err != nil {
-		t.Fatalf("Unexpected error\n%v", err)
+		t.Errorf("Unexpected error\n%v", err)
 	}
 	if s.State() != ServerStopped {
 		t.Errorf("Unexpected state\nwant: %v\ngot:  %v", ServerStopped, s.State())
@@ -454,7 +460,7 @@ func TestServerStopWithHooks(t *testing.T) {
 
 	err := s.Stop(ctx)
 	if err != nil {
-		t.Fatalf("Unexpected error\n%v", err)
+		t.Errorf("Unexpected error\n%v", err)
 	}
 	if onStop.calls() != 1 {
 		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onStop.calls())
@@ -476,7 +482,7 @@ func TestServerStopWhenServerNotStarted(t *testing.T) {
 
 	err := s.Stop(ctx)
 	if err != nil {
-		t.Fatalf("Unexpected error\n%v", err)
+		t.Errorf("Unexpected error\n%v", err)
 	}
 }
 
@@ -494,7 +500,7 @@ func TestServerStopFailsWhenCancelled(t *testing.T) {
 
 	err := s.Stop(ctx)
 	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", context.Canceled, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", context.Canceled, err)
 	}
 	if s.State() != ServerStopping {
 		t.Errorf("Unexpected state\nwant: %v\ngot:  %v", ServerStopping, s.State())
@@ -506,7 +512,7 @@ func TestServerCloseWhenServerNotStarted(t *testing.T) {
 
 	s.Close()
 	if s.State() != ServerClosed {
-		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ServerClosed, s.State())
+		t.Errorf("Unexpected state\nwant: %v\ngot:  %v", ServerClosed, s.State())
 	}
 }
 
@@ -516,7 +522,7 @@ func TestServerCloseWhenServerRunning(t *testing.T) {
 
 	s.Close()
 	if s.State() != ServerClosed {
-		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ServerClosed, s.State())
+		t.Errorf("Unexpected state\nwant: %v\ngot:  %v", ServerClosed, s.State())
 	}
 }
 
@@ -533,12 +539,12 @@ func TestServerCloseWhenServerStopping(t *testing.T) {
 
 	_ = s.Stop(ctx)
 	if s.State() != ServerStopping {
-		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ServerStopping, s.State())
+		t.Errorf("Unexpected state\nwant: %v\ngot:  %v", ServerStopping, s.State())
 	}
 
 	s.Close()
 	if s.State() != ServerClosed {
-		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ServerClosed, s.State())
+		t.Errorf("Unexpected state\nwant: %v\ngot:  %v", ServerClosed, s.State())
 	}
 }
 
@@ -549,7 +555,7 @@ func TestServerCloseWhenServerStopped(t *testing.T) {
 
 	s.Close()
 	if s.State() != ServerClosed {
-		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ServerClosed, s.State())
+		t.Errorf("Unexpected state\nwant: %v\ngot:  %v", ServerClosed, s.State())
 	}
 }
 
@@ -559,7 +565,7 @@ func TestServerCloseWhenServerClosed(t *testing.T) {
 
 	s.Close()
 	if s.State() != ServerClosed {
-		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ServerClosed, s.State())
+		t.Errorf("Unexpected state\nwant: %v\ngot:  %v", ServerClosed, s.State())
 	}
 }
 
@@ -573,7 +579,7 @@ func TestServerServe(t *testing.T) {
 
 	err := s.Serve(conn)
 	if err != nil {
-		t.Fatalf("Unexpected error\n%v", err)
+		t.Errorf("Unexpected error\n%v", err)
 	}
 }
 
@@ -599,7 +605,7 @@ func TestServerServeWithHooks(t *testing.T) {
 
 	err := s.Serve(conn)
 	if err != nil {
-		t.Fatalf("Unexpected error\n%v", err)
+		t.Errorf("Unexpected error\n%v", err)
 	}
 	if onConnectionOpen.calls() != 1 {
 		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onConnectionOpen.calls())
@@ -623,7 +629,7 @@ func TestServerServeFailsWhenServerNotRunning(t *testing.T) {
 
 	err := s.Serve(conn)
 	if !errors.Is(err, ErrServerNotRunning) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", ErrServerNotRunning, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", ErrServerNotRunning, err)
 	}
 }
 
@@ -663,12 +669,12 @@ func TestServerServeFailsWhenOnConnectionOpenReturnsError(t *testing.T) {
 
 	err := s.Serve(conn)
 	if !errors.Is(err, errHookFailed) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", errHookFailed, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", errHookFailed, err)
 	}
 
 	_, err = nc.Read(nil)
 	if !errors.Is(err, io.EOF) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
 	}
 	if onConnectionClosed.calls() != 1 {
 		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onConnectionClosed.calls())
@@ -689,7 +695,7 @@ func TestServerConnectionClosesWhenConnectTimeout(t *testing.T) {
 
 	_, err := nc.Read(nil)
 	if !errors.Is(err, io.EOF) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
 	}
 }
 
@@ -715,7 +721,7 @@ func TestServerCallsHooksWhenConnectionCloses(t *testing.T) {
 
 	err := <-closedErr
 	if !errors.Is(err, os.ErrDeadlineExceeded) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", os.ErrDeadlineExceeded, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", os.ErrDeadlineExceeded, err)
 	}
 	if onClientClose.calls() != 1 {
 		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onClientClose.calls())
@@ -739,12 +745,12 @@ func TestServerStopClosesAllClients(t *testing.T) {
 
 	err := s.Stop(ctx)
 	if err != nil {
-		t.Fatalf("Unexpected error\n%v", err)
+		t.Errorf("Unexpected error\n%v", err)
 	}
 
 	_, err = nc.Read(nil)
 	if !errors.Is(err, io.EOF) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
 	}
 }
 
@@ -762,7 +768,7 @@ func TestServerClosesConnectionWhenReceivesInvalidPacket(t *testing.T) {
 
 	_, err := nc.Read(nil)
 	if !errors.Is(err, io.EOF) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
 	}
 }
 
@@ -789,7 +795,7 @@ func TestServerClosesConnectionWhenMaxPacketSizeExceeded(t *testing.T) {
 
 	err := <-receiveErr
 	if !errors.Is(err, ErrPacketSizeExceeded) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", ErrPacketSizeExceeded, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", ErrPacketSizeExceeded, err)
 	}
 	if onPacketReceive.calls() != 0 {
 		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 0, onPacketReceive.calls())
@@ -800,7 +806,7 @@ func TestServerClosesConnectionWhenMaxPacketSizeExceeded(t *testing.T) {
 
 	_, err = nc.Read(nil)
 	if !errors.Is(err, io.EOF) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
 	}
 }
 
@@ -817,7 +823,7 @@ func TestServerClosesConnectionWhenOnReceivePacketReturnsError(t *testing.T) {
 
 	_, err := nc.Read(nil)
 	if !errors.Is(err, io.EOF) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
 	}
 	if h.calls() != 1 {
 		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, h.calls())
@@ -840,7 +846,7 @@ func TestServerClosesConnectionWhenOnPacketReceiveReturnsError(t *testing.T) {
 
 	_, err := nc.Read(nil)
 	if !errors.Is(err, io.EOF) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
 	}
 	if h.calls() != 1 {
 		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, h.calls())
@@ -863,7 +869,7 @@ func TestServerClosesConnectionWhenOnPacketReceivedReturnsError(t *testing.T) {
 
 	_, err := nc.Read(nil)
 	if !errors.Is(err, io.EOF) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
 	}
 	if h.calls() != 1 {
 		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, h.calls())
@@ -886,7 +892,7 @@ func TestServerClosesConnectionWhenOnPacketSendReturnsError(t *testing.T) {
 
 	_, err := nc.Read(nil)
 	if !errors.Is(err, io.EOF) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
 	}
 	if h.calls() != 1 {
 		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, h.calls())
@@ -915,7 +921,7 @@ func TestServerCallsHookWhenReceiveInvalidPacket(t *testing.T) {
 
 	err := <-receiveErr
 	if !errors.Is(err, packet.ErrMalformedPacket) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", packet.ErrMalformedPacket, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", packet.ErrMalformedPacket, err)
 	}
 	if onReceivePacket.calls() != 1 {
 		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onReceivePacket.calls())
@@ -956,7 +962,7 @@ func TestServerCallsOnPacketSendErrorWhenFailsToSendPacket(t *testing.T) {
 
 	err := <-sendErr
 	if !errors.Is(err, io.ErrClosedPipe) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.ErrClosedPipe, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.ErrClosedPipe, err)
 	}
 	if onPacketSendError.calls() != 1 {
 		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onPacketSendError.calls())
@@ -996,7 +1002,7 @@ func TestServerReceivePacketConnect(t *testing.T) {
 
 			p := <-received
 			if !reflect.DeepEqual(tc.packet, p) {
-				t.Fatalf("Unexpected packet\nwant: %+v\ngot:  %+v", tc.packet, p)
+				t.Errorf("Unexpected packet\nwant: %+v\ngot:  %+v", tc.packet, p)
 			}
 			if onPacketReceive.calls() != 1 {
 				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onPacketReceive.calls())
@@ -1035,7 +1041,7 @@ func TestServerConnectAccepted(t *testing.T) {
 
 			p := receivePacket(t, nc, len(connack.Packet))
 			if !bytes.Equal(connack.Packet, p) {
-				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
 			}
 		})
 	}
@@ -1076,7 +1082,7 @@ func TestServerConnectAcceptedWithHooks(t *testing.T) {
 
 			p := receivePacket(t, nc, len(connack.Packet))
 			if !bytes.Equal(connack.Packet, p) {
-				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
 			}
 
 			client := <-clients
@@ -1134,7 +1140,7 @@ func TestServerConnectAcceptedMetrics(t *testing.T) {
 
 			p := receivePacket(t, nc, len(connack.Packet))
 			if !bytes.Equal(connack.Packet, p) {
-				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
 			}
 
 			<-connected
@@ -1234,7 +1240,7 @@ func TestServerConnectRejectedDueToConfig(t *testing.T) {
 
 			p := receivePacket(t, nc, len(connack.Packet))
 			if !bytes.Equal(connack.Packet, p) {
-				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
 			}
 		})
 	}
@@ -1267,7 +1273,7 @@ func TestServerConnectRejectedDueToEmptyClientID(t *testing.T) {
 
 			p := receivePacket(t, nc, len(connack.Packet))
 			if !bytes.Equal(connack.Packet, p) {
-				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
 			}
 		})
 	}
@@ -1301,13 +1307,13 @@ func TestServerConnectConnectionClosedWhenRejected(t *testing.T) {
 
 	p := receivePacket(t, nc, len(connack.Packet))
 	if !bytes.Equal(connack.Packet, p) {
-		t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+		t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
 	}
 
 	<-closed
 	_, err := nc.Read(nil)
 	if !errors.Is(err, io.EOF) {
-		t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
 	}
 
 	c := <-clientStream
@@ -1351,7 +1357,7 @@ func TestServerConnectPersistentSession(t *testing.T) {
 
 			p := receivePacket(t, nc, len(connack.Packet))
 			if !bytes.Equal(connack.Packet, p) {
-				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
 			}
 
 			<-connected
@@ -1398,7 +1404,7 @@ func TestServerConnectNoSessionPersistence(t *testing.T) {
 
 			p := receivePacket(t, nc, len(connack.Packet))
 			if !bytes.Equal(connack.Packet, p) {
-				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
 			}
 
 			<-connected
@@ -1440,7 +1446,7 @@ func TestServerConnectCleanStart(t *testing.T) {
 
 			p := receivePacket(t, nc, len(connack.Packet))
 			if !bytes.Equal(connack.Packet, p) {
-				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
 			}
 		})
 	}
@@ -1474,7 +1480,7 @@ func TestServerConnectNoCleanStart(t *testing.T) {
 
 			p := receivePacket(t, nc, len(connack.Packet))
 			if !bytes.Equal(connack.Packet, p) {
-				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
 			}
 			if ss.deleteCalls() != 0 {
 				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 0, ss.deleteCalls())
@@ -1513,7 +1519,7 @@ func TestServerConnectWithSessionPresent(t *testing.T) {
 
 			p := receivePacket(t, nc, len(connack.Packet))
 			if !bytes.Equal(connack.Packet, p) {
-				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
 			}
 			if ss.getCalls() != 1 {
 				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, ss.getCalls())
@@ -1637,7 +1643,7 @@ func TestServerConnectWithConfig(t *testing.T) {
 
 			p := receivePacket(t, nc, len(connack.Packet))
 			if !bytes.Equal(connack.Packet, p) {
-				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
 			}
 		})
 	}
@@ -1675,7 +1681,7 @@ func TestServerConnectWithAllProperties(t *testing.T) {
 
 	p := receivePacket(t, nc, len(connack.Packet))
 	if !bytes.Equal(connack.Packet, p) {
-		t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+		t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
 	}
 
 	client := <-clients
@@ -1726,7 +1732,7 @@ func TestServerConnectWithLastWill(t *testing.T) {
 
 	p := receivePacket(t, nc, len(connack.Packet))
 	if !bytes.Equal(connack.Packet, p) {
-		t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+		t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
 	}
 
 	client := <-clients
@@ -1800,17 +1806,17 @@ func TestServerConnectUnavailableWhenGetSessionReturnsError(t *testing.T) {
 
 			p := receivePacket(t, nc, len(connack.Packet))
 			if !bytes.Equal(connack.Packet, p) {
-				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
 			}
 
 			err := <-connectErr
 			if !errors.Is(err, packet.ErrServerUnavailable) {
-				t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", packet.ErrServerUnavailable, err)
+				t.Errorf("Unexpected error\nwant: %v\ngot:  %v", packet.ErrServerUnavailable, err)
 			}
 
 			_, err = nc.Read(nil)
 			if !errors.Is(err, io.EOF) {
-				t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+				t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
 			}
 		})
 	}
@@ -1849,7 +1855,7 @@ func TestServerConnectUnavailableWhenDeleteSessionReturnsError(t *testing.T) {
 
 			p := receivePacket(t, nc, len(connack.Packet))
 			if !bytes.Equal(connack.Packet, p) {
-				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
 			}
 			if ss.deleteCalls() != 1 {
 				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, ss.deleteCalls())
@@ -1857,12 +1863,12 @@ func TestServerConnectUnavailableWhenDeleteSessionReturnsError(t *testing.T) {
 
 			err := <-connectErr
 			if !errors.Is(err, packet.ErrServerUnavailable) {
-				t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", packet.ErrServerUnavailable, err)
+				t.Errorf("Unexpected error\nwant: %v\ngot:  %v", packet.ErrServerUnavailable, err)
 			}
 
 			_, err = nc.Read(nil)
 			if !errors.Is(err, io.EOF) {
-				t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+				t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
 			}
 		})
 	}
@@ -1901,17 +1907,17 @@ func TestServerConnectUnavailableWhenSaveSessionReturnsError(t *testing.T) {
 
 			p := receivePacket(t, nc, len(connack.Packet))
 			if !bytes.Equal(connack.Packet, p) {
-				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
 			}
 
 			err := <-connectErr
 			if !errors.Is(err, packet.ErrServerUnavailable) {
-				t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", packet.ErrServerUnavailable, err)
+				t.Errorf("Unexpected error\nwant: %v\ngot:  %v", packet.ErrServerUnavailable, err)
 			}
 
 			_, err = nc.Read(nil)
 			if !errors.Is(err, io.EOF) {
-				t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+				t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
 			}
 		})
 	}
@@ -1952,25 +1958,25 @@ func TestServerConnectProtocolErrorOnDuplicatePacket(t *testing.T) {
 
 			p := receivePacket(t, nc, len(connack[0].Packet))
 			if !bytes.Equal(connack[0].Packet, p) {
-				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack[0].Packet, p)
+				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack[0].Packet, p)
 			}
 
 			sendPacket(t, nc, connect.Packet)
 			if len(connack) > 1 {
 				p = receivePacket(t, nc, len(connack[1].Packet))
 				if !bytes.Equal(connack[1].Packet, p) {
-					t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack[1].Packet, p)
+					t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack[1].Packet, p)
 				}
 			}
 
 			_, err := nc.Read(nil)
 			if !errors.Is(err, io.EOF) {
-				t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+				t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
 			}
 
 			err = <-connClosedErr
 			if !errors.Is(err, packet.ErrProtocolError) {
-				t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", packet.ErrProtocolError, err)
+				t.Errorf("Unexpected error\nwant: %v\ngot:  %v", packet.ErrProtocolError, err)
 			}
 		})
 	}
@@ -2004,12 +2010,12 @@ func TestServerConnectWithOnConnectReturningValidPacketError(t *testing.T) {
 
 			p := receivePacket(t, nc, len(connack.Packet))
 			if !bytes.Equal(connack.Packet, p) {
-				t.Fatalf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
 			}
 
 			_, err := nc.Read(nil)
 			if !errors.Is(err, io.EOF) {
-				t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+				t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
 			}
 		})
 	}
@@ -2035,7 +2041,7 @@ func TestServerConnectWithOnConnectReturningUnknownError(t *testing.T) {
 
 			_, err := nc.Read(nil)
 			if !errors.Is(err, io.EOF) {
-				t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+				t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
 			}
 		})
 	}
@@ -2071,7 +2077,7 @@ func TestServerConnectIgnoreReasonCodesFromOnConnect(t *testing.T) {
 
 			_, err := nc.Read(nil)
 			if !errors.Is(err, io.EOF) {
-				t.Fatalf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+				t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
 			}
 		})
 	}
@@ -2101,7 +2107,7 @@ func BenchmarkHandleConnect(b *testing.B) {
 
 				err := s.Serve(conn)
 				if err != nil {
-					b.Fatalf("Unexpected error: %s", err)
+					b.Errorf("Unexpected error: %s", err)
 				}
 
 				sendPacket(b, nc, connect.Packet)
@@ -2109,7 +2115,7 @@ func BenchmarkHandleConnect(b *testing.B) {
 
 				err = nc.Close()
 				if err != nil {
-					b.Fatalf("Unexpected error: %s", err)
+					b.Errorf("Unexpected error: %s", err)
 				}
 			}
 		})
