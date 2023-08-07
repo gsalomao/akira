@@ -15,6 +15,7 @@
 package akira
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"sync/atomic"
@@ -109,13 +110,13 @@ type OnServerStoppedHook interface {
 // called by the server when a new network connection was opened. If this method returns any error, the connection is
 // closed.
 type OnConnectionOpenHook interface {
-	OnConnectionOpen(c *Connection) error
+	OnConnectionOpen(ctx context.Context, c *Connection) error
 }
 
 // OnClientOpenedHook is the hook interface that wraps the OnClientOpened method. The OnClientOpened method is called
 // by the server when the client opened the connection, and after the network connection has been opened with success.
 type OnClientOpenedHook interface {
-	OnClientOpened(c *Client)
+	OnClientOpened(ctx context.Context, c *Client)
 }
 
 // OnClientCloseHook is the hook interface that wraps the OnClientClose method. The OnClientClose method is called by
@@ -136,7 +137,7 @@ type OnConnectionClosedHook interface {
 // called by the server before try to receive any packet from the client. If this method returns an error, the server
 // doesn't try to receive a new packet and the client is closed.
 type OnReceivePacketHook interface {
-	OnReceivePacket(c *Client) error
+	OnReceivePacket(ctx context.Context, c *Client) error
 }
 
 // OnPacketReceiveHook is the hook interface that wraps the OnPacketReceive method. The OnPacketReceive method is
@@ -144,41 +145,41 @@ type OnReceivePacketHook interface {
 // yet the remaining bytes of the packet. If this method returns an  error, the server stops to receive the packet
 // and closes the client.
 type OnPacketReceiveHook interface {
-	OnPacketReceive(c *Client, h packet.FixedHeader) error
+	OnPacketReceive(ctx context.Context, c *Client, h packet.FixedHeader) error
 }
 
 // OnPacketReceiveFailedHook is the hook interface that wraps the OnPacketReceiveFailed method. The
 // OnPacketReceiveFailed method is called by the server when it fails to receive a packet from the client for any
 // reason other than the network connection closed. After the server calls this method, it closes the client.
 type OnPacketReceiveFailedHook interface {
-	OnPacketReceiveFailed(c *Client, err error)
+	OnPacketReceiveFailed(ctx context.Context, c *Client, err error)
 }
 
 // OnPacketReceivedHook is the hook interface that wraps the OnPacketReceived method. The OnPacketReceived method is
 // called by the server when a new packet is received. If this method returns an error, the server discards the
 // packet and closes the client.
 type OnPacketReceivedHook interface {
-	OnPacketReceived(c *Client, p Packet) error
+	OnPacketReceived(ctx context.Context, c *Client, p Packet) error
 }
 
 // OnPacketSendHook is the hook interface that wraps the OnPacketSend method. The OnPacketSend method is called by the
 // server before the packet has been sent to the client. If this method returns an error, the server discards the
 // packet and closes the client.
 type OnPacketSendHook interface {
-	OnPacketSend(c *Client, p Packet) error
+	OnPacketSend(ctx context.Context, c *Client, p Packet) error
 }
 
 // OnPacketSendFailedHook is the hook interface that wraps the OnPacketSendFailed method. The OnPacketSendFailed
 // method is called by the server when it fails to send the packet to the client for any reason other than the
 // network connection closed. After the server calls this method, it closes the client.
 type OnPacketSendFailedHook interface {
-	OnPacketSendFailed(c *Client, p Packet, err error)
+	OnPacketSendFailed(ctx context.Context, c *Client, p Packet, err error)
 }
 
 // OnPacketSentHook is the hook interface that wraps the OnPacketSent method. The OnPacketSent method is called by the
 // server after the packet has been sent to the client.
 type OnPacketSentHook interface {
-	OnPacketSent(c *Client, p Packet)
+	OnPacketSent(ctx context.Context, c *Client, p Packet)
 }
 
 // OnConnectHook is the hook interface that wraps the OnConnect method. The OnConnect method is called by the server
@@ -187,7 +188,7 @@ type OnPacketSentHook interface {
 // and packet.ReasonCodeMalformedPacket, the server sends a CONNACK Packet with the reason code before it closes the
 // client.
 type OnConnectHook interface {
-	OnConnect(c *Client, p *packet.Connect) error
+	OnConnect(ctx context.Context, c *Client, p *packet.Connect) error
 }
 
 // OnConnectFailedHook is the hook interface that wraps the OnConnectFailed method. The OnConnectFailed method is
@@ -195,13 +196,13 @@ type OnConnectHook interface {
 // and the error indicating the reason is passed as parameter. After the server calls this method, it closes the
 // client.
 type OnConnectFailedHook interface {
-	OnConnectFailed(c *Client, p *packet.Connect, err error)
+	OnConnectFailed(ctx context.Context, c *Client, p *packet.Connect, err error)
 }
 
 // OnConnectedHook is the hook interface that wraps the OnConnected method. The OnConnected method is called by the
 // server when it completes the connection process to connect the client with success.
 type OnConnectedHook interface {
-	OnConnected(c *Client)
+	OnConnected(ctx context.Context, c *Client)
 }
 
 var hooksRegistryFunc = map[hookType]func(*hooks, Hook, hookType){
@@ -371,7 +372,7 @@ func (h *hooks) onServerStopped() {
 	}
 }
 
-func (h *hooks) onConnectionOpen(c *Connection) error {
+func (h *hooks) onConnectionOpen(ctx context.Context, c *Connection) error {
 	if !h.hasHook(onConnectionOpenHook) {
 		return nil
 	}
@@ -382,7 +383,7 @@ func (h *hooks) onConnectionOpen(c *Connection) error {
 	for _, hook := range h.hooks[onConnectionOpenHook] {
 		hk := hook.(OnConnectionOpenHook)
 
-		err := hk.OnConnectionOpen(c)
+		err := hk.OnConnectionOpen(ctx, c)
 		if err != nil {
 			return err
 		}
@@ -391,7 +392,7 @@ func (h *hooks) onConnectionOpen(c *Connection) error {
 	return nil
 }
 
-func (h *hooks) onClientOpened(c *Client) {
+func (h *hooks) onClientOpened(ctx context.Context, c *Client) {
 	if !h.hasHook(onClientOpenedHook) {
 		return
 	}
@@ -401,7 +402,7 @@ func (h *hooks) onClientOpened(c *Client) {
 
 	for _, hook := range h.hooks[onClientOpenedHook] {
 		hk := hook.(OnClientOpenedHook)
-		hk.OnClientOpened(c)
+		hk.OnClientOpened(ctx, c)
 	}
 }
 
@@ -433,7 +434,7 @@ func (h *hooks) onConnectionClosed(c *Connection, err error) {
 	}
 }
 
-func (h *hooks) onReceivePacket(c *Client) error {
+func (h *hooks) onReceivePacket(ctx context.Context, c *Client) error {
 	if !h.hasHook(onReceivePacketHook) {
 		return nil
 	}
@@ -444,7 +445,7 @@ func (h *hooks) onReceivePacket(c *Client) error {
 	for _, hook := range h.hooks[onReceivePacketHook] {
 		hk := hook.(OnReceivePacketHook)
 
-		err := hk.OnReceivePacket(c)
+		err := hk.OnReceivePacket(ctx, c)
 		if err != nil {
 			return err
 		}
@@ -453,7 +454,7 @@ func (h *hooks) onReceivePacket(c *Client) error {
 	return nil
 }
 
-func (h *hooks) onPacketReceive(c *Client, header packet.FixedHeader) error {
+func (h *hooks) onPacketReceive(ctx context.Context, c *Client, header packet.FixedHeader) error {
 	if !h.hasHook(onPacketReceiveHook) {
 		return nil
 	}
@@ -464,7 +465,7 @@ func (h *hooks) onPacketReceive(c *Client, header packet.FixedHeader) error {
 	for _, hook := range h.hooks[onPacketReceiveHook] {
 		hk := hook.(OnPacketReceiveHook)
 
-		err := hk.OnPacketReceive(c, header)
+		err := hk.OnPacketReceive(ctx, c, header)
 		if err != nil {
 			return err
 		}
@@ -473,7 +474,7 @@ func (h *hooks) onPacketReceive(c *Client, header packet.FixedHeader) error {
 	return nil
 }
 
-func (h *hooks) onPacketReceiveFailed(c *Client, err error) {
+func (h *hooks) onPacketReceiveFailed(ctx context.Context, c *Client, err error) {
 	if !h.hasHook(onPacketReceiveFailedHook) {
 		return
 	}
@@ -483,11 +484,11 @@ func (h *hooks) onPacketReceiveFailed(c *Client, err error) {
 
 	for _, hook := range h.hooks[onPacketReceiveFailedHook] {
 		hk := hook.(OnPacketReceiveFailedHook)
-		hk.OnPacketReceiveFailed(c, err)
+		hk.OnPacketReceiveFailed(ctx, c, err)
 	}
 }
 
-func (h *hooks) onPacketReceived(c *Client, p Packet) error {
+func (h *hooks) onPacketReceived(ctx context.Context, c *Client, p Packet) error {
 	if !h.hasHook(onPacketReceivedHook) {
 		return nil
 	}
@@ -498,7 +499,7 @@ func (h *hooks) onPacketReceived(c *Client, p Packet) error {
 	for _, hook := range h.hooks[onPacketReceivedHook] {
 		hk := hook.(OnPacketReceivedHook)
 
-		err := hk.OnPacketReceived(c, p)
+		err := hk.OnPacketReceived(ctx, c, p)
 		if err != nil {
 			return err
 		}
@@ -507,7 +508,7 @@ func (h *hooks) onPacketReceived(c *Client, p Packet) error {
 	return nil
 }
 
-func (h *hooks) onPacketSend(c *Client, p Packet) error {
+func (h *hooks) onPacketSend(ctx context.Context, c *Client, p Packet) error {
 	if !h.hasHook(onPacketSendHook) {
 		return nil
 	}
@@ -518,7 +519,7 @@ func (h *hooks) onPacketSend(c *Client, p Packet) error {
 	for _, hook := range h.hooks[onPacketSendHook] {
 		hk := hook.(OnPacketSendHook)
 
-		err := hk.OnPacketSend(c, p)
+		err := hk.OnPacketSend(ctx, c, p)
 		if err != nil {
 			return err
 		}
@@ -527,7 +528,7 @@ func (h *hooks) onPacketSend(c *Client, p Packet) error {
 	return nil
 }
 
-func (h *hooks) onPacketSendFailed(c *Client, p Packet, err error) {
+func (h *hooks) onPacketSendFailed(ctx context.Context, c *Client, p Packet, err error) {
 	if !h.hasHook(onPacketSendFailedHook) {
 		return
 	}
@@ -537,11 +538,11 @@ func (h *hooks) onPacketSendFailed(c *Client, p Packet, err error) {
 
 	for _, hook := range h.hooks[onPacketSendFailedHook] {
 		hk := hook.(OnPacketSendFailedHook)
-		hk.OnPacketSendFailed(c, p, err)
+		hk.OnPacketSendFailed(ctx, c, p, err)
 	}
 }
 
-func (h *hooks) onPacketSent(c *Client, p Packet) {
+func (h *hooks) onPacketSent(ctx context.Context, c *Client, p Packet) {
 	if !h.hasHook(onPacketSentHook) {
 		return
 	}
@@ -551,11 +552,11 @@ func (h *hooks) onPacketSent(c *Client, p Packet) {
 
 	for _, hook := range h.hooks[onPacketSentHook] {
 		hk := hook.(OnPacketSentHook)
-		hk.OnPacketSent(c, p)
+		hk.OnPacketSent(ctx, c, p)
 	}
 }
 
-func (h *hooks) onConnect(c *Client, p *packet.Connect) error {
+func (h *hooks) onConnect(ctx context.Context, c *Client, p *packet.Connect) error {
 	if !h.hasHook(onConnectHook) {
 		return nil
 	}
@@ -566,7 +567,7 @@ func (h *hooks) onConnect(c *Client, p *packet.Connect) error {
 	for _, hook := range h.hooks[onConnectHook] {
 		hk := hook.(OnConnectHook)
 
-		err := hk.OnConnect(c, p)
+		err := hk.OnConnect(ctx, c, p)
 		if err != nil {
 			return err
 		}
@@ -575,7 +576,7 @@ func (h *hooks) onConnect(c *Client, p *packet.Connect) error {
 	return nil
 }
 
-func (h *hooks) onConnectFailed(c *Client, p *packet.Connect, err error) {
+func (h *hooks) onConnectFailed(ctx context.Context, c *Client, p *packet.Connect, err error) {
 	if !h.hasHook(onConnectFailedHook) {
 		return
 	}
@@ -585,11 +586,11 @@ func (h *hooks) onConnectFailed(c *Client, p *packet.Connect, err error) {
 
 	for _, hook := range h.hooks[onConnectFailedHook] {
 		hk := hook.(OnConnectFailedHook)
-		hk.OnConnectFailed(c, p, err)
+		hk.OnConnectFailed(ctx, c, p, err)
 	}
 }
 
-func (h *hooks) onConnected(c *Client) {
+func (h *hooks) onConnected(ctx context.Context, c *Client) {
 	if !h.hasHook(onConnectedHook) {
 		return
 	}
@@ -599,6 +600,6 @@ func (h *hooks) onConnected(c *Client) {
 
 	for _, hook := range h.hooks[onConnectedHook] {
 		hk := hook.(OnConnectedHook)
-		hk.OnConnected(c)
+		hk.OnConnected(ctx, c)
 	}
 }

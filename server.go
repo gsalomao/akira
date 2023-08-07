@@ -348,7 +348,9 @@ func (s *Server) Serve(c *Connection) error {
 	c.KeepAliveMs = s.config.ConnectTimeoutMs
 	c.sendTimeoutMs = s.config.SendPacketTimeoutMs
 
-	if err := s.hooks.onConnectionOpen(c); err != nil {
+	clientCtx, cancelClientCtx := context.WithCancelCause(s.ctx)
+
+	if err := s.hooks.onConnectionOpen(clientCtx, c); err != nil {
 		_ = c.netConn.Close()
 		s.hooks.onConnectionClosed(c, err)
 		s.logger.Log("Cannot serve connection due to an error from OnConnectionOpen",
@@ -361,7 +363,8 @@ func (s *Server) Serve(c *Connection) error {
 	client := &Client{Connection: c}
 	s.wg.Add(2)
 
-	clientCtx, cancelClientCtx := context.WithCancelCause(s.ctx)
+	// The inbound context must be detached from the server context to allow the outbound goroutine to wait for the
+	// inbound goroutine to finish before it can finish.
 	inboundCtx, cancelInboundCtx := context.WithCancel(context.Background())
 
 	// The inbound goroutine is responsible for receive and handle the received packets from client.
@@ -422,7 +425,7 @@ func (s *Server) Serve(c *Connection) error {
 		)
 	}()
 
-	s.hooks.onClientOpened(client)
+	s.hooks.onClientOpened(clientCtx, client)
 	s.logger.Log("Serving connection", "address", c.Address)
 	return nil
 }
@@ -469,21 +472,21 @@ func (s *Server) inboundLoop(ctx context.Context, c *Client) error {
 	for {
 		var p Packet
 
-		err := s.hooks.onReceivePacket(c)
+		err := s.hooks.onReceivePacket(ctx, c)
 		if err != nil {
 			return err
 		}
 
-		p, err = s.receivePacket(c)
+		p, err = s.receivePacket(ctx, c)
 		if err != nil {
 			if errors.Is(err, io.EOF) || errors.Is(err, os.ErrDeadlineExceeded) {
 				return err
 			}
-			s.hooks.onPacketReceiveFailed(c, err)
+			s.hooks.onPacketReceiveFailed(ctx, c, err)
 			return err
 		}
 
-		err = s.hooks.onPacketReceived(c, p)
+		err = s.hooks.onPacketReceived(ctx, c, p)
 		if err != nil {
 			return err
 		}
@@ -504,7 +507,7 @@ func (s *Server) backgroundLoop(ctx context.Context) {
 	<-ctx.Done()
 }
 
-func (s *Server) receivePacket(c *Client) (Packet, error) {
+func (s *Server) receivePacket(ctx context.Context, c *Client) (Packet, error) {
 	var h packet.FixedHeader
 
 	r := s.readersPool.Get().(*bufio.Reader)
@@ -520,7 +523,7 @@ func (s *Server) receivePacket(c *Client) (Packet, error) {
 		return nil, ErrPacketSizeExceeded
 	}
 
-	err = s.hooks.onPacketReceive(c, h)
+	err = s.hooks.onPacketReceive(ctx, c, h)
 	if err != nil {
 		return nil, err
 	}
@@ -550,6 +553,9 @@ func (s *Server) receivePacket(c *Client) (Packet, error) {
 }
 
 func (s *Server) handlePacket(ctx context.Context, c *Client, p Packet) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	switch pkt := p.(type) {
 	case *packet.Connect:
 		return s.handlePacketConnect(ctx, c, pkt)
@@ -569,7 +575,7 @@ func (s *Server) handlePacketConnect(ctx context.Context, c *Client, connect *pa
 		if connect.Version == packet.MQTT50 {
 			// As the client is going to be closed, there's nothing else to do with the error returned from the
 			// sendConnAck, as it was already logged.
-			_ = s.sendConnAck(c, packet.ReasonCodeProtocolError, false, nil)
+			_ = s.sendConnAck(ctx, c, packet.ReasonCodeProtocolError, false, nil)
 		}
 		return fmt.Errorf("%w: duplicate CONNECT packet", packet.ErrProtocolError)
 	}
@@ -578,7 +584,7 @@ func (s *Server) handlePacketConnect(ctx context.Context, c *Client, connect *pa
 	// processing.
 	c.Connection.Version = connect.Version
 
-	err := s.hooks.onConnect(c, connect)
+	err := s.hooks.onConnect(ctx, c, connect)
 	if err != nil {
 		s.logger.Log("Stopping to connect client due to an error from OnConnect",
 			"address", c.Connection.Address,
@@ -591,7 +597,7 @@ func (s *Server) handlePacketConnect(ctx context.Context, c *Client, connect *pa
 			if pktErr.Code != packet.ReasonCodeSuccess && pktErr.Code != packet.ReasonCodeMalformedPacket {
 				// As the client is going to be closed, there's nothing else to do with the error returned from the
 				// sendConnAck, as it was already logged.
-				_ = s.sendConnAck(c, pktErr.Code, false, nil)
+				_ = s.sendConnAck(ctx, c, pktErr.Code, false, nil)
 			}
 		}
 		return err
@@ -599,11 +605,11 @@ func (s *Server) handlePacketConnect(ctx context.Context, c *Client, connect *pa
 
 	err = s.connectClient(ctx, c, connect)
 	if err != nil {
-		s.hooks.onConnectFailed(c, connect, err)
+		s.hooks.onConnectFailed(ctx, c, connect, err)
 		return err
 	}
 
-	s.hooks.onConnected(c)
+	s.hooks.onConnected(ctx, c)
 	return nil
 }
 
@@ -620,7 +626,7 @@ func (s *Server) connectClient(ctx context.Context, c *Client, connect *packet.C
 			"version", connect.Version.String(),
 		)
 
-		_ = s.sendConnAck(c, packet.ReasonCodeClientIDNotValid, false, nil)
+		_ = s.sendConnAck(ctx, c, packet.ReasonCodeClientIDNotValid, false, nil)
 		return packet.ErrClientIDNotValid
 	}
 
@@ -635,7 +641,7 @@ func (s *Server) connectClient(ctx context.Context, c *Client, connect *packet.C
 		// For MQTT v3.1 and v3.1.1, there is no mechanism to tell the clients what Keep Alive value they should use.
 		// If an MQTT v3.1 or v3.1.1 client specifies a Keep Alive time greater than maximum keep alive, the CONNACK
 		// packet shall be sent with the reason code "identifier rejected".
-		_ = s.sendConnAck(c, packet.ReasonCodeClientIDNotValid, false, nil)
+		_ = s.sendConnAck(ctx, c, packet.ReasonCodeClientIDNotValid, false, nil)
 		return packet.ErrClientIDNotValid
 	}
 
@@ -662,7 +668,7 @@ func (s *Server) connectClient(ctx context.Context, c *Client, connect *packet.C
 		// indicating that the service is unavailable.
 		pErr := packet.ErrServerUnavailable
 
-		_ = s.sendConnAck(c, pErr.Code, false, nil)
+		_ = s.sendConnAck(ctx, c, pErr.Code, false, nil)
 		return fmt.Errorf("%w: %s", pErr, err.Error())
 	}
 
@@ -691,12 +697,12 @@ func (s *Server) connectClient(ctx context.Context, c *Client, connect *packet.C
 			// service is unavailable.
 			pErr := packet.ErrServerUnavailable
 
-			_ = s.sendConnAck(c, pErr.Code, false, nil)
+			_ = s.sendConnAck(ctx, c, pErr.Code, false, nil)
 			return fmt.Errorf("%w: %s", pErr, err.Error())
 		}
 	}
 
-	err = s.sendConnAck(c, packet.ReasonCodeSuccess, sessionPresent, connect)
+	err = s.sendConnAck(ctx, c, packet.ReasonCodeSuccess, sessionPresent, connect)
 	if err != nil {
 		return err
 	}
@@ -720,7 +726,9 @@ func (s *Server) connectClient(ctx context.Context, c *Client, connect *packet.C
 	return nil
 }
 
-func (s *Server) sendConnAck(c *Client, code packet.ReasonCode, present bool, connect *packet.Connect) error {
+func (s *Server) sendConnAck(
+	ctx context.Context, c *Client, code packet.ReasonCode, present bool, connect *packet.Connect,
+) error {
 	var props *packet.ConnAckProperties
 
 	if code == packet.ReasonCodeClientIDNotValid && c.Connection.Version != packet.MQTT50 {
@@ -733,11 +741,11 @@ func (s *Server) sendConnAck(c *Client, code packet.ReasonCode, present bool, co
 		props = connAckProperties(c, &s.config, connect)
 	}
 	connack := packet.ConnAck{Version: c.Connection.Version, Code: code, SessionPresent: present, Properties: props}
-	return s.sendPacket(c, &connack)
+	return s.sendPacket(ctx, c, &connack)
 }
 
-func (s *Server) sendPacket(c *Client, p PacketEncodable) error {
-	err := s.hooks.onPacketSend(c, p)
+func (s *Server) sendPacket(ctx context.Context, c *Client, p PacketEncodable) error {
+	err := s.hooks.onPacketSend(ctx, c, p)
 	if err != nil {
 		s.logger.Log("Stopping to send packet to client due to an error from OnPacketSend",
 			"address", c.Connection.Address,
@@ -761,12 +769,12 @@ func (s *Server) sendPacket(c *Client, p PacketEncodable) error {
 		)
 
 		if !errors.Is(err, io.EOF) {
-			s.hooks.onPacketSendFailed(c, p, err)
+			s.hooks.onPacketSendFailed(ctx, c, p, err)
 		}
 		return err
 	}
 
-	s.hooks.onPacketSent(c, p)
+	s.hooks.onPacketSent(ctx, c, p)
 
 	s.Metrics.PacketSent.value.Add(1)
 	s.Metrics.BytesSent.value.Add(uint64(pSize))

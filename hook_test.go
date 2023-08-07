@@ -15,6 +15,7 @@
 package akira
 
 import (
+	"context"
 	"testing"
 )
 
@@ -23,7 +24,7 @@ func BenchmarkHooksOnConnectionOpen(b *testing.B) {
 		h := newHooks()
 
 		for i := 0; i < b.N; i++ {
-			_ = h.onConnectionOpen(nil)
+			_ = h.onConnectionOpen(context.Background(), nil)
 		}
 	})
 
@@ -32,7 +33,7 @@ func BenchmarkHooksOnConnectionOpen(b *testing.B) {
 		_ = h.add(&mockOnConnectionOpenHook{})
 
 		for i := 0; i < b.N; i++ {
-			_ = h.onConnectionOpen(nil)
+			_ = h.onConnectionOpen(context.Background(), nil)
 		}
 	})
 }
@@ -42,7 +43,7 @@ func BenchmarkHooksOnClientOpened(b *testing.B) {
 		h := newHooks()
 
 		for i := 0; i < b.N; i++ {
-			h.onClientOpened(nil)
+			h.onClientOpened(context.Background(), nil)
 		}
 	})
 
@@ -51,7 +52,7 @@ func BenchmarkHooksOnClientOpened(b *testing.B) {
 		_ = h.add(&mockOnClientOpenedHook{})
 
 		for i := 0; i < b.N; i++ {
-			h.onClientOpened(nil)
+			h.onClientOpened(context.Background(), nil)
 		}
 	})
 }
@@ -99,7 +100,7 @@ func BenchmarkHooksOnReceivePacket(b *testing.B) {
 		h := newHooks()
 
 		for i := 0; i < b.N; i++ {
-			_ = h.onReceivePacket(nil)
+			_ = h.onReceivePacket(context.Background(), nil)
 		}
 	})
 
@@ -108,7 +109,7 @@ func BenchmarkHooksOnReceivePacket(b *testing.B) {
 		_ = h.add(&mockOnReceivePacketHook{})
 
 		for i := 0; i < b.N; i++ {
-			_ = h.onReceivePacket(nil)
+			_ = h.onReceivePacket(context.Background(), nil)
 		}
 	})
 }
@@ -118,7 +119,7 @@ func BenchmarkHooksOnPacketReceived(b *testing.B) {
 		h := newHooks()
 
 		for i := 0; i < b.N; i++ {
-			_ = h.onPacketReceived(nil, nil)
+			_ = h.onPacketReceived(context.Background(), nil, nil)
 		}
 	})
 
@@ -127,7 +128,7 @@ func BenchmarkHooksOnPacketReceived(b *testing.B) {
 		_ = h.add(&mockOnPacketReceivedHook{})
 
 		for i := 0; i < b.N; i++ {
-			_ = h.onPacketReceived(nil, nil)
+			_ = h.onPacketReceived(context.Background(), nil, nil)
 		}
 	})
 }
@@ -137,7 +138,7 @@ func BenchmarkHooksOnPacketSend(b *testing.B) {
 		h := newHooks()
 
 		for i := 0; i < b.N; i++ {
-			_ = h.onPacketSend(nil, nil)
+			_ = h.onPacketSend(context.Background(), nil, nil)
 		}
 	})
 
@@ -146,7 +147,7 @@ func BenchmarkHooksOnPacketSend(b *testing.B) {
 		_ = h.add(&mockOnPacketSendHook{})
 
 		for i := 0; i < b.N; i++ {
-			_ = h.onPacketSend(nil, nil)
+			_ = h.onPacketSend(context.Background(), nil, nil)
 		}
 	})
 }
@@ -156,7 +157,7 @@ func BenchmarkHooksOnPacketSent(b *testing.B) {
 		h := newHooks()
 
 		for i := 0; i < b.N; i++ {
-			h.onPacketSent(nil, nil)
+			h.onPacketSent(context.Background(), nil, nil)
 		}
 	})
 
@@ -165,7 +166,7 @@ func BenchmarkHooksOnPacketSent(b *testing.B) {
 		_ = h.add(&mockOnPacketSentHook{})
 
 		for i := 0; i < b.N; i++ {
-			h.onPacketSent(nil, nil)
+			h.onPacketSent(context.Background(), nil, nil)
 		}
 	})
 }

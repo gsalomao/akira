@@ -15,6 +15,7 @@
 package akira
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"sync/atomic"
@@ -159,7 +160,7 @@ func (m *mockOnConnectionOpenHook) Name() string {
 	return reflect.TypeOf(m).String()
 }
 
-func (m *mockOnConnectionOpenHook) OnConnectionOpen(c *Connection) error {
+func (m *mockOnConnectionOpenHook) OnConnectionOpen(_ context.Context, c *Connection) error {
 	m.called()
 	if m.cb != nil {
 		return m.cb(c)
@@ -176,7 +177,7 @@ func (m *mockOnClientOpenedHook) Name() string {
 	return reflect.TypeOf(m).String()
 }
 
-func (m *mockOnClientOpenedHook) OnClientOpened(c *Client) {
+func (m *mockOnClientOpenedHook) OnClientOpened(_ context.Context, c *Client) {
 	m.called()
 	if m.cb != nil {
 		m.cb(c)
@@ -224,7 +225,7 @@ func (m *mockOnReceivePacketHook) Name() string {
 	return reflect.TypeOf(m).String()
 }
 
-func (m *mockOnReceivePacketHook) OnReceivePacket(c *Client) error {
+func (m *mockOnReceivePacketHook) OnReceivePacket(_ context.Context, c *Client) error {
 	m.called()
 	if m.cb != nil {
 		return m.cb(c)
@@ -241,7 +242,7 @@ func (m *mockOnPacketReceiveHook) Name() string {
 	return reflect.TypeOf(m).String()
 }
 
-func (m *mockOnPacketReceiveHook) OnPacketReceive(c *Client, h packet.FixedHeader) error {
+func (m *mockOnPacketReceiveHook) OnPacketReceive(_ context.Context, c *Client, h packet.FixedHeader) error {
 	m.called()
 	if m.cb != nil {
 		return m.cb(c, h)
@@ -258,7 +259,7 @@ func (m *mockOnPacketReceiveFailedHook) Name() string {
 	return reflect.TypeOf(m).String()
 }
 
-func (m *mockOnPacketReceiveFailedHook) OnPacketReceiveFailed(c *Client, err error) {
+func (m *mockOnPacketReceiveFailedHook) OnPacketReceiveFailed(_ context.Context, c *Client, err error) {
 	m.called()
 	if m.cb != nil {
 		m.cb(c, err)
@@ -274,7 +275,7 @@ func (m *mockOnPacketReceivedHook) Name() string {
 	return reflect.TypeOf(m).String()
 }
 
-func (m *mockOnPacketReceivedHook) OnPacketReceived(c *Client, p Packet) error {
+func (m *mockOnPacketReceivedHook) OnPacketReceived(_ context.Context, c *Client, p Packet) error {
 	m.called()
 	if m.cb != nil {
 		return m.cb(c, p)
@@ -291,7 +292,7 @@ func (m *mockOnPacketSendHook) Name() string {
 	return reflect.TypeOf(m).String()
 }
 
-func (m *mockOnPacketSendHook) OnPacketSend(c *Client, p Packet) error {
+func (m *mockOnPacketSendHook) OnPacketSend(_ context.Context, c *Client, p Packet) error {
 	m.called()
 	if m.cb != nil {
 		return m.cb(c, p)
@@ -308,7 +309,7 @@ func (m *mockOnPacketSendFailedHook) Name() string {
 	return reflect.TypeOf(m).String()
 }
 
-func (m *mockOnPacketSendFailedHook) OnPacketSendFailed(c *Client, p Packet, err error) {
+func (m *mockOnPacketSendFailedHook) OnPacketSendFailed(_ context.Context, c *Client, p Packet, err error) {
 	m.called()
 	if m.cb != nil {
 		m.cb(c, p, err)
@@ -324,7 +325,7 @@ func (m *mockOnPacketSentHook) Name() string {
 	return reflect.TypeOf(m).String()
 }
 
-func (m *mockOnPacketSentHook) OnPacketSent(c *Client, p Packet) {
+func (m *mockOnPacketSentHook) OnPacketSent(_ context.Context, c *Client, p Packet) {
 	m.called()
 	if m.cb != nil {
 		m.cb(c, p)
@@ -340,7 +341,7 @@ func (m *mockOnConnectHook) Name() string {
 	return reflect.TypeOf(m).String()
 }
 
-func (m *mockOnConnectHook) OnConnect(c *Client, p *packet.Connect) error {
+func (m *mockOnConnectHook) OnConnect(_ context.Context, c *Client, p *packet.Connect) error {
 	m.called()
 	if m.cb != nil {
 		return m.cb(c, p)
@@ -357,7 +358,7 @@ func (m *mockOnConnectFailedHook) Name() string {
 	return reflect.TypeOf(m).String()
 }
 
-func (m *mockOnConnectFailedHook) OnConnectFailed(c *Client, p *packet.Connect, err error) {
+func (m *mockOnConnectFailedHook) OnConnectFailed(_ context.Context, c *Client, p *packet.Connect, err error) {
 	m.called()
 	if m.cb != nil {
 		m.cb(c, p, err)
@@ -373,7 +374,7 @@ func (m *mockOnConnectedHook) Name() string {
 	return reflect.TypeOf(m).String()
 }
 
-func (m *mockOnConnectedHook) OnConnected(c *Client) {
+func (m *mockOnConnectedHook) OnConnected(_ context.Context, c *Client) {
 	m.called()
 	if m.cb != nil {
 		m.cb(c)
