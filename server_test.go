@@ -2129,6 +2129,71 @@ func TestServerConnectIgnoreReasonCodesFromOnConnect(t *testing.T) {
 	}
 }
 
+func TestServerUpdateSessionWhenClosingConnectedClient(t *testing.T) {
+	testCases := []struct {
+		connect string
+		connack string
+	}{
+		{"V3.1", "V3 Accepted"},
+		{"V3.1.1", "V3 Accepted"},
+		{"V5.0", "V5.0 Success"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.connect, func(t *testing.T) {
+			connect := readPacketFixture(t, "connect.json", tc.connect)
+			connack := readPacketFixture(t, "connack.json", tc.connack)
+			ss := &mockSessionStore{}
+			onConnected := &mockOnConnectedHook{}
+			onConnClosed := &mockOnConnectionClosedHook{}
+
+			s := newServer(t, WithSessionStore(ss), WithHooks([]Hook{onConnected, onConnClosed}))
+			defer s.Close()
+			startServer(t, s)
+
+			nc, conn := newConnection(t)
+			defer func() { _ = nc.Close() }()
+
+			connected := make(chan struct{})
+			onConnected.cb = func(_ *Client) { close(connected) }
+
+			serveConnection(t, s, conn)
+			sendPacket(t, nc, connect.Packet)
+
+			p := receivePacket(t, nc, len(connack.Packet))
+			if !bytes.Equal(connack.Packet, p) {
+				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+			}
+			<-connected
+
+			sessionStream := make(chan *Session, 1)
+			ss.saveCB = func(_ []byte, session *Session) error {
+				sessionStream <- session
+				return nil
+			}
+
+			ss._saveCalls.Store(0)
+
+			closed := make(chan struct{})
+			onConnClosed.cb = func(_ *Connection, _ error) { close(closed) }
+
+			_ = nc.Close()
+			<-closed
+
+			session := <-sessionStream
+			if session == nil {
+				t.Fatal("A session was expected")
+			}
+			if session.DisconnectedAt == 0 {
+				t.Error("Disconnected timestamp should be set")
+			}
+			if ss.saveCalls() != 1 {
+				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, ss.saveCalls())
+			}
+		})
+	}
+}
+
 func BenchmarkHandleConnect(b *testing.B) {
 	testCases := []struct {
 		connect string

@@ -365,7 +365,7 @@ func (s *Server) Serve(c *Connection) error {
 
 	// The inbound context must be detached from the server context to allow the outbound goroutine to wait for the
 	// inbound goroutine to finish before it can finish.
-	inboundCtx, cancelInboundCtx := context.WithCancel(context.Background())
+	inboundCtx, cancelInboundCtx := context.WithCancel(context.TODO())
 
 	// The inbound goroutine is responsible for receive and handle the received packets from client.
 	go func() {
@@ -373,6 +373,22 @@ func (s *Server) Serve(c *Connection) error {
 
 		s.logger.Log("Running inbound loop", "address", c.Address)
 		err := s.inboundLoop(clientCtx, client)
+
+		if client.Connected() {
+			client.Session.DisconnectedAt = time.Now().UnixMilli()
+			client.connected.Store(false)
+
+			saveErr := s.sessionStore.SaveSession(inboundCtx, client.ID, &client.Session)
+			if saveErr != nil {
+				s.logger.Log("Failed to save session on close",
+					"address", c.Address,
+					"error", err,
+					"id", string(client.ID),
+					"state", s.State().String(),
+					"version", c.Version.String(),
+				)
+			}
+		}
 
 		cancelClientCtx(err)
 		cancelInboundCtx()
