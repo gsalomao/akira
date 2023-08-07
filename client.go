@@ -69,7 +69,7 @@ func (s *Session) Expired() bool {
 // SessionProperties represents the properties of the session (MQTT V5.0 only).
 type SessionProperties struct {
 	// Flags indicates which properties are present.
-	Flags packet.PropertyFlags
+	Flags packet.PropertyFlags `json:"flags"`
 
 	// UserProperties is a list of user properties.
 	UserProperties []packet.UserProperty `json:"user_properties"`
