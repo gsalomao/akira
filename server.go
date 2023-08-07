@@ -337,8 +337,10 @@ func (s *Server) Serve(c *Connection) error {
 		return ErrInvalidConnection
 	}
 	if st != ServerRunning {
-		s.logger.Log("Cannot serve connection as server not running", "address", c.Address,
-			"state", st.String())
+		s.logger.Log("Cannot serve connection as server not running",
+			"address", c.Address,
+			"state", st.String(),
+		)
 		return ErrServerNotRunning
 	}
 
@@ -349,8 +351,10 @@ func (s *Server) Serve(c *Connection) error {
 	if err := s.hooks.onConnectionOpen(c); err != nil {
 		_ = c.netConn.Close()
 		s.hooks.onConnectionClosed(c, err)
-		s.logger.Log("Cannot serve connection due to an error from OnConnectionOpen", "address", c.Address,
-			"error", err)
+		s.logger.Log("Cannot serve connection due to an error from OnConnectionOpen",
+			"address", c.Address,
+			"error", err,
+		)
 		return err
 	}
 
@@ -370,8 +374,12 @@ func (s *Server) Serve(c *Connection) error {
 		cancelClientCtx(err)
 		cancelInboundCtx()
 
-		s.logger.Log("Stopping inbound loop", "address", c.Address, "id", string(client.ID),
-			"state", s.State().String(), "version", c.Version.String())
+		s.logger.Log("Stopping inbound loop",
+			"address", c.Address,
+			"id", string(client.ID),
+			"state", s.State().String(),
+			"version", c.Version.String(),
+		)
 	}()
 
 	// The outbound goroutine is responsible to send outbound packets to client.
@@ -386,19 +394,32 @@ func (s *Server) Serve(c *Connection) error {
 		<-inboundCtx.Done()
 
 		if errors.Is(err, io.EOF) || errors.Is(err, ErrServerStopped) {
-			s.logger.Log("Client closed", "address", c.Address, "id", string(client.ID),
-				"state", s.State().String(), "version", c.Version.String())
+			s.logger.Log("Client closed",
+				"address", c.Address,
+				"id", string(client.ID),
+				"state", s.State().String(),
+				"version", c.Version.String(),
+			)
 		} else {
-			s.logger.Log("Client closed due to an error", "address", c.Address, "error", err,
-				"id", string(client.ID), "state", s.State().String(), "version", c.Version.String())
+			s.logger.Log("Client closed due to an error",
+				"address", c.Address,
+				"error", err,
+				"id", string(client.ID),
+				"state", s.State().String(),
+				"version", c.Version.String(),
+			)
 		}
 
 		conn := client.Connection
 		client.Connection = nil
 		s.hooks.onConnectionClosed(conn, err)
 
-		s.logger.Log("Stopping outbound loop", "address", c.Address, "id", string(client.ID),
-			"state", s.State().String(), "version", c.Version.String())
+		s.logger.Log("Stopping outbound loop",
+			"address", c.Address,
+			"id", string(client.ID),
+			"state", s.State().String(),
+			"version", c.Version.String(),
+		)
 	}()
 
 	s.hooks.onClientOpened(client)
@@ -518,8 +539,13 @@ func (s *Server) receivePacket(c *Client) (Packet, error) {
 	s.Metrics.PacketReceived.value.Add(1)
 	s.Metrics.BytesReceived.value.Add(uint64(pSize))
 
-	s.logger.Log("Received packet from client", "address", c.Connection.Address, "id", string(c.ID),
-		"packet", p.Type().String(), "size", pSize, "version", c.Connection.Version.String())
+	s.logger.Log("Received packet from client",
+		"address", c.Connection.Address,
+		"id", string(c.ID),
+		"packet", p.Type().String(),
+		"size", pSize,
+		"version", c.Connection.Version.String(),
+	)
 	return p, nil
 }
 
@@ -534,8 +560,11 @@ func (s *Server) handlePacket(ctx context.Context, c *Client, p Packet) error {
 
 func (s *Server) handlePacketConnect(ctx context.Context, c *Client, connect *packet.Connect) error {
 	if c.Connected() {
-		s.logger.Log("Duplicate CONNECT packet", "address", c.Connection.Address, "id", string(c.ID),
-			"version", connect.Version.String())
+		s.logger.Log("Duplicate CONNECT packet",
+			"address", c.Connection.Address,
+			"id", string(c.ID),
+			"version", connect.Version.String(),
+		)
 
 		if connect.Version == packet.MQTT50 {
 			// As the client is going to be closed, there's nothing else to do with the error returned from the
@@ -552,7 +581,10 @@ func (s *Server) handlePacketConnect(ctx context.Context, c *Client, connect *pa
 	err := s.hooks.onConnect(c, connect)
 	if err != nil {
 		s.logger.Log("Stopping to connect client due to an error from OnConnect",
-			"address", c.Connection.Address, "error", err, "version", connect.Version.String())
+			"address", c.Connection.Address,
+			"error", err,
+			"version", connect.Version.String(),
+		)
 
 		var pktErr packet.Error
 		if errors.As(err, &pktErr) {
@@ -582,16 +614,23 @@ func (s *Server) connectClient(ctx context.Context, c *Client, connect *packet.C
 	)
 
 	if !isClientIDValid(connect.Version, len(connect.ClientID), &s.config) {
-		s.logger.Log("Failed to connect client due to invalid client ID", "address", c.Connection.Address,
-			"id", string(connect.ClientID), "version", connect.Version.String())
+		s.logger.Log("Failed to connect client due to invalid client ID",
+			"address", c.Connection.Address,
+			"id", string(connect.ClientID),
+			"version", connect.Version.String(),
+		)
 
 		_ = s.sendConnAck(c, packet.ReasonCodeClientIDNotValid, false, nil)
 		return packet.ErrClientIDNotValid
 	}
 
 	if !isKeepAliveValid(connect.Version, connect.KeepAlive, s.config.MaxKeepAliveSec) {
-		s.logger.Log("Failed to connect client due to invalid keep alive", "address", c.Connection.Address,
-			"id", string(connect.ClientID), "keep_alive", connect.KeepAlive, "version", connect.Version.String())
+		s.logger.Log("Failed to connect client due to invalid keep alive",
+			"address", c.Connection.Address,
+			"id", string(connect.ClientID),
+			"keep_alive", connect.KeepAlive,
+			"version", connect.Version.String(),
+		)
 
 		// For MQTT v3.1 and v3.1.1, there is no mechanism to tell the clients what Keep Alive value they should use.
 		// If an MQTT v3.1 or v3.1.1 client specifies a Keep Alive time greater than maximum keep alive, the CONNACK
@@ -611,9 +650,13 @@ func (s *Server) connectClient(ctx context.Context, c *Client, connect *packet.C
 		}
 	}
 	if err != nil && !errors.Is(err, ErrSessionNotFound) {
-		s.logger.Log("Failed to get/delete session", "address", c.Connection.Address,
-			"clean_start", connect.Flags.CleanStart(), "id", string(connect.ClientID), "error", err,
-			"version", connect.Version.String())
+		s.logger.Log("Failed to get/delete session",
+			"address", c.Connection.Address,
+			"clean_start", connect.Flags.CleanStart(),
+			"id", string(connect.ClientID),
+			"error", err,
+			"version", connect.Version.String(),
+		)
 
 		// If the session store fails to get the session, or to delete the session, the server replies to client
 		// indicating that the service is unavailable.
@@ -636,8 +679,13 @@ func (s *Server) connectClient(ctx context.Context, c *Client, connect *packet.C
 	if persistentSession {
 		err = s.sessionStore.SaveSession(ctx, c.ID, &c.Session)
 		if err != nil {
-			s.logger.Log("Failed save session", "address", c.Connection.Address, "error", err,
-				"id", string(c.ID), "session_present", sessionPresent, "version", connect.Version.String())
+			s.logger.Log("Failed save session",
+				"address", c.Connection.Address,
+				"error", err,
+				"id", string(c.ID),
+				"session_present", sessionPresent,
+				"version", connect.Version.String(),
+			)
 
 			// If the session store fails to save the session, the server replies to client indicating that the
 			// service is unavailable.
@@ -660,9 +708,15 @@ func (s *Server) connectClient(ctx context.Context, c *Client, connect *packet.C
 		s.Metrics.PersistentSessions.value.Add(1)
 	}
 
-	s.logger.Log("Client connected with success", "address", c.Connection.Address, "id", string(c.ID),
-		"keep_alive", c.Connection.KeepAliveMs/1000, "persistent_session", persistentSession,
-		"session_present", sessionPresent, "version", c.Connection.Version.String())
+	s.logger.Log("Client connected with success",
+		"address", c.Connection.Address,
+		"clean_start", connect.Flags.CleanStart(),
+		"id", string(c.ID),
+		"keep_alive", c.Connection.KeepAliveMs/1000,
+		"persistent_session", persistentSession,
+		"session_present", sessionPresent,
+		"version", c.Connection.Version.String(),
+	)
 	return nil
 }
 
@@ -686,7 +740,11 @@ func (s *Server) sendPacket(c *Client, p PacketEncodable) error {
 	err := s.hooks.onPacketSend(c, p)
 	if err != nil {
 		s.logger.Log("Stopping to send packet to client due to an error from OnPacketSend",
-			"address", c.Connection.Address, "error", err, "id", string(c.ID), "packet", p.Type().String())
+			"address", c.Connection.Address,
+			"error", err,
+			"id", string(c.ID),
+			"packet", p.Type().String(),
+		)
 		return err
 	}
 
@@ -694,8 +752,13 @@ func (s *Server) sendPacket(c *Client, p PacketEncodable) error {
 
 	pSize, err = c.Connection.sendPacket(p)
 	if err != nil {
-		s.logger.Log("Failed to send packet to client", "address", c.Connection.Address, "error", err,
-			"id", string(c.ID), "packet", p.Type().String(), "version", c.Connection.Version.String())
+		s.logger.Log("Failed to send packet to client",
+			"address", c.Connection.Address,
+			"error", err,
+			"id", string(c.ID),
+			"packet", p.Type().String(),
+			"version", c.Connection.Version.String(),
+		)
 
 		if !errors.Is(err, io.EOF) {
 			s.hooks.onPacketSendFailed(c, p, err)
@@ -708,7 +771,12 @@ func (s *Server) sendPacket(c *Client, p PacketEncodable) error {
 	s.Metrics.PacketSent.value.Add(1)
 	s.Metrics.BytesSent.value.Add(uint64(pSize))
 
-	s.logger.Log("Packet sent to client", "address", c.Connection.Address, "id", string(c.ID),
-		"packet", p.Type().String(), "size", p.Size(), "version", c.Connection.Version.String())
+	s.logger.Log("Packet sent to client",
+		"address", c.Connection.Address,
+		"id", string(c.ID),
+		"packet", p.Type().String(),
+		"size", p.Size(),
+		"version", c.Connection.Version.String(),
+	)
 	return nil
 }
