@@ -16,6 +16,7 @@ package akira
 
 import (
 	"sync/atomic"
+	"time"
 
 	"github.com/gsalomao/akira/packet"
 )
@@ -47,11 +48,22 @@ type Session struct {
 	// LastWill represents the MQTT Will Message to be published by the server.
 	LastWill *LastWill `json:"last_will,omitempty"`
 
-	// ConnectedAt indicates the timestamp, in milliseconds, of the last time the client has connected.
+	// ConnectedAt indicates the Unix timestamp, in milliseconds, of the last time the client connected.
 	ConnectedAt int64 `json:"connected_at"`
 
-	// Connected indicates that the client associated with the session is connected.
-	Connected bool `json:"connected"`
+	// DisconnectedAt indicates the Unix timestamp, in milliseconds, of the last time the client disconnected.
+	DisconnectedAt int64 `json:"disconnected_at"`
+}
+
+// Expired returns whether the session is expired or not. A session is considered expired only if it is not connected
+// anymore and the timestamp when the session disconnected plus the session expiry interval is older than the current
+// timestamp.
+func (s *Session) Expired() bool {
+	if s == nil || s.Properties == nil || !s.Properties.Has(packet.PropertySessionExpiryInterval) {
+		return false
+	}
+	expiryAt := s.ConnectedAt + int64(s.Properties.SessionExpiryInterval)*1000
+	return time.Now().After(time.UnixMilli(expiryAt))
 }
 
 // SessionProperties represents the properties of the session (MQTT V5.0 only).

@@ -186,7 +186,7 @@ func BenchmarkInMemorySessionStoreDeleteSession(b *testing.B) {
 func newSession(tb testing.TB) (s Session, encoded []byte) {
 	tb.Helper()
 
-	s = Session{Connected: true, ConnectedAt: time.Now().UnixMilli()}
+	s = Session{ConnectedAt: time.Now().UnixMilli()}
 	s.Properties = &SessionProperties{
 		Flags:                 packet.PropertyFlags(0).Set(packet.PropertySessionExpiryInterval),
 		SessionExpiryInterval: 100,

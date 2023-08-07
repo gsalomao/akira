@@ -1528,6 +1528,52 @@ func TestServerConnectWithSessionPresent(t *testing.T) {
 	}
 }
 
+func TestServerConnectWithExpiredSession(t *testing.T) {
+	testCases := []struct {
+		connect string
+		connack string
+	}{
+		{"V3.1", "V3 Accepted"},
+		{"V3.1.1", "V3 Accepted"},
+		{"V5.0", "V5.0 Success"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.connect, func(t *testing.T) {
+			connect := readPacketFixture(t, "connect.json", tc.connect)
+			connack := readPacketFixture(t, "connack.json", tc.connack)
+
+			ss := &mockSessionStore{}
+			ss.getCB = func(_ []byte, s *Session) error {
+				s.ConnectedAt = time.Now().Add(-2 * time.Second).UnixMilli()
+				s.Properties = &SessionProperties{
+					Flags:                 packet.PropertyFlags(0).Set(packet.PropertySessionExpiryInterval),
+					SessionExpiryInterval: 1,
+				}
+				return nil
+			}
+
+			s := newServer(t, WithSessionStore(ss))
+			defer s.Close()
+			startServer(t, s)
+
+			nc, conn := newConnection(t)
+			defer func() { _ = nc.Close() }()
+
+			serveConnection(t, s, conn)
+			sendPacket(t, nc, connect.Packet)
+
+			p := receivePacket(t, nc, len(connack.Packet))
+			if !bytes.Equal(connack.Packet, p) {
+				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
+			}
+			if ss.deleteCalls() != 1 {
+				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, ss.deleteCalls())
+			}
+		})
+	}
+}
+
 func TestServerConnectWithConfig(t *testing.T) {
 	testCases := []struct {
 		config  string

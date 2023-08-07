@@ -652,7 +652,11 @@ func (s *Server) connectClient(ctx context.Context, c *Client, connect *packet.C
 	} else {
 		err = s.sessionStore.GetSession(ctx, connect.ClientID, &c.Session)
 		if err == nil {
-			sessionPresent = true
+			if c.Session.Expired() {
+				err = s.sessionStore.DeleteSession(ctx, connect.ClientID)
+			} else {
+				sessionPresent = true
+			}
 		}
 	}
 	if err != nil && !errors.Is(err, ErrSessionNotFound) {
@@ -673,7 +677,6 @@ func (s *Server) connectClient(ctx context.Context, c *Client, connect *packet.C
 	}
 
 	c.ID = connect.ClientID
-	c.Session.Connected = true
 	c.Session.ConnectedAt = time.Now().UnixMilli()
 	c.Session.Properties = sessionProperties(connect.Properties, &s.config)
 	c.Session.LastWill = lastWill(connect)
