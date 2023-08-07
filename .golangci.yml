@@ -292,3 +292,7 @@ issues:
       linters:
         - dupl
         - gocognit
+    - path: _test\.go
+      text: "G404:" # Ignore weak random number generator lint.
+      linters:
+        - gosec
