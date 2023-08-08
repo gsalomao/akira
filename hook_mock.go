@@ -46,7 +46,7 @@ func (m *mockOnStartHook) Name() string {
 	return reflect.TypeOf(m).String()
 }
 
-func (m *mockOnStartHook) OnStart() error {
+func (m *mockOnStartHook) OnStart(_ context.Context) error {
 	m.called()
 	if m.cb != nil {
 		return m.cb()
@@ -63,7 +63,7 @@ func (m *mockOnStopHook) Name() string {
 	return reflect.TypeOf(m).String()
 }
 
-func (m *mockOnStopHook) OnStop() {
+func (m *mockOnStopHook) OnStop(_ context.Context) {
 	m.called()
 	if m.cb != nil {
 		m.cb()
@@ -79,7 +79,7 @@ func (m *mockOnServerStartHook) Name() string {
 	return reflect.TypeOf(m).String()
 }
 
-func (m *mockOnServerStartHook) OnServerStart() error {
+func (m *mockOnServerStartHook) OnServerStart(_ context.Context) error {
 	m.called()
 	if m.cb != nil {
 		return m.cb()
@@ -96,7 +96,7 @@ func (m *mockOnServerStartFailedHook) Name() string {
 	return reflect.TypeOf(m).String()
 }
 
-func (m *mockOnServerStartFailedHook) OnServerStartFailed(err error) {
+func (m *mockOnServerStartFailedHook) OnServerStartFailed(_ context.Context, err error) {
 	m.called()
 	if m.cb != nil {
 		m.cb(err)
@@ -112,7 +112,7 @@ func (m *mockOnServerStartedHook) Name() string {
 	return reflect.TypeOf(m).String()
 }
 
-func (m *mockOnServerStartedHook) OnServerStarted() {
+func (m *mockOnServerStartedHook) OnServerStarted(_ context.Context) {
 	m.called()
 	if m.cb != nil {
 		m.cb()
@@ -128,7 +128,7 @@ func (m *mockOnServerStopHook) Name() string {
 	return reflect.TypeOf(m).String()
 }
 
-func (m *mockOnServerStopHook) OnServerStop() {
+func (m *mockOnServerStopHook) OnServerStop(_ context.Context) {
 	m.called()
 	if m.cb != nil {
 		m.cb()
@@ -144,7 +144,7 @@ func (m *mockOnServerStoppedHook) Name() string {
 	return reflect.TypeOf(m).String()
 }
 
-func (m *mockOnServerStoppedHook) OnServerStopped() {
+func (m *mockOnServerStoppedHook) OnServerStopped(_ context.Context) {
 	m.called()
 	if m.cb != nil {
 		m.cb()

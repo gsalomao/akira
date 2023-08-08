@@ -190,7 +190,7 @@ func (s *Server) AddHook(h Hook) error {
 
 	if s.State() == ServerRunning {
 		if hook, ok := h.(OnStartHook); ok {
-			err := hook.OnStart()
+			err := hook.OnStart(s.ctx)
 			if err != nil {
 				s.logger.Log("Failed to start hook", "error", err, "hook", h.Name(), "hooks", s.hooks.len())
 				return err
@@ -223,30 +223,33 @@ func (s *Server) Start() error {
 		return ErrInvalidServerState
 	}
 
-	err := s.setState(ServerStarting, nil)
+	ctx, cancelCtx := context.WithCancelCause(context.Background())
+
+	err := s.setState(ctx, ServerStarting, nil)
 	if err != nil {
 		s.logger.Log("Failed to set server to starting state", "error", err, "state", st.String())
 
 		// The setState method never returns error when setting to ServerFailed.
-		_ = s.setState(ServerFailed, err)
+		_ = s.setState(ctx, ServerFailed, err)
+		cancelCtx(err)
 		return err
 	}
-
-	s.stopOnce = sync.Once{}
-	s.ctx, s.cancelCtx = context.WithCancelCause(context.Background())
 
 	err = s.listeners.listenAll(s.Serve)
 	if err != nil {
 		s.logger.Log("Failed to start listeners", "error", err, "state", st.String())
 
 		// The setState method never returns error when setting to ServerFailed.
-		_ = s.setState(ServerFailed, err)
+		_ = s.setState(ctx, ServerFailed, err)
+		cancelCtx(err)
 		return err
 	}
 
 	s.wg.Add(1)
 	readyCh := make(chan struct{})
 	s.stopOnce = sync.Once{}
+	s.ctx = ctx
+	s.cancelCtx = cancelCtx
 
 	go func() {
 		defer s.wg.Done()
@@ -258,7 +261,7 @@ func (s *Server) Start() error {
 	<-readyCh
 
 	// The setState method never returns error when setting to ServerRunning.
-	_ = s.setState(ServerRunning, nil)
+	_ = s.setState(s.ctx, ServerRunning, nil)
 	s.logger.Log("Server started with success", "state", s.State().String())
 
 	return nil
@@ -279,14 +282,14 @@ func (s *Server) Stop(ctx context.Context) error {
 		return nil
 	}
 
-	s.stop()
+	s.stop(ctx)
 	stoppedCh := make(chan struct{})
 
 	go func() {
 		s.wg.Wait()
 		// TODO: Make sure that the server doesn't end up in the stopped state when this goroutine sets the state to
 		// stopped after the server has been closed.
-		_ = s.setState(ServerStopped, nil)
+		_ = s.setState(ctx, ServerStopped, nil)
 		close(stoppedCh)
 	}()
 
@@ -312,14 +315,16 @@ func (s *Server) Close() {
 		s.logger.Log("Server already closed", "state", st.String())
 		return
 	}
+
+	ctx := context.TODO()
 	if st == ServerRunning {
-		s.stop()
+		s.stop(ctx)
 		// The setState method never returns error when setting to ServerStopped.
-		_ = s.setState(ServerStopped, nil)
+		_ = s.setState(ctx, ServerStopped, nil)
 	}
 
 	// The setState method never returns error when setting to ServerClosed.
-	_ = s.setState(ServerClosed, nil)
+	_ = s.setState(ctx, ServerClosed, nil)
 	s.logger.Log("Server closed with success", "state", s.State().String())
 }
 
@@ -451,23 +456,23 @@ func (s *Server) State() ServerState {
 	return ServerState(s.state.Load())
 }
 
-func (s *Server) setState(st ServerState, err error) error {
+func (s *Server) setState(ctx context.Context, st ServerState, err error) error {
 	s.state.Store(uint32(st))
 	switch st {
 	case ServerStarting:
-		err = s.hooks.onServerStart()
+		err = s.hooks.onServerStart(ctx)
 		if err == nil {
-			err = s.hooks.onStart()
+			err = s.hooks.onStart(ctx)
 		}
 	case ServerRunning:
-		s.hooks.onServerStarted()
+		s.hooks.onServerStarted(ctx)
 	case ServerStopping:
-		s.hooks.onServerStop()
-		s.hooks.onStop()
+		s.hooks.onServerStop(ctx)
+		s.hooks.onStop(ctx)
 	case ServerStopped:
-		s.hooks.onServerStopped()
+		s.hooks.onServerStopped(ctx)
 	case ServerFailed:
-		s.hooks.onServerStartFailed(err)
+		s.hooks.onServerStartFailed(ctx, err)
 	case ServerClosed:
 		// The closed state doesn't have any hook.
 	default:
@@ -476,9 +481,9 @@ func (s *Server) setState(st ServerState, err error) error {
 	return err
 }
 
-func (s *Server) stop() {
+func (s *Server) stop(ctx context.Context) {
 	s.stopOnce.Do(func() {
-		_ = s.setState(ServerStopping, nil)
+		_ = s.setState(ctx, ServerStopping, nil)
 		s.listeners.closeAll()
 		s.cancelCtx(ErrServerStopped)
 	})

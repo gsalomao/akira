@@ -66,44 +66,44 @@ type Hook interface {
 // start the hook, and it's called after the server has started. If this method returns any error, the server
 // considers that the hook failed to start.
 type OnStartHook interface {
-	OnStart() error
+	OnStart(ctx context.Context) error
 }
 
 // OnStopHook is the hook interface that wraps the OnStop method. The OnStop method is called by the server to stop
 // the hook.
 type OnStopHook interface {
-	OnStop()
+	OnStop(ctx context.Context)
 }
 
 // OnServerStartHook is the hook interface that wraps the OnServerStart method. The OnServerStart method is called by
 // the server when it is starting. When this method is called, the server is in ServerStarting state. If this method
 // returns any error, the start process fails.
 type OnServerStartHook interface {
-	OnServerStart() error
+	OnServerStart(ctx context.Context) error
 }
 
 // OnServerStartFailedHook is the hook interface that wraps the OnServerStartFailed method. The OnServerStartFailed
 // method is called by the server when it has failed to start.
 type OnServerStartFailedHook interface {
-	OnServerStartFailed(err error)
+	OnServerStartFailed(ctx context.Context, err error)
 }
 
 // OnServerStartedHook is the hook interface that wraps the OnServerStarted method. The OnServerStarted method is
 // called by the server when it has started with success.
 type OnServerStartedHook interface {
-	OnServerStarted()
+	OnServerStarted(ctx context.Context)
 }
 
 // OnServerStopHook is the hook interface that wraps the OnServerStop method. The OnServerStop method is called by the
 // server when it is stopping.
 type OnServerStopHook interface {
-	OnServerStop()
+	OnServerStop(ctx context.Context)
 }
 
 // OnServerStoppedHook is the hook interface that wraps the OnServerStopped method. The OnServerStopped method is
 // called by the server when it has stopped.
 type OnServerStoppedHook interface {
-	OnServerStopped()
+	OnServerStopped(ctx context.Context)
 }
 
 // OnConnectionOpenHook is the hook interface that wraps the OnConnectionOpen method. The OnConnectionOpen method is
@@ -290,14 +290,14 @@ func (h *hooks) len() int {
 	return h.cnt
 }
 
-func (h *hooks) onStart() error {
+func (h *hooks) onStart(ctx context.Context) error {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
 	for _, hook := range h.hooks[onStartHook] {
 		hk := hook.(OnStartHook)
 
-		err := hk.OnStart()
+		err := hk.OnStart(ctx)
 		if err != nil {
 			return err
 		}
@@ -306,24 +306,24 @@ func (h *hooks) onStart() error {
 	return nil
 }
 
-func (h *hooks) onStop() {
+func (h *hooks) onStop(ctx context.Context) {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
 	for _, hook := range h.hooks[onStopHook] {
 		hk := hook.(OnStopHook)
-		hk.OnStop()
+		hk.OnStop(ctx)
 	}
 }
 
-func (h *hooks) onServerStart() error {
+func (h *hooks) onServerStart(ctx context.Context) error {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
 	for _, hook := range h.hooks[onServerStartHook] {
 		hk := hook.(OnServerStartHook)
 
-		err := hk.OnServerStart()
+		err := hk.OnServerStart(ctx)
 		if err != nil {
 			return err
 		}
@@ -332,43 +332,43 @@ func (h *hooks) onServerStart() error {
 	return nil
 }
 
-func (h *hooks) onServerStartFailed(err error) {
+func (h *hooks) onServerStartFailed(ctx context.Context, err error) {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
 	for _, hook := range h.hooks[onServerStartFailedHook] {
 		hk := hook.(OnServerStartFailedHook)
-		hk.OnServerStartFailed(err)
+		hk.OnServerStartFailed(ctx, err)
 	}
 }
 
-func (h *hooks) onServerStarted() {
+func (h *hooks) onServerStarted(ctx context.Context) {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
 	for _, hook := range h.hooks[onServerStartedHook] {
 		hk := hook.(OnServerStartedHook)
-		hk.OnServerStarted()
+		hk.OnServerStarted(ctx)
 	}
 }
 
-func (h *hooks) onServerStop() {
+func (h *hooks) onServerStop(ctx context.Context) {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
 	for _, hook := range h.hooks[onServerStopHook] {
 		hk := hook.(OnServerStopHook)
-		hk.OnServerStop()
+		hk.OnServerStop(ctx)
 	}
 }
 
-func (h *hooks) onServerStopped() {
+func (h *hooks) onServerStopped(ctx context.Context) {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
 	for _, hook := range h.hooks[onServerStoppedHook] {
 		hk := hook.(OnServerStoppedHook)
-		hk.OnServerStopped()
+		hk.OnServerStopped(ctx)
 	}
 }
 
