@@ -498,31 +498,6 @@ func (p *ConnectProperties) size() int {
 	return size
 }
 
-func (p *ConnectProperties) decode(buf []byte, remaining int) (n int, err error) {
-	for remaining > 0 {
-		var b byte
-		var size int
-
-		if n >= len(buf) {
-			return n, fmt.Errorf("%w: missing connect properties", ErrMalformedPacket)
-		}
-
-		b = buf[n]
-		n++
-		remaining--
-
-		size, err = p.decodeProperty(PropertyID(b), buf[n:])
-		n += size
-		remaining -= size
-
-		if err != nil {
-			return n, err
-		}
-	}
-
-	return n, nil
-}
-
 func (p *ConnectProperties) decodeProperty(id PropertyID, buf []byte) (n int, err error) {
 	switch id {
 	case PropertySessionExpiryInterval:
@@ -612,31 +587,6 @@ func (p *WillProperties) size() int {
 	size += sizePropCorrelationData(p.Flags, p.CorrelationData)
 	size += sizePropUserProperties(p.Flags, p.UserProperties)
 	return size
-}
-
-func (p *WillProperties) decode(buf []byte, remaining int) (n int, err error) {
-	for remaining > 0 {
-		var b byte
-		var size int
-
-		if n >= len(buf) {
-			return n, fmt.Errorf("%w: missing will properties", ErrMalformedPacket)
-		}
-
-		b = buf[n]
-		n++
-		remaining--
-
-		size, err = p.decodeProperty(PropertyID(b), buf[n:])
-		n += size
-		remaining -= size
-
-		if err != nil {
-			return n, err
-		}
-	}
-
-	return n, nil
 }
 
 func (p *WillProperties) decodeProperty(id PropertyID, buf []byte) (n int, err error) {

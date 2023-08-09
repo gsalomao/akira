@@ -73,9 +73,8 @@ type Properties interface {
 	Set(id PropertyID)
 }
 
-type propertiesDecoder interface {
-	Properties
-	decode(buf []byte, remaining int) (n int, err error)
+type propertyDecoder interface {
+	decodeProperty(id PropertyID, buf []byte) (n int, err error)
 }
 
 func decodeProperties[T any](buf []byte) (p *T, n int, err error) {
@@ -89,14 +88,29 @@ func decodeProperties[T any](buf []byte) (p *T, n int, err error) {
 		return nil, n, nil
 	}
 
-	var size int
 	p = new(T)
 
-	// It must be a propertiesDecoder. If it's not, this is an integrity issue and let it panic.
-	props := any(p).(propertiesDecoder)
+	// It must be a propertyDecoder. If it's not, this is an integrity issue and let it panic.
+	decoder := any(p).(propertyDecoder)
 
-	size, err = props.decode(buf[n:], remaining)
-	n += size
+	for remaining > 0 {
+		if remaining > len(buf[n:]) {
+			return nil, n, fmt.Errorf("%w: missing properties", ErrMalformedPacket)
+		}
+
+		var size int
+		id := PropertyID(buf[n])
+		n++
+
+		size, err = decoder.decodeProperty(id, buf[n:])
+		if err != nil {
+			return nil, n, err
+		}
+
+		n += size
+		remaining -= size + 1 // The property size + 1 byte of the property ID.
+	}
+
 	return p, n, err
 }
 
