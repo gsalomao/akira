@@ -659,6 +659,16 @@ func encodePropString(buf []byte, f PropertyFlags, id PropertyID, str []byte) (i
 	return n + 1, err
 }
 
+func encodePropBinary(buf []byte, f PropertyFlags, id PropertyID, bin []byte) int {
+	if !f.Has(id) {
+		return 0
+	}
+
+	buf[0] = byte(id)
+	n := encodeBinary(buf[1:], bin)
+	return n + 1
+}
+
 func validatePropUserProperty(f PropertyFlags, props []UserProperty) error {
 	if !f.Has(PropertyUserProperty) {
 		return nil

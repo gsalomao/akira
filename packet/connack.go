@@ -308,11 +308,8 @@ func (p *ConnAckProperties) encode(buf []byte) (n int, err error) {
 		return n, fmt.Errorf("authentication method: %w", err)
 	}
 
-	size, err = encodePropString(buf[n:], p.Flags, PropertyAuthenticationData, p.AuthenticationData)
+	size = encodePropBinary(buf[n:], p.Flags, PropertyAuthenticationData, p.AuthenticationData)
 	n += size
-	if err != nil {
-		return n, err
-	}
 
 	size, err = encodePropString(buf[n:], p.Flags, PropertyResponseInfo, p.ResponseInfo)
 	n += size
@@ -362,5 +359,5 @@ func (p *ConnAckProperties) encode(buf []byte) (n int, err error) {
 	size = encodePropBool(buf[n:], p.Flags, PropertySharedSubscriptionAvailable, p.SharedSubscriptionAvailable)
 	n += size
 
-	return n, err
+	return n, nil
 }

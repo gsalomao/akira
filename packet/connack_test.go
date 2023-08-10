@@ -297,13 +297,6 @@ func TestConnAckEncodeMalformedProperty(t *testing.T) {
 				AuthenticationMethod: []byte{0},
 			},
 		},
-		{
-			"Invalid Authentication Data",
-			ConnAckProperties{
-				Flags:              PropertyFlags(0).Set(PropertyAuthenticationData),
-				AuthenticationData: []byte{0},
-			},
-		},
 	}
 
 	for _, tc := range testCases {
