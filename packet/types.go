@@ -309,7 +309,7 @@ func decodeString(data []byte) (str []byte, n int, err error) {
 	}
 
 	if !isValidString(str) {
-		return nil, n, errors.New("invalid string")
+		return nil, n, fmt.Errorf("invalid string: %s", str)
 	}
 
 	return str, n, nil

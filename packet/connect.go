@@ -275,7 +275,7 @@ func (p *Connect) decodeProperties(buf []byte) (int, error) {
 
 	p.Properties, n, err = decodeProperties[ConnectProperties](buf)
 	if err != nil {
-		return n, fmt.Errorf("connect properties: %w", err)
+		return n, fmt.Errorf("%w: connect properties: %s", ErrMalformedPacket, err.Error())
 	}
 	return n, nil
 }
@@ -309,7 +309,7 @@ func (p *Connect) decodeWillProperties(buf []byte) (int, error) {
 
 	p.WillProperties, n, err = decodeProperties[WillProperties](buf)
 	if err != nil {
-		return n, fmt.Errorf("will properties: %w", err)
+		return n, fmt.Errorf("%w: will properties: %s", ErrMalformedPacket, err.Error())
 	}
 	return n, nil
 }

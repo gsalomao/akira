@@ -82,7 +82,7 @@ func decodeProperties[T any](buf []byte) (p *T, n int, err error) {
 
 	n, err = decodeVarInteger(buf, &remaining)
 	if err != nil {
-		return nil, n, fmt.Errorf("%w: invalid property length: %s", ErrMalformedPacket, err.Error())
+		return nil, n, fmt.Errorf("invalid property length: %s", err.Error())
 	}
 	if remaining == 0 {
 		return nil, n, nil
@@ -95,7 +95,7 @@ func decodeProperties[T any](buf []byte) (p *T, n int, err error) {
 
 	for remaining > 0 {
 		if remaining > len(buf[n:]) {
-			return nil, n, fmt.Errorf("%w: missing properties", ErrMalformedPacket)
+			return nil, n, errors.New("missing properties")
 		}
 
 		var size int
@@ -331,12 +331,12 @@ func sizePropServerReference(flags PropertyFlags, reference []byte) int {
 
 func decodePropSessionExpiryInterval(buf []byte, p Properties) (v uint32, n int, err error) {
 	if p.Has(PropertySessionExpiryInterval) {
-		return v, n, fmt.Errorf("%w: duplicated session expiry interval", ErrMalformedPacket)
+		return v, n, errors.New("duplicated session expiry interval")
 	}
 
 	n, err = decodePropUint[uint32](buf, &v, nil)
 	if err != nil {
-		return v, n, fmt.Errorf("%w: invalid session expiry interval", ErrMalformedPacket)
+		return v, n, errors.New("invalid session expiry interval")
 	}
 
 	p.Set(PropertySessionExpiryInterval)
@@ -345,12 +345,12 @@ func decodePropSessionExpiryInterval(buf []byte, p Properties) (v uint32, n int,
 
 func decodePropReceiveMaximum(buf []byte, p Properties) (v uint16, n int, err error) {
 	if p.Has(PropertyReceiveMaximum) {
-		return v, n, fmt.Errorf("%w: duplicated recive maximum", ErrMalformedPacket)
+		return v, n, errors.New("duplicated receive maximum")
 	}
 
 	n, err = decodePropUint[uint16](buf, &v, func(val uint16) bool { return val != 0 })
 	if err != nil {
-		return v, n, fmt.Errorf("%w: invalid receive maximum", ErrMalformedPacket)
+		return v, n, errors.New("invalid receive maximum")
 	}
 
 	p.Set(PropertyReceiveMaximum)
@@ -359,12 +359,12 @@ func decodePropReceiveMaximum(buf []byte, p Properties) (v uint16, n int, err er
 
 func decodePropMaxPacketSize(buf []byte, p Properties) (v uint32, n int, err error) {
 	if p.Has(PropertyMaximumPacketSize) {
-		return v, n, fmt.Errorf("%w: duplicated maximum packet size", ErrMalformedPacket)
+		return v, n, errors.New("duplicated maximum packet size")
 	}
 
 	n, err = decodePropUint[uint32](buf, &v, func(val uint32) bool { return val != 0 })
 	if err != nil {
-		return v, n, fmt.Errorf("%w: invalid maximum packet size", ErrMalformedPacket)
+		return v, n, errors.New("invalid maximum packet size")
 	}
 
 	p.Set(PropertyMaximumPacketSize)
@@ -373,12 +373,12 @@ func decodePropMaxPacketSize(buf []byte, p Properties) (v uint32, n int, err err
 
 func decodePropTopicAliasMaximum(buf []byte, p Properties) (v uint16, n int, err error) {
 	if p.Has(PropertyTopicAliasMaximum) {
-		return v, n, fmt.Errorf("%w: duplicated topic alias maximum", ErrMalformedPacket)
+		return v, n, errors.New("duplicated topic alias maximum")
 	}
 
 	n, err = decodePropUint[uint16](buf, &v, nil)
 	if err != nil {
-		return v, n, fmt.Errorf("%w: invalid topic alias maximum", ErrMalformedPacket)
+		return v, n, errors.New("invalid topic alias maximum")
 	}
 
 	p.Set(PropertyTopicAliasMaximum)
@@ -387,12 +387,12 @@ func decodePropTopicAliasMaximum(buf []byte, p Properties) (v uint16, n int, err
 
 func decodePropRequestResponseInfo(buf []byte, p Properties) (v bool, n int, err error) {
 	if p.Has(PropertyRequestResponseInfo) {
-		return v, n, fmt.Errorf("%w: duplicated request response info", ErrMalformedPacket)
+		return v, n, errors.New("duplicated request response info")
 	}
 
 	v, err = decodeBool(buf)
 	if err != nil {
-		return v, n, fmt.Errorf("%w: invalid request response info", ErrMalformedPacket)
+		return v, n, errors.New("invalid request response info")
 	}
 
 	n++
@@ -402,12 +402,12 @@ func decodePropRequestResponseInfo(buf []byte, p Properties) (v bool, n int, err
 
 func decodePropRequestProblemInfo(buf []byte, p Properties) (v bool, n int, err error) {
 	if p.Has(PropertyRequestProblemInfo) {
-		return v, n, fmt.Errorf("%w: duplicated request problem info", ErrMalformedPacket)
+		return v, n, errors.New("duplicated request problem info")
 	}
 
 	v, err = decodeBool(buf)
 	if err != nil {
-		return v, n, fmt.Errorf("%w: invalid request problem info", ErrMalformedPacket)
+		return v, n, errors.New("invalid request problem info")
 	}
 
 	n++
@@ -424,7 +424,7 @@ func decodePropUserProperty(buf []byte, p Properties) (v UserProperty, n int, er
 
 	key, size, err = decodeString(buf)
 	if err != nil {
-		return v, n, fmt.Errorf("%w: invalid user property key", ErrMalformedPacket)
+		return v, n, errors.New("invalid user property key")
 	}
 
 	v.Key = make([]byte, len(key))
@@ -433,7 +433,7 @@ func decodePropUserProperty(buf []byte, p Properties) (v UserProperty, n int, er
 
 	value, size, err = decodeString(buf[n:])
 	if err != nil {
-		return v, n, fmt.Errorf("%w: invalid user property value", ErrMalformedPacket)
+		return v, n, errors.New("invalid user property value")
 	}
 
 	v.Value = make([]byte, len(value))
@@ -446,12 +446,12 @@ func decodePropUserProperty(buf []byte, p Properties) (v UserProperty, n int, er
 
 func decodePropAuthenticationMethod(buf []byte, p Properties) (v []byte, n int, err error) {
 	if p.Has(PropertyAuthenticationMethod) {
-		return v, n, fmt.Errorf("%w: duplicated authentication method", ErrMalformedPacket)
+		return v, n, errors.New("duplicated authentication method")
 	}
 
 	n, err = decodePropString(buf, &v)
 	if err != nil {
-		return v, n, fmt.Errorf("%w: invalid authentication method", ErrMalformedPacket)
+		return v, n, errors.New("invalid authentication method")
 	}
 
 	p.Set(PropertyAuthenticationMethod)
@@ -460,12 +460,12 @@ func decodePropAuthenticationMethod(buf []byte, p Properties) (v []byte, n int, 
 
 func decodePropAuthenticationData(buf []byte, p Properties) (v []byte, n int, err error) {
 	if p.Has(PropertyAuthenticationData) {
-		return v, n, fmt.Errorf("%w: duplicated authentication data ", ErrMalformedPacket)
+		return v, n, errors.New("duplicated authentication data")
 	}
 
 	n, err = decodePropBinary(buf, &v)
 	if err != nil {
-		return v, n, fmt.Errorf("%w: invalid authentication data", ErrMalformedPacket)
+		return v, n, errors.New("invalid authentication data")
 	}
 
 	p.Set(PropertyAuthenticationData)
@@ -474,12 +474,12 @@ func decodePropAuthenticationData(buf []byte, p Properties) (v []byte, n int, er
 
 func decodePropWillDelayInterval(buf []byte, p Properties) (v uint32, n int, err error) {
 	if p.Has(PropertyWillDelayInterval) {
-		return v, n, fmt.Errorf("%w: duplicated will delay interval", ErrMalformedPacket)
+		return v, n, errors.New("duplicated will delay interval")
 	}
 
 	n, err = decodePropUint[uint32](buf, &v, nil)
 	if err != nil {
-		return v, n, fmt.Errorf("%w: invalid will delay interval", ErrMalformedPacket)
+		return v, n, errors.New("invalid will delay interval")
 	}
 
 	p.Set(PropertyWillDelayInterval)
@@ -488,12 +488,12 @@ func decodePropWillDelayInterval(buf []byte, p Properties) (v uint32, n int, err
 
 func decodePropPayloadFormatIndicator(buf []byte, p Properties) (v bool, n int, err error) {
 	if p.Has(PropertyPayloadFormatIndicator) {
-		return v, n, fmt.Errorf("%w: duplicated payload format indicator", ErrMalformedPacket)
+		return v, n, errors.New("duplicated payload format indicator")
 	}
 
 	v, err = decodeBool(buf)
 	if err != nil {
-		return v, n, fmt.Errorf("%w: invalid payload format indicator", ErrMalformedPacket)
+		return v, n, errors.New("invalid payload format indicator")
 	}
 
 	n++
@@ -503,12 +503,12 @@ func decodePropPayloadFormatIndicator(buf []byte, p Properties) (v bool, n int, 
 
 func decodePropMessageExpiryInterval(buf []byte, p Properties) (v uint32, n int, err error) {
 	if p.Has(PropertyMessageExpiryInterval) {
-		return v, n, fmt.Errorf("%w: duplicated message expiry interval", ErrMalformedPacket)
+		return v, n, errors.New("duplicated message expiry interval")
 	}
 
 	n, err = decodePropUint[uint32](buf, &v, nil)
 	if err != nil {
-		return v, n, fmt.Errorf("%w: invalid message expiry interval", ErrMalformedPacket)
+		return v, n, errors.New("invalid message expiry interval")
 	}
 
 	p.Set(PropertyMessageExpiryInterval)
@@ -517,12 +517,12 @@ func decodePropMessageExpiryInterval(buf []byte, p Properties) (v uint32, n int,
 
 func decodePropContentType(buf []byte, p Properties) (v []byte, n int, err error) {
 	if p.Has(PropertyContentType) {
-		return v, n, fmt.Errorf("%w: duplicated content type", ErrMalformedPacket)
+		return v, n, errors.New("duplicated content type")
 	}
 
 	n, err = decodePropString(buf, &v)
 	if err != nil {
-		return v, n, fmt.Errorf("%w: invalid content type", ErrMalformedPacket)
+		return v, n, errors.New("invalid content type")
 	}
 
 	p.Set(PropertyContentType)
@@ -531,15 +531,15 @@ func decodePropContentType(buf []byte, p Properties) (v []byte, n int, err error
 
 func decodePropResponseTopic(buf []byte, p Properties) (v []byte, n int, err error) {
 	if p.Has(PropertyResponseTopic) {
-		return v, n, fmt.Errorf("%w: duplicated response topic", ErrMalformedPacket)
+		return v, n, errors.New("duplicated response topic")
 	}
 
 	n, err = decodePropString(buf, &v)
 	if err != nil {
-		return v, n, fmt.Errorf("%w: invalid response topic", ErrMalformedPacket)
+		return v, n, errors.New("invalid response topic")
 	}
 	if !isValidTopicName(string(v)) {
-		return v, n, fmt.Errorf("%w: invalid response topic", ErrMalformedPacket)
+		return v, n, errors.New("invalid response topic")
 	}
 
 	p.Set(PropertyResponseTopic)
@@ -548,12 +548,12 @@ func decodePropResponseTopic(buf []byte, p Properties) (v []byte, n int, err err
 
 func decodePropCorrelationData(buf []byte, p Properties) (v []byte, n int, err error) {
 	if p.Has(PropertyCorrelationData) {
-		return v, n, fmt.Errorf("%w: duplicated correlation data", ErrMalformedPacket)
+		return v, n, errors.New("duplicated correlation data")
 	}
 
 	n, err = decodePropBinary(buf, &v)
 	if err != nil {
-		return v, n, fmt.Errorf("%w: invalid correlation data", ErrMalformedPacket)
+		return v, n, errors.New("invalid correlation data")
 	}
 
 	p.Set(PropertyCorrelationData)
