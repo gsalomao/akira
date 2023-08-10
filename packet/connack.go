@@ -19,28 +19,6 @@ import (
 	"fmt"
 )
 
-var validReasonCodes = [][]ReasonCode{
-	// V3.1.
-	{
-		ReasonCodeSuccess, ReasonCodeV3UnacceptableProtocolVersion, ReasonCodeV3IdentifierRejected,
-		ReasonCodeV3ServerUnavailable, ReasonCodeV3BadUsernameOrPassword, ReasonCodeV3NotAuthorized,
-	},
-	// V3.1.1.
-	{
-		ReasonCodeSuccess, ReasonCodeV3UnacceptableProtocolVersion, ReasonCodeV3IdentifierRejected,
-		ReasonCodeV3ServerUnavailable, ReasonCodeV3BadUsernameOrPassword, ReasonCodeV3NotAuthorized,
-	},
-	// V5.0.
-	{
-		ReasonCodeSuccess, ReasonCodeUnspecifiedError, ReasonCodeMalformedPacket, ReasonCodeProtocolError,
-		ReasonCodeImplementationSpecificError, ReasonCodeUnsupportedProtocolVersion, ReasonCodeClientIDNotValid,
-		ReasonCodeBadUsernameOrPassword, ReasonCodeNotAuthorized, ReasonCodeServerUnavailable, ReasonCodeServerBusy,
-		ReasonCodeBanned, ReasonCodeBadAuthenticationMethod, ReasonCodeTopicNameInvalid, ReasonCodePacketTooLarge,
-		ReasonCodeQuotaExceeded, ReasonCodePayloadFormatInvalid, ReasonCodeRetainNotSupported,
-		ReasonCodeQoSNotSupported, ReasonCodeUseAnotherServer, ReasonCodeServerMoved, ReasonCodeConnectionRateExceeded,
-	},
-}
-
 // ConnAck represents the CONNACK Packet from MQTT specifications.
 type ConnAck struct {
 	// Properties contains the properties of the CONNACK packet.
@@ -115,14 +93,37 @@ func (p *ConnAck) Validate() error {
 		return fmt.Errorf("%w: invalid version", ErrMalformedPacket)
 	}
 
-	var found bool
-	for _, code := range validReasonCodes[p.Version-MQTT31] {
+	validCodes := [3][]ReasonCode{
+		// V3.1.
+		{
+			ReasonCodeSuccess, ReasonCodeV3UnacceptableProtocolVersion, ReasonCodeV3IdentifierRejected,
+			ReasonCodeV3ServerUnavailable, ReasonCodeV3BadUsernameOrPassword, ReasonCodeV3NotAuthorized,
+		},
+		// V3.1.1.
+		{
+			ReasonCodeSuccess, ReasonCodeV3UnacceptableProtocolVersion, ReasonCodeV3IdentifierRejected,
+			ReasonCodeV3ServerUnavailable, ReasonCodeV3BadUsernameOrPassword, ReasonCodeV3NotAuthorized,
+		},
+		// V5.0.
+		{
+			ReasonCodeSuccess, ReasonCodeUnspecifiedError, ReasonCodeMalformedPacket, ReasonCodeProtocolError,
+			ReasonCodeImplementationSpecificError, ReasonCodeUnsupportedProtocolVersion, ReasonCodeClientIDNotValid,
+			ReasonCodeBadUsernameOrPassword, ReasonCodeNotAuthorized, ReasonCodeServerUnavailable, ReasonCodeServerBusy,
+			ReasonCodeBanned, ReasonCodeBadAuthenticationMethod, ReasonCodeTopicNameInvalid, ReasonCodePacketTooLarge,
+			ReasonCodeQuotaExceeded, ReasonCodePayloadFormatInvalid, ReasonCodeRetainNotSupported,
+			ReasonCodeQoSNotSupported, ReasonCodeUseAnotherServer, ReasonCodeServerMoved,
+			ReasonCodeConnectionRateExceeded,
+		},
+	}
+
+	var valid bool
+	for _, code := range validCodes[p.Version-MQTT31] {
 		if p.Code == code {
-			found = true
+			valid = true
 			break
 		}
 	}
-	if !found {
+	if !valid {
 		return fmt.Errorf("%w: invalid reason code", ErrMalformedPacket)
 	}
 
