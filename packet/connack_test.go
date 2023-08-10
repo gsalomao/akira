@@ -33,17 +33,17 @@ func TestConnAckType(t *testing.T) {
 
 func TestConnAckSize(t *testing.T) {
 	testCases := []struct {
-		name   string
-		packet ConnAck
-		size   int
+		name    string
+		connack ConnAck
+		size    int
 	}{
-		{name: "V3.1", packet: ConnAck{Version: MQTT31}, size: 4},
-		{name: "V3.1.1", packet: ConnAck{Version: MQTT311}, size: 4},
-		{name: "V5.0 No Properties", packet: ConnAck{Version: MQTT50}, size: 5},
-		{name: "V5.0 Empty Properties", packet: ConnAck{Version: MQTT50, Properties: &ConnAckProperties{}}, size: 5},
+		{name: "V3.1", connack: ConnAck{Version: MQTT31}, size: 4},
+		{name: "V3.1.1", connack: ConnAck{Version: MQTT311}, size: 4},
+		{name: "V5.0 No Properties", connack: ConnAck{Version: MQTT50}, size: 5},
+		{name: "V5.0 Empty Properties", connack: ConnAck{Version: MQTT50, Properties: &ConnAckProperties{}}, size: 5},
 		{
 			name: "V5.0 With Properties",
-			packet: ConnAck{
+			connack: ConnAck{
 				Version: MQTT50,
 				Properties: &ConnAckProperties{
 					Flags:                 PropertyFlags(0).Set(PropertySessionExpiryInterval),
@@ -56,7 +56,7 @@ func TestConnAckSize(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			size := tc.packet.Size()
+			size := tc.connack.Size()
 			if size != tc.size {
 				t.Fatalf("Unexpected size\nwant: %v\ngot:  %v", tc.size, size)
 			}
@@ -154,9 +154,9 @@ func TestConnAckEncode(t *testing.T) {
 }
 
 func TestConnAckEncodeErrorBufferTooSmall(t *testing.T) {
-	packet := ConnAck{Version: MQTT50, Code: ReasonCodeSuccess}
+	connack := ConnAck{Version: MQTT50, Code: ReasonCodeSuccess}
 
-	n, err := packet.Encode(nil)
+	n, err := connack.Encode(nil)
 	if err == nil {
 		t.Fatal("An error was expected")
 	}
@@ -325,8 +325,8 @@ func TestConnAckEncodeMalformedProperty(t *testing.T) {
 
 func BenchmarkConnAckEncode(b *testing.B) {
 	testCases := []struct {
-		name   string
-		packet ConnAck
+		name    string
+		connack ConnAck
 	}{
 		{"V3.1", ConnAck{Version: MQTT31}},
 		{"V3.1.1", ConnAck{Version: MQTT311}},
@@ -342,11 +342,11 @@ func BenchmarkConnAckEncode(b *testing.B) {
 
 	for _, test := range testCases {
 		b.Run(test.name, func(b *testing.B) {
-			data := make([]byte, test.packet.Size())
+			data := make([]byte, test.connack.Size())
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				_, err := test.packet.Encode(data)
+				_, err := test.connack.Encode(data)
 				if err != nil {
 					b.Fatalf("Unexpected error\n%s", err)
 				}
