@@ -1,0 +1,54 @@
+[
+	{
+		"name": "Invalid packet type",
+		"packet": [0, 0]
+	},
+	{
+		"name": "Invalid control flag",
+		"packet": [241, 0]
+	},
+	{
+		"name": "Invalid remaining length",
+		"packet": [240, 1]
+	},
+	{
+		"name": "Missing property length",
+		"packet": [240, 1, 0]
+	},
+	{
+		"name": "Invalid property length",
+		"packet": [240, 5, 0, 255, 255, 255, 128]
+	},
+	{
+		"name": "Missing properties",
+		"packet": [240, 2, 0, 1]
+	},
+	{
+		"name": "Invalid property",
+		"packet": [240, 3, 0, 1, 255]
+	},
+	{
+		"name": "Invalid properties - Invalid User Property key",
+		"packet": [240, 3, 0, 1, 38]
+	},
+	{
+		"name": "Invalid properties - Invalid User Property value",
+		"packet": [240, 6, 0, 4, 38, 0, 1, 97]
+	},
+	{
+		"name": "Invalid properties - Invalid Authentication Method",
+		"packet": [240, 3, 0, 1, 21]
+	},
+	{
+		"name": "Invalid properties - Duplicated Authentication Method",
+		"packet": [240, 10, 0, 8, 21, 0, 1, 97, 21, 0, 1, 98]
+	},
+	{
+		"name": "Invalid properties - Invalid Authentication Data",
+		"packet": [240, 3, 0, 1, 22]
+	},
+	{
+		"name": "Invalid properties - Duplicated Authentication Data",
+		"packet": [240, 10, 0, 8, 22, 0, 1, 10, 22, 0, 1, 11]
+	}
+]

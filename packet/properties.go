@@ -560,6 +560,20 @@ func decodePropCorrelationData(buf []byte, p Properties) (v []byte, n int, err e
 	return v, n, nil
 }
 
+func decodePropReasonString(buf []byte, p *AuthProperties) (v []byte, n int, err error) {
+	if p.Has(PropertyReasonString) {
+		return v, n, errors.New("duplicated reason string")
+	}
+
+	n, err = decodePropString(buf, &v)
+	if err != nil {
+		return v, n, errors.New("invalid reason string")
+	}
+
+	p.Set(PropertyReasonString)
+	return v, n, nil
+}
+
 func decodePropUint[T integer](buf []byte, v *T, validator func(T) bool) (n int, err error) {
 	var prop T
 
