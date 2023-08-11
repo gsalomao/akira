@@ -42,7 +42,7 @@ const (
 	onPacketSendHook
 	onPacketSendFailedHook
 	onPacketSentHook
-	onConnectHook
+	onConnectPacketHook
 	onConnectFailedHook
 	onConnectedHook
 	maxHooks
@@ -182,13 +182,13 @@ type OnPacketSentHook interface {
 	OnPacketSent(ctx context.Context, c *Client, p Packet)
 }
 
-// OnConnectHook is the hook interface that wraps the OnConnect method. The OnConnect method is called by the server
-// when it receives a CONNECT Packet. If this method returns an error, the server stops the connection process and
-// closes the client. If the returned error is a packet.Error with a reason code other than packet.ReasonCodeSuccess
-// and packet.ReasonCodeMalformedPacket, the server sends a CONNACK Packet with the reason code before it closes the
-// client.
-type OnConnectHook interface {
-	OnConnect(ctx context.Context, c *Client, p *packet.Connect) error
+// OnConnectPacketHook is the hook interface that wraps the OnConnectPacket method. The OnConnectPacket method is
+// called by the server when it receives a CONNECT Packet. If this method returns an error, the server stops the
+// connection process and closes the client. If the returned error is a packet.Error with a reason code other than
+// packet.ReasonCodeSuccess and packet.ReasonCodeMalformedPacket, the server sends a CONNACK Packet with the reason
+// code before it closes the client.
+type OnConnectPacketHook interface {
+	OnConnectPacket(ctx context.Context, c *Client, p *packet.Connect) error
 }
 
 // OnConnectFailedHook is the hook interface that wraps the OnConnectFailed method. The OnConnectFailed method is
@@ -196,7 +196,7 @@ type OnConnectHook interface {
 // and the error indicating the reason is passed as parameter. After the server calls this method, it closes the
 // client.
 type OnConnectFailedHook interface {
-	OnConnectFailed(ctx context.Context, c *Client, p *packet.Connect, err error)
+	OnConnectFailed(ctx context.Context, c *Client, err error)
 }
 
 // OnConnectedHook is the hook interface that wraps the OnConnected method. The OnConnected method is called by the
@@ -224,7 +224,7 @@ var hooksRegistryFunc = map[hookType]func(*hooks, Hook, hookType){
 	onPacketSendHook:          registerHook[OnPacketSendHook],
 	onPacketSendFailedHook:    registerHook[OnPacketSendFailedHook],
 	onPacketSentHook:          registerHook[OnPacketSentHook],
-	onConnectHook:             registerHook[OnConnectHook],
+	onConnectPacketHook:       registerHook[OnConnectPacketHook],
 	onConnectFailedHook:       registerHook[OnConnectFailedHook],
 	onConnectedHook:           registerHook[OnConnectedHook],
 }
@@ -556,18 +556,18 @@ func (h *hooks) onPacketSent(ctx context.Context, c *Client, p Packet) {
 	}
 }
 
-func (h *hooks) onConnect(ctx context.Context, c *Client, p *packet.Connect) error {
-	if !h.hasHook(onConnectHook) {
+func (h *hooks) onConnectPacket(ctx context.Context, c *Client, p *packet.Connect) error {
+	if !h.hasHook(onConnectPacketHook) {
 		return nil
 	}
 
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
-	for _, hook := range h.hooks[onConnectHook] {
-		hk := hook.(OnConnectHook)
+	for _, hook := range h.hooks[onConnectPacketHook] {
+		hk := hook.(OnConnectPacketHook)
 
-		err := hk.OnConnect(ctx, c, p)
+		err := hk.OnConnectPacket(ctx, c, p)
 		if err != nil {
 			return err
 		}
@@ -576,7 +576,7 @@ func (h *hooks) onConnect(ctx context.Context, c *Client, p *packet.Connect) err
 	return nil
 }
 
-func (h *hooks) onConnectFailed(ctx context.Context, c *Client, p *packet.Connect, err error) {
+func (h *hooks) onConnectFailed(ctx context.Context, c *Client, err error) {
 	if !h.hasHook(onConnectFailedHook) {
 		return
 	}
@@ -586,7 +586,7 @@ func (h *hooks) onConnectFailed(ctx context.Context, c *Client, p *packet.Connec
 
 	for _, hook := range h.hooks[onConnectFailedHook] {
 		hk := hook.(OnConnectFailedHook)
-		hk.OnConnectFailed(ctx, c, p, err)
+		hk.OnConnectFailed(ctx, c, err)
 	}
 }
 

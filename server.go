@@ -605,9 +605,9 @@ func (s *Server) handlePacketConnect(ctx context.Context, c *Client, connect *pa
 	// processing.
 	c.Connection.Version = connect.Version
 
-	err := s.hooks.onConnect(ctx, c, connect)
+	err := s.hooks.onConnectPacket(ctx, c, connect)
 	if err != nil {
-		s.logger.Log("Stopping to connect client due to an error from OnConnect",
+		s.logger.Log("Stopping to connect client due to an error from OnConnectPacket",
 			"address", c.Connection.Address,
 			"error", err,
 			"version", connect.Version.String(),
@@ -626,7 +626,7 @@ func (s *Server) handlePacketConnect(ctx context.Context, c *Client, connect *pa
 
 	err = s.connectClient(ctx, c, connect)
 	if err != nil {
-		s.hooks.onConnectFailed(ctx, c, connect, err)
+		s.hooks.onConnectFailed(ctx, c, err)
 		return err
 	}
 

@@ -1838,7 +1838,7 @@ func TestServerConnectUnavailableWhenGetSessionReturnsError(t *testing.T) {
 			ss.getCB = func(_ []byte, s *Session) error { return errSessionStoreFailed }
 
 			connectErr := make(chan error)
-			h := &mockOnConnectFailedHook{cb: func(_ *Client, _ *packet.Connect, err error) { connectErr <- err }}
+			h := &mockOnConnectFailedHook{cb: func(_ *Client, err error) { connectErr <- err }}
 
 			s := newServer(t, WithSessionStore(ss), WithHooks([]Hook{h}))
 			defer s.Close()
@@ -1887,7 +1887,7 @@ func TestServerConnectUnavailableWhenDeleteSessionReturnsError(t *testing.T) {
 			ss.deleteCB = func(_ []byte) error { return errSessionStoreFailed }
 
 			connectErr := make(chan error)
-			h := &mockOnConnectFailedHook{cb: func(_ *Client, _ *packet.Connect, err error) { connectErr <- err }}
+			h := &mockOnConnectFailedHook{cb: func(_ *Client, err error) { connectErr <- err }}
 
 			s := newServer(t, WithSessionStore(ss), WithHooks([]Hook{h}))
 			defer s.Close()
@@ -1939,7 +1939,7 @@ func TestServerConnectUnavailableWhenSaveSessionReturnsError(t *testing.T) {
 			ss.saveCB = func(_ []byte, s *Session) error { return errSessionStoreFailed }
 
 			connectErr := make(chan error)
-			h := &mockOnConnectFailedHook{cb: func(_ *Client, _ *packet.Connect, err error) { connectErr <- err }}
+			h := &mockOnConnectFailedHook{cb: func(_ *Client, err error) { connectErr <- err }}
 
 			s := newServer(t, WithSessionStore(ss), WithHooks([]Hook{h}))
 			defer s.Close()

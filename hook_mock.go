@@ -341,7 +341,7 @@ func (m *mockOnConnectHook) Name() string {
 	return reflect.TypeOf(m).String()
 }
 
-func (m *mockOnConnectHook) OnConnect(_ context.Context, c *Client, p *packet.Connect) error {
+func (m *mockOnConnectHook) OnConnectPacket(_ context.Context, c *Client, p *packet.Connect) error {
 	m.called()
 	if m.cb != nil {
 		return m.cb(c, p)
@@ -351,17 +351,17 @@ func (m *mockOnConnectHook) OnConnect(_ context.Context, c *Client, p *packet.Co
 
 type mockOnConnectFailedHook struct {
 	mockHook
-	cb func(c *Client, p *packet.Connect, err error)
+	cb func(c *Client, err error)
 }
 
 func (m *mockOnConnectFailedHook) Name() string {
 	return reflect.TypeOf(m).String()
 }
 
-func (m *mockOnConnectFailedHook) OnConnectFailed(_ context.Context, c *Client, p *packet.Connect, err error) {
+func (m *mockOnConnectFailedHook) OnConnectFailed(_ context.Context, c *Client, err error) {
 	m.called()
 	if m.cb != nil {
-		m.cb(c, p, err)
+		m.cb(c, err)
 	}
 }
 
