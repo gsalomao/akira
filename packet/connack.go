@@ -19,7 +19,7 @@ import (
 	"fmt"
 )
 
-// ConnAck represents the CONNACK Packet from MQTT specifications.
+// ConnAck represents the CONNACK packet from MQTT specifications.
 type ConnAck struct {
 	// Properties contains the properties of the CONNACK packet.
 	Properties *ConnAckProperties `json:"properties"`
@@ -48,7 +48,7 @@ func (p *ConnAck) Size() int {
 	return size
 }
 
-// Encode encodes the CONNACK Packet into buf and returns the number of bytes encoded. The buffer must have the
+// Encode encodes the CONNACK packet into buf and returns the number of bytes encoded. The buffer must have the
 // length greater than or equals to the packet size, otherwise this method returns an error.
 func (p *ConnAck) Encode(buf []byte) (n int, err error) {
 	if len(buf) < p.Size() {
@@ -87,7 +87,7 @@ func (p *ConnAck) Encode(buf []byte) (n int, err error) {
 	return n, err
 }
 
-// Validate validates if the CONNACK Packet is valid.
+// Validate validates if the CONNACK packet is valid.
 func (p *ConnAck) Validate() error {
 	if p.Version < MQTT31 || p.Version > MQTT50 {
 		return fmt.Errorf("%w: invalid version", ErrMalformedPacket)
@@ -294,40 +294,40 @@ func (p *ConnAckProperties) encode(buf []byte) (n int, err error) {
 	n += size
 
 	size, err = encodePropString(buf[n:], p.Flags, PropertyAssignedClientID, p.AssignedClientID)
-	n += size
 	if err != nil {
-		return n, fmt.Errorf("assigned client id: %w", err)
+		return 0, fmt.Errorf("assigned client id: %w", err)
 	}
+	n += size
 
 	size = encodePropUint(buf[n:], p.Flags, PropertyServerKeepAlive, p.ServerKeepAlive)
 	n += size
 
 	size, err = encodePropString(buf[n:], p.Flags, PropertyAuthenticationMethod, p.AuthenticationMethod)
-	n += size
 	if err != nil {
-		return n, fmt.Errorf("authentication method: %w", err)
+		return 0, fmt.Errorf("authentication method: %w", err)
 	}
+	n += size
 
 	size = encodePropBinary(buf[n:], p.Flags, PropertyAuthenticationData, p.AuthenticationData)
 	n += size
 
 	size, err = encodePropString(buf[n:], p.Flags, PropertyResponseInfo, p.ResponseInfo)
-	n += size
 	if err != nil {
-		return n, fmt.Errorf("response info: %w", err)
+		return 0, fmt.Errorf("response info: %w", err)
 	}
+	n += size
 
 	size, err = encodePropString(buf[n:], p.Flags, PropertyServerReference, p.ServerReference)
-	n += size
 	if err != nil {
-		return n, fmt.Errorf("server reference: %w", err)
+		return 0, fmt.Errorf("server reference: %w", err)
 	}
+	n += size
 
 	size, err = encodePropString(buf[n:], p.Flags, PropertyReasonString, p.ReasonString)
-	n += size
 	if err != nil {
-		return n, fmt.Errorf("reason string: %w", err)
+		return 0, fmt.Errorf("reason string: %w", err)
 	}
+	n += size
 
 	size = encodePropUint(buf[n:], p.Flags, PropertyReceiveMaximum, p.ReceiveMaximum)
 	n += size
@@ -342,10 +342,10 @@ func (p *ConnAckProperties) encode(buf []byte) (n int, err error) {
 	n += size
 
 	size, err = encodePropUserProperties(buf[n:], p.Flags, p.UserProperties, err)
-	n += size
 	if err != nil {
-		return n, fmt.Errorf("user properties: %w", err)
+		return 0, fmt.Errorf("user properties: %w", err)
 	}
+	n += size
 
 	size = encodePropUint(buf[n:], p.Flags, PropertyMaximumPacketSize, p.MaximumPacketSize)
 	n += size

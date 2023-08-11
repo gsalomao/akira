@@ -38,7 +38,7 @@ const (
 
 var protocolNames = []string{"MQIsdp", "MQTT", "MQTT"}
 
-// Connect represents the CONNECT Packet from MQTT specifications.
+// Connect represents the CONNECT packet from MQTT specifications.
 type Connect struct {
 	// ClientID represents the client identifier.
 	ClientID []byte `json:"client_id"`
@@ -120,7 +120,7 @@ func (p *Connect) Size() int {
 	return size
 }
 
-// Decode decodes the CONNECT Packet from buf and header. This method returns the number of bytes read
+// Decode decodes the CONNECT packet from buf and header. This method returns the number of bytes read
 // from buf and the error, if it fails to read the packet correctly.
 func (p *Connect) Decode(buf []byte, h FixedHeader) (n int, err error) {
 	err = p.validateHeader(buf, h)
@@ -203,21 +203,22 @@ func (p *Connect) validateHeader(buf []byte, h FixedHeader) error {
 func (p *Connect) decodeVersion(buf []byte) (int, error) {
 	name, n, err := decodeString(buf)
 	if err != nil {
-		return n, fmt.Errorf("%w: mssing protocol name", ErrMalformedPacket)
+		return 0, fmt.Errorf("%w: mssing protocol name", ErrMalformedPacket)
 	}
 	if n == len(buf) {
-		return n, fmt.Errorf("%w: missing protocol version", ErrMalformedPacket)
+		return 0, fmt.Errorf("%w: missing protocol version", ErrMalformedPacket)
 	}
 
 	p.Version = Version(buf[n])
 	n++
 
 	if p.Version < MQTT31 || p.Version > MQTT50 {
-		return n, fmt.Errorf("%w: invalid protocol version", ErrMalformedPacket)
+		return 0, fmt.Errorf("%w: invalid protocol version", ErrMalformedPacket)
 	}
 	if string(name) != protocolNames[p.Version-MQTT31] {
-		return n, fmt.Errorf("%w: invalid protocol name", ErrMalformedPacket)
+		return 0, fmt.Errorf("%w: invalid protocol name", ErrMalformedPacket)
 	}
+
 	return n, nil
 }
 
@@ -230,24 +231,25 @@ func (p *Connect) decodeFlags(buf []byte) (int, error) {
 	n := 1
 
 	if p.Flags.Reserved() {
-		return n, fmt.Errorf("%w: invalid connect flags - reserved", ErrMalformedPacket)
+		return 0, fmt.Errorf("%w: invalid connect flags - reserved", ErrMalformedPacket)
 	}
 
 	willFlags := p.Flags.WillFlag()
 	willQos := p.Flags.WillQoS()
 
 	if !willFlags && willQos != QoS0 {
-		return n, fmt.Errorf("%w: invalid connect flags - will qos without will flag", ErrMalformedPacket)
+		return 0, fmt.Errorf("%w: invalid connect flags - will qos without will flag", ErrMalformedPacket)
 	}
 	if willQos > QoS2 {
-		return n, fmt.Errorf("%w: invalid connect flags - will qos", ErrMalformedPacket)
+		return 0, fmt.Errorf("%w: invalid connect flags - will qos", ErrMalformedPacket)
 	}
 	if !willFlags && p.Flags.WillRetain() {
-		return n, fmt.Errorf("%w: invalid connect flags - will retain without will flag", ErrMalformedPacket)
+		return 0, fmt.Errorf("%w: invalid connect flags - will retain without will flag", ErrMalformedPacket)
 	}
 	if p.Version != MQTT50 && p.Flags.Password() && !p.Flags.Username() {
-		return n, fmt.Errorf("%w: invalid connect flags - password without username", ErrMalformedPacket)
+		return 0, fmt.Errorf("%w: invalid connect flags - password without username", ErrMalformedPacket)
 	}
+
 	return n, nil
 }
 
@@ -262,6 +264,7 @@ func (p *Connect) decodeKeepAlive(buf []byte) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("%w: invalid keep alive", ErrMalformedPacket)
 	}
+
 	return 2, nil
 }
 
@@ -275,8 +278,9 @@ func (p *Connect) decodeProperties(buf []byte) (int, error) {
 
 	p.Properties, n, err = decodeProperties[ConnectProperties](buf)
 	if err != nil {
-		return n, fmt.Errorf("%w: connect properties: %s", ErrMalformedPacket, err.Error())
+		return 0, fmt.Errorf("%w: connect properties: %s", ErrMalformedPacket, err.Error())
 	}
+
 	return n, nil
 }
 
@@ -287,10 +291,10 @@ func (p *Connect) decodeClientID(buf []byte) (int, error) {
 
 	id, n, err := decodeString(buf)
 	if err != nil {
-		return n, fmt.Errorf("%w: invalid client identifier", ErrMalformedPacket)
+		return 0, fmt.Errorf("%w: invalid client identifier", ErrMalformedPacket)
 	}
 	if len(id) == 0 && p.Version == MQTT31 {
-		return n, fmt.Errorf("%w: missing client identifier", ErrMalformedPacket)
+		return 0, fmt.Errorf("%w: missing client identifier", ErrMalformedPacket)
 	}
 
 	p.ClientID = make([]byte, len(id))
@@ -309,8 +313,9 @@ func (p *Connect) decodeWillProperties(buf []byte) (int, error) {
 
 	p.WillProperties, n, err = decodeProperties[WillProperties](buf)
 	if err != nil {
-		return n, fmt.Errorf("%w: will properties: %s", ErrMalformedPacket, err.Error())
+		return 0, fmt.Errorf("%w: will properties: %s", ErrMalformedPacket, err.Error())
 	}
+
 	return n, nil
 }
 
@@ -324,10 +329,10 @@ func (p *Connect) decodeWill(buf []byte) (int, error) {
 
 	topic, n, err := decodeString(buf)
 	if err != nil {
-		return n, fmt.Errorf("%w: invalid will topic", ErrMalformedPacket)
+		return 0, fmt.Errorf("%w: invalid will topic", ErrMalformedPacket)
 	}
 	if !isValidTopicName(string(topic)) {
-		return n, fmt.Errorf("%w: invalid will topic", ErrMalformedPacket)
+		return 0, fmt.Errorf("%w: invalid will topic", ErrMalformedPacket)
 	}
 
 	var payload []byte
@@ -338,10 +343,10 @@ func (p *Connect) decodeWill(buf []byte) (int, error) {
 	}
 
 	payload, size, err = decodeString(buf[n:])
-	n += size
 	if err != nil {
-		return n, fmt.Errorf("%w: invalid will payload", ErrMalformedPacket)
+		return 0, fmt.Errorf("%w: invalid will payload", ErrMalformedPacket)
 	}
+	n += size
 
 	p.WillTopic = make([]byte, len(topic))
 	copy(p.WillTopic, topic)
@@ -362,7 +367,7 @@ func (p *Connect) decodeUsername(buf []byte) (int, error) {
 
 	username, n, err := decodeString(buf)
 	if err != nil {
-		return n, fmt.Errorf("%w: invalid username", ErrMalformedPacket)
+		return 0, fmt.Errorf("%w: invalid username", ErrMalformedPacket)
 	}
 
 	p.Username = make([]byte, len(username))
@@ -381,7 +386,7 @@ func (p *Connect) decodePassword(buf []byte) (int, error) {
 
 	password, n, err := decodeBinary(buf)
 	if err != nil {
-		return n, fmt.Errorf("%w: invalid password", ErrMalformedPacket)
+		return 0, fmt.Errorf("%w: invalid password", ErrMalformedPacket)
 	}
 
 	p.Password = make([]byte, len(password))
@@ -457,7 +462,7 @@ type ConnectProperties struct {
 	// TopicAliasMaximum represents the highest number of Topic Alias that the client accepts.
 	TopicAliasMaximum uint16 `json:"topic_alias_maximum"`
 
-	// RequestResponseInfo indicates if the server can send Response Information with the CONNACK Packet.
+	// RequestResponseInfo indicates if the server can send Response Information with the CONNACK packet.
 	RequestResponseInfo bool `json:"request_response_info"`
 
 	// RequestProblemInfo indicates whether the Reason String or User Properties can be sent to the client in case
