@@ -33,26 +33,26 @@ type mockSessionStore struct {
 
 func (m *mockSessionStore) GetSession(_ context.Context, clientID []byte, s *Session) error {
 	m._getCalls.Add(1)
-	if m.getCB != nil {
-		return m.getCB(clientID, s)
+	if m.getCB == nil {
+		return ErrSessionNotFound
 	}
-	return ErrSessionNotFound
+	return m.getCB(clientID, s)
 }
 
 func (m *mockSessionStore) SaveSession(_ context.Context, clientID []byte, s *Session) error {
 	m._saveCalls.Add(1)
-	if m.saveCB != nil {
-		return m.saveCB(clientID, s)
+	if m.saveCB == nil {
+		return nil
 	}
-	return nil
+	return m.saveCB(clientID, s)
 }
 
 func (m *mockSessionStore) DeleteSession(_ context.Context, clientID []byte) error {
 	m._deleteCalls.Add(1)
-	if m.deleteCB != nil {
-		return m.deleteCB(clientID)
+	if m.deleteCB == nil {
+		return nil
 	}
-	return nil
+	return m.deleteCB(clientID)
 }
 
 func (m *mockSessionStore) getCalls() int {

@@ -48,10 +48,10 @@ func (m *mockOnStartHook) Name() string {
 
 func (m *mockOnStartHook) OnStart(_ context.Context) error {
 	m.called()
-	if m.cb != nil {
-		return m.cb()
+	if m.cb == nil {
+		return nil
 	}
-	return nil
+	return m.cb()
 }
 
 type mockOnStopHook struct {
@@ -65,9 +65,10 @@ func (m *mockOnStopHook) Name() string {
 
 func (m *mockOnStopHook) OnStop(_ context.Context) {
 	m.called()
-	if m.cb != nil {
-		m.cb()
+	if m.cb == nil {
+		return
 	}
+	m.cb()
 }
 
 type mockOnServerStartHook struct {
@@ -81,10 +82,10 @@ func (m *mockOnServerStartHook) Name() string {
 
 func (m *mockOnServerStartHook) OnServerStart(_ context.Context) error {
 	m.called()
-	if m.cb != nil {
-		return m.cb()
+	if m.cb == nil {
+		return nil
 	}
-	return nil
+	return m.cb()
 }
 
 type mockOnServerStartFailedHook struct {
@@ -98,9 +99,10 @@ func (m *mockOnServerStartFailedHook) Name() string {
 
 func (m *mockOnServerStartFailedHook) OnServerStartFailed(_ context.Context, err error) {
 	m.called()
-	if m.cb != nil {
-		m.cb(err)
+	if m.cb == nil {
+		return
 	}
+	m.cb(err)
 }
 
 type mockOnServerStartedHook struct {
@@ -114,9 +116,10 @@ func (m *mockOnServerStartedHook) Name() string {
 
 func (m *mockOnServerStartedHook) OnServerStarted(_ context.Context) {
 	m.called()
-	if m.cb != nil {
-		m.cb()
+	if m.cb == nil {
+		return
 	}
+	m.cb()
 }
 
 type mockOnServerStopHook struct {
@@ -130,9 +133,10 @@ func (m *mockOnServerStopHook) Name() string {
 
 func (m *mockOnServerStopHook) OnServerStop(_ context.Context) {
 	m.called()
-	if m.cb != nil {
-		m.cb()
+	if m.cb == nil {
+		return
 	}
+	m.cb()
 }
 
 type mockOnServerStoppedHook struct {
@@ -146,9 +150,10 @@ func (m *mockOnServerStoppedHook) Name() string {
 
 func (m *mockOnServerStoppedHook) OnServerStopped(_ context.Context) {
 	m.called()
-	if m.cb != nil {
-		m.cb()
+	if m.cb == nil {
+		return
 	}
+	m.cb()
 }
 
 type mockOnConnectionOpenHook struct {
@@ -162,10 +167,10 @@ func (m *mockOnConnectionOpenHook) Name() string {
 
 func (m *mockOnConnectionOpenHook) OnConnectionOpen(_ context.Context, c *Connection) error {
 	m.called()
-	if m.cb != nil {
-		return m.cb(c)
+	if m.cb == nil {
+		return nil
 	}
-	return nil
+	return m.cb(c)
 }
 
 type mockOnClientOpenedHook struct {
@@ -179,9 +184,10 @@ func (m *mockOnClientOpenedHook) Name() string {
 
 func (m *mockOnClientOpenedHook) OnClientOpened(_ context.Context, c *Client) {
 	m.called()
-	if m.cb != nil {
-		m.cb(c)
+	if m.cb == nil {
+		return
 	}
+	m.cb(c)
 }
 
 type mockOnClientCloseHook struct {
@@ -195,9 +201,10 @@ func (m *mockOnClientCloseHook) Name() string {
 
 func (m *mockOnClientCloseHook) OnClientClose(c *Client, err error) {
 	m.called()
-	if m.cb != nil {
-		m.cb(c, err)
+	if m.cb == nil {
+		return
 	}
+	m.cb(c, err)
 }
 
 type mockOnConnectionClosedHook struct {
@@ -211,9 +218,10 @@ func (m *mockOnConnectionClosedHook) Name() string {
 
 func (m *mockOnConnectionClosedHook) OnConnectionClosed(c *Connection, err error) {
 	m.called()
-	if m.cb != nil {
-		m.cb(c, err)
+	if m.cb == nil {
+		return
 	}
+	m.cb(c, err)
 }
 
 type mockOnReceivePacketHook struct {
@@ -227,10 +235,10 @@ func (m *mockOnReceivePacketHook) Name() string {
 
 func (m *mockOnReceivePacketHook) OnReceivePacket(_ context.Context, c *Client) error {
 	m.called()
-	if m.cb != nil {
-		return m.cb(c)
+	if m.cb == nil {
+		return nil
 	}
-	return nil
+	return m.cb(c)
 }
 
 type mockOnPacketReceiveHook struct {
@@ -244,10 +252,10 @@ func (m *mockOnPacketReceiveHook) Name() string {
 
 func (m *mockOnPacketReceiveHook) OnPacketReceive(_ context.Context, c *Client, h packet.FixedHeader) error {
 	m.called()
-	if m.cb != nil {
-		return m.cb(c, h)
+	if m.cb == nil {
+		return nil
 	}
-	return nil
+	return m.cb(c, h)
 }
 
 type mockOnPacketReceiveFailedHook struct {
@@ -261,9 +269,10 @@ func (m *mockOnPacketReceiveFailedHook) Name() string {
 
 func (m *mockOnPacketReceiveFailedHook) OnPacketReceiveFailed(_ context.Context, c *Client, err error) {
 	m.called()
-	if m.cb != nil {
-		m.cb(c, err)
+	if m.cb == nil {
+		return
 	}
+	m.cb(c, err)
 }
 
 type mockOnPacketReceivedHook struct {
@@ -277,10 +286,10 @@ func (m *mockOnPacketReceivedHook) Name() string {
 
 func (m *mockOnPacketReceivedHook) OnPacketReceived(_ context.Context, c *Client, p Packet) error {
 	m.called()
-	if m.cb != nil {
-		return m.cb(c, p)
+	if m.cb == nil {
+		return nil
 	}
-	return nil
+	return m.cb(c, p)
 }
 
 type mockOnPacketSendHook struct {
@@ -294,10 +303,10 @@ func (m *mockOnPacketSendHook) Name() string {
 
 func (m *mockOnPacketSendHook) OnPacketSend(_ context.Context, c *Client, p Packet) error {
 	m.called()
-	if m.cb != nil {
-		return m.cb(c, p)
+	if m.cb == nil {
+		return nil
 	}
-	return nil
+	return m.cb(c, p)
 }
 
 type mockOnPacketSendFailedHook struct {
@@ -311,9 +320,10 @@ func (m *mockOnPacketSendFailedHook) Name() string {
 
 func (m *mockOnPacketSendFailedHook) OnPacketSendFailed(_ context.Context, c *Client, p Packet, err error) {
 	m.called()
-	if m.cb != nil {
-		m.cb(c, p, err)
+	if m.cb == nil {
+		return
 	}
+	m.cb(c, p, err)
 }
 
 type mockOnPacketSentHook struct {
@@ -327,9 +337,10 @@ func (m *mockOnPacketSentHook) Name() string {
 
 func (m *mockOnPacketSentHook) OnPacketSent(_ context.Context, c *Client, p Packet) {
 	m.called()
-	if m.cb != nil {
-		m.cb(c, p)
+	if m.cb == nil {
+		return
 	}
+	m.cb(c, p)
 }
 
 type mockOnConnectHook struct {
@@ -343,10 +354,10 @@ func (m *mockOnConnectHook) Name() string {
 
 func (m *mockOnConnectHook) OnConnectPacket(_ context.Context, c *Client, p *packet.Connect) error {
 	m.called()
-	if m.cb != nil {
-		return m.cb(c, p)
+	if m.cb == nil {
+		return nil
 	}
-	return nil
+	return m.cb(c, p)
 }
 
 type mockOnConnectFailedHook struct {
@@ -360,9 +371,10 @@ func (m *mockOnConnectFailedHook) Name() string {
 
 func (m *mockOnConnectFailedHook) OnConnectFailed(_ context.Context, c *Client, err error) {
 	m.called()
-	if m.cb != nil {
-		m.cb(c, err)
+	if m.cb == nil {
+		return
 	}
+	m.cb(c, err)
 }
 
 type mockOnConnectedHook struct {
@@ -376,7 +388,8 @@ func (m *mockOnConnectedHook) Name() string {
 
 func (m *mockOnConnectedHook) OnConnected(_ context.Context, c *Client) {
 	m.called()
-	if m.cb != nil {
-		m.cb(c)
+	if m.cb == nil {
+		return
 	}
+	m.cb(c)
 }

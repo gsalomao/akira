@@ -32,18 +32,18 @@ type mockListener struct {
 func (m *mockListener) Listen(h Handler) error {
 	m._listenCalls.Add(1)
 	m.handler = h
-	if m.listenCB != nil {
-		return m.listenCB(h)
+	if m.listenCB == nil {
+		return nil
 	}
-	return nil
+	return m.listenCB(h)
 }
 
 func (m *mockListener) Close() error {
 	m._closeCalls.Add(1)
-	if m.closeCB != nil {
-		return m.closeCB()
+	if m.closeCB == nil {
+		return nil
 	}
-	return nil
+	return m.closeCB()
 }
 
 func (m *mockListener) listenCalls() int {
