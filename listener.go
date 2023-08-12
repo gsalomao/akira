@@ -36,7 +36,7 @@ type Listener interface {
 }
 
 type listeners struct {
-	mu       sync.RWMutex
+	mutex    sync.RWMutex
 	internal []Listener
 }
 
@@ -46,22 +46,22 @@ func newListeners() *listeners {
 }
 
 func (l *listeners) add(lsn Listener) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
 
 	l.internal = append(l.internal, lsn)
 }
 
 func (l *listeners) len() int {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
 
 	return len(l.internal)
 }
 
 func (l *listeners) listenAll(h Handler) error {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
 
 	for _, lsn := range l.internal {
 		err := lsn.Listen(h)
@@ -74,8 +74,8 @@ func (l *listeners) listenAll(h Handler) error {
 }
 
 func (l *listeners) closeAll() {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
 
 	for _, lsn := range l.internal {
 		_ = lsn.Close()
