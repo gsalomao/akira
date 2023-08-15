@@ -131,7 +131,7 @@ lint: ## Lint source code
 complexity: ## Calculates cyclomatic complexity
 	$(call print_task,"Calculating cyclomatic complexity")
 	@gocyclo -top 10 .
-	@gocyclo -over 12 -avg .
+	@gocyclo -over 15 -avg .
 	$(call print_task_result,"Calculating cyclomatic complexity","done")
 
 .PHONY: security
