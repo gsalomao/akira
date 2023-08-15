@@ -33,7 +33,9 @@ type Packet interface {
 	Size() int
 }
 
-// PacketDecodable is the interface for all MQTT packets which can decode itself by implementing the Decode method.
+// PacketDecodable is the interface which represents all MQTT packets that can be decoded.
+// These packets are CONNECT, PINGREQ, SUBSCRIBE, UNSUBSCRIBE, PUBLISH, PUBACK, PUBREC, PUBREL, PUBCOMP, DISCONNECT,
+// and AUTH.
 type PacketDecodable interface {
 	Packet
 
@@ -42,7 +44,9 @@ type PacketDecodable interface {
 	Decode(buf []byte, header packet.FixedHeader) (n int, err error)
 }
 
-// PacketEncodable is the interface for all MQTT packets which can encode itself by implementing the Encode method.
+// PacketEncodable is the interface which represents all MQTT packets that can be encoded.
+// These packets are CONNACK, PINGRESP, SUBACK, UNSUBACK, PUBLISH, PUBACK, PUBREC, PUBREL, PUBCOMP, DISCONNECT, and
+// AUTH.
 type PacketEncodable interface {
 	Packet
 
