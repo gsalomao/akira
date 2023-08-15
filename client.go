@@ -23,6 +23,8 @@ import (
 
 // Client represents a MQTT client.
 type Client struct {
+	connected atomic.Bool
+
 	// ID represents the client identifier.
 	ID []byte `json:"id"`
 
@@ -32,7 +34,11 @@ type Client struct {
 	// Connection represents the client's connection.
 	Connection *Connection `json:"connection"`
 
-	connected atomic.Bool
+	// SessionPresent indicates whether the session was present before the current connection or not.
+	SessionPresent bool `json:"session_present"`
+
+	// PersistentSession indicates whether the session is persisted in the session store or not.
+	PersistentSession bool `json:"persistent_session"`
 }
 
 // Connected returns whether the client is connected or not.

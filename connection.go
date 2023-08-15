@@ -40,6 +40,9 @@ type Connection struct {
 	// Listener is the Listener which accepted the connection.
 	Listener Listener `json:"-"`
 
+	// AuthenticationMethod is the name of the enhanced authentication method.
+	AuthenticationMethod []byte `json:"authentication_method,omitempty"`
+
 	// KeepAliveMs is a time interval, measured in milliseconds, that is permitted to elapse between the point
 	// at which the client finishes transmitting one control packet and the point it starts sending the next.
 	KeepAliveMs uint32 `json:"keep_alive_ms"`

@@ -70,8 +70,8 @@ func hasSessionExpiryInterval(s *Session, connect *packet.Connect) bool {
 	return false
 }
 
-func isPersistentSession(v packet.Version, cleanStart bool, sessionExpiryInterval uint32) bool {
-	if (v != packet.MQTT50 && !cleanStart) || sessionExpiryInterval > 0 {
+func isPersistentSession(c *Client, cleanStart bool) bool {
+	if (c.Connection.Version != packet.MQTT50 && !cleanStart) || sessionExpiryInterval(&c.Session) > 0 {
 		return true
 	}
 	return false
@@ -84,50 +84,7 @@ func sessionExpiryInterval(s *Session) uint32 {
 	return s.Properties.SessionExpiryInterval
 }
 
-func sessionProperties(props *packet.ConnectProperties, conf *Config) *SessionProperties {
-	if props == nil {
-		return nil
-	}
-
-	p := &SessionProperties{}
-
-	if props.Has(packet.PropertySessionExpiryInterval) {
-		interval := props.SessionExpiryInterval
-		p.SessionExpiryInterval = maxIfExceeded(interval, conf.MaxSessionExpiryIntervalSec)
-		p.Set(packet.PropertySessionExpiryInterval)
-	}
-	if props.Has(packet.PropertyMaximumPacketSize) {
-		size := props.MaximumPacketSize
-		p.MaximumPacketSize = maxIfExceeded(size, conf.MaxPacketSize)
-		p.Set(packet.PropertyMaximumPacketSize)
-	}
-	if props.Has(packet.PropertyReceiveMaximum) {
-		maximum := props.ReceiveMaximum
-		p.ReceiveMaximum = maxIfExceeded(maximum, conf.MaxInflightMessages)
-		p.Set(packet.PropertyReceiveMaximum)
-	}
-	if props.Has(packet.PropertyTopicAliasMaximum) {
-		maximum := props.TopicAliasMaximum
-		p.TopicAliasMaximum = maxIfExceeded(maximum, conf.TopicAliasMax)
-		p.Set(packet.PropertyTopicAliasMaximum)
-	}
-	if props.Has(packet.PropertyRequestResponseInfo) {
-		p.RequestResponseInfo = props.RequestResponseInfo
-		p.Set(packet.PropertyRequestResponseInfo)
-	}
-	if props.Has(packet.PropertyRequestProblemInfo) {
-		p.RequestProblemInfo = props.RequestProblemInfo
-		p.Set(packet.PropertyRequestProblemInfo)
-	}
-	if props.Has(packet.PropertyUserProperty) {
-		p.UserProperties = props.UserProperties
-		p.Set(packet.PropertyUserProperty)
-	}
-
-	return p
-}
-
-func lastWill(connect *packet.Connect) *LastWill {
+func newLastWill(connect *packet.Connect) *LastWill {
 	if !connect.Flags.WillFlag() {
 		return nil
 	}
@@ -174,58 +131,126 @@ func lastWill(connect *packet.Connect) *LastWill {
 	return will
 }
 
-func connAckProperties(c *Client, conf *Config, connect *packet.Connect) *packet.ConnAckProperties {
+func newSessionProperties(props *packet.ConnectProperties, conf *Config) *SessionProperties {
+	if props == nil {
+		return nil
+	}
+
+	p := &SessionProperties{}
+
+	if props.Has(packet.PropertySessionExpiryInterval) {
+		interval := props.SessionExpiryInterval
+		p.SessionExpiryInterval = maxIfExceeded(interval, conf.MaxSessionExpiryIntervalSec)
+		p.Set(packet.PropertySessionExpiryInterval)
+	}
+	if props.Has(packet.PropertyMaximumPacketSize) {
+		size := props.MaximumPacketSize
+		p.MaximumPacketSize = maxIfExceeded(size, conf.MaxPacketSize)
+		p.Set(packet.PropertyMaximumPacketSize)
+	}
+	if props.Has(packet.PropertyReceiveMaximum) {
+		maximum := props.ReceiveMaximum
+		p.ReceiveMaximum = maxIfExceeded(maximum, conf.MaxInflightMessages)
+		p.Set(packet.PropertyReceiveMaximum)
+	}
+	if props.Has(packet.PropertyTopicAliasMaximum) {
+		maximum := props.TopicAliasMaximum
+		p.TopicAliasMaximum = maxIfExceeded(maximum, conf.TopicAliasMax)
+		p.Set(packet.PropertyTopicAliasMaximum)
+	}
+	if props.Has(packet.PropertyRequestResponseInfo) {
+		p.RequestResponseInfo = props.RequestResponseInfo
+		p.Set(packet.PropertyRequestResponseInfo)
+	}
+	if props.Has(packet.PropertyRequestProblemInfo) {
+		p.RequestProblemInfo = props.RequestProblemInfo
+		p.Set(packet.PropertyRequestProblemInfo)
+	}
+	if props.Has(packet.PropertyUserProperty) {
+		p.UserProperties = props.UserProperties
+		p.Set(packet.PropertyUserProperty)
+	}
+
+	return p
+}
+
+func newConnAckProperties(c *Client, conf *Config, connect *packet.Connect) *packet.ConnAckProperties {
 	var props *packet.ConnAckProperties
 
 	if hasSessionExpiryInterval(&c.Session, connect) {
 		props = newIfNotExists(props)
-		props.SessionExpiryInterval = c.Session.Properties.SessionExpiryInterval
 		props.Set(packet.PropertySessionExpiryInterval)
+		props.SessionExpiryInterval = c.Session.Properties.SessionExpiryInterval
 	}
-	if connect != nil && uint32(connect.KeepAlive) != c.Connection.KeepAliveMs/1000 {
+	if uint32(connect.KeepAlive) != c.Connection.KeepAliveMs/1000 {
 		props = newIfNotExists(props)
-		props.ServerKeepAlive = uint16(c.Connection.KeepAliveMs / 1000)
 		props.Set(packet.PropertyServerKeepAlive)
+		props.ServerKeepAlive = uint16(c.Connection.KeepAliveMs / 1000)
+	}
+	if connect.Properties.Has(packet.PropertyAuthenticationMethod) {
+		props = newIfNotExists(props)
+		props.Set(packet.PropertyAuthenticationMethod)
+		props.AuthenticationMethod = connect.Properties.AuthenticationMethod
 	}
 	if conf.MaxInflightMessages > 0 {
 		props = newIfNotExists(props)
-		props.ReceiveMaximum = conf.MaxInflightMessages
 		props.Set(packet.PropertyReceiveMaximum)
+		props.ReceiveMaximum = conf.MaxInflightMessages
 	}
 	if conf.MaxPacketSize > 0 {
 		props = newIfNotExists(props)
-		props.MaximumPacketSize = conf.MaxPacketSize
 		props.Set(packet.PropertyMaximumPacketSize)
+		props.MaximumPacketSize = conf.MaxPacketSize
 	}
 	if conf.MaxQoS < byte(packet.QoS2) {
 		props = newIfNotExists(props)
-		props.MaximumQoS = conf.MaxQoS
 		props.Set(packet.PropertyMaximumQoS)
+		props.MaximumQoS = conf.MaxQoS
 	}
 	if conf.TopicAliasMax > 0 {
 		props = newIfNotExists(props)
-		props.TopicAliasMaximum = conf.TopicAliasMax
 		props.Set(packet.PropertyTopicAliasMaximum)
+		props.TopicAliasMaximum = conf.TopicAliasMax
 	}
 	if !conf.RetainAvailable {
 		props = newIfNotExists(props)
-		props.RetainAvailable = false
 		props.Set(packet.PropertyRetainAvailable)
+		props.RetainAvailable = false
 	}
 	if !conf.WildcardSubscriptionAvailable {
 		props = newIfNotExists(props)
-		props.WildcardSubscriptionAvailable = false
 		props.Set(packet.PropertyWildcardSubscriptionAvailable)
+		props.WildcardSubscriptionAvailable = false
 	}
 	if !conf.SubscriptionIDAvailable {
 		props = newIfNotExists(props)
-		props.SubscriptionIDAvailable = false
 		props.Set(packet.PropertySubscriptionIDAvailable)
+		props.SubscriptionIDAvailable = false
 	}
 	if !conf.SharedSubscriptionAvailable {
 		props = newIfNotExists(props)
-		props.SharedSubscriptionAvailable = false
 		props.Set(packet.PropertySharedSubscriptionAvailable)
+		props.SharedSubscriptionAvailable = false
 	}
+
+	return props
+}
+
+func setConnAckAuthProperties(props *packet.ConnAckProperties, connack *packet.ConnAck) *packet.ConnAckProperties {
+	if props == nil || connack == nil || connack.Properties == nil {
+		return props
+	}
+
+	if connack.Properties.Has(packet.PropertyAuthenticationData) {
+		props = newIfNotExists(props)
+		props.Set(packet.PropertyAuthenticationData)
+		props.AuthenticationData = connack.Properties.AuthenticationData
+	}
+	if connack.Properties.Has(packet.PropertyReasonString) {
+		props = newIfNotExists(props)
+		props.Set(packet.PropertyReasonString)
+		props.ReasonString = connack.Properties.ReasonString
+	}
+
 	return props
 }

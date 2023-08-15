@@ -27,6 +27,9 @@ type Options struct {
 	// Hooks is the list of Hook to be added into the server.
 	Hooks []Hook
 
+	// EnhancedAuths is the list of EnhancedAuth to be added into the server.
+	EnhancedAuths []EnhancedAuth
+
 	// SessionStore is the store responsible for persist the Session in a non-volatile memory.
 	SessionStore SessionStore
 
@@ -60,6 +63,13 @@ func WithListeners(l []Listener) OptionsFunc {
 func WithHooks(h []Hook) OptionsFunc {
 	return func(opts *Options) {
 		opts.Hooks = h
+	}
+}
+
+// WithEnhancedAuths sets the enhanced authentications into the Options.
+func WithEnhancedAuths(e []EnhancedAuth) OptionsFunc {
+	return func(opts *Options) {
+		opts.EnhancedAuths = e
 	}
 }
 

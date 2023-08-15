@@ -71,6 +71,32 @@ func (m *mockOnStopHook) OnStop(_ context.Context) {
 	m.cb()
 }
 
+type mockOnStartStopHook struct {
+	mockHook
+	startCB func() error
+	stopCB  func()
+}
+
+func (m *mockOnStartStopHook) Name() string {
+	return reflect.TypeOf(m).String()
+}
+
+func (m *mockOnStartStopHook) OnStart(_ context.Context) error {
+	m.called()
+	if m.startCB == nil {
+		return nil
+	}
+	return m.startCB()
+}
+
+func (m *mockOnStartStopHook) OnStop(_ context.Context) {
+	m.called()
+	if m.stopCB == nil {
+		return
+	}
+	m.stopCB()
+}
+
 type mockOnServerStartHook struct {
 	mockHook
 	cb func() error
