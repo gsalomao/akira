@@ -410,20 +410,23 @@ func TestServerAddHookFailsWhenOnStartReturnsError(t *testing.T) {
 	}
 }
 
-func TestServerAddHookFailsWhenHookAlreadyAdded(t *testing.T) {
-	s := newServer(t)
+func TestServerAddHookFailsWhenAlreadyExists(t *testing.T) {
+	h := &mockOnStartStopHook{}
+	s := newServer(t, WithHooks([]Hook{h}))
 	defer s.Close()
 	startServer(t, s)
 
-	h := &mockOnStartHook{}
-	err := s.AddHook(h)
-	if err != nil {
-		t.Errorf("Unexpected error\n%v", err)
-	}
+	stopped := make(chan struct{}, 1)
+	h.stopCB = func() { stopped <- struct{}{} }
+	h._calls.Store(0)
 
-	err = s.AddHook(h)
+	err := s.AddHook(h)
 	if !errors.Is(err, ErrHookAlreadyExists) {
 		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", ErrHookAlreadyExists, err)
+	}
+	<-stopped
+	if h.calls() != 2 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 2, h.calls())
 	}
 }
 

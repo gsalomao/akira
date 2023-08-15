@@ -181,9 +181,12 @@ func (s *Server) AddListener(l Listener) error {
 
 // AddHook adds the provided Hook into the list of hooks managed by the Server.
 //
-// If the server is already running at the time this method is called, the server calls immediately the OnStart
-// hook, if this hook implements it. If the OnStart hook returns an error, the hook is not added into the server
-// and the error is returned.
+// If the server is already running at the time this method is called, the server calls immediately the OnStart hook,
+// if this hook implements it. If the OnStart hook returns an error, the hook is not added into the server and the
+// error is returned.
+//
+// If a hook, with the same name, exists in the server, the server calls the OnStop hook, if the OnStart hook was
+// called, and returns ErrHookAlreadyExists.
 func (s *Server) AddHook(h Hook) error {
 	st := s.State()
 	s.logger.Log("Adding hook", "hook", h.Name(), "hooks", s.hooks.len(), "state", st.String())
@@ -201,6 +204,9 @@ func (s *Server) AddHook(h Hook) error {
 	err := s.hooks.add(h)
 	if err != nil {
 		s.logger.Log("Failed to add hook", "error", err, "hook", h.Name(), "hooks", s.hooks.len())
+		if hook, ok := h.(OnStopHook); ok {
+			hook.OnStop(s.ctx)
+		}
 		return err
 	}
 
