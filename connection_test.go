@@ -60,7 +60,7 @@ func TestNewConnection(t *testing.T) {
 	}
 }
 
-func TestConnectionReceivePacket(t *testing.T) {
+func TestConnectionReadPacket(t *testing.T) {
 	testCases := []struct {
 		path   string
 		name   string
@@ -103,7 +103,7 @@ func TestConnectionReceivePacket(t *testing.T) {
 				t.Errorf("Unexpected number of bytes read\nwant: %v\ngot:  %v", 2, hSize)
 			}
 
-			p, n, readErr := conn.receivePacket(r, h)
+			p, n, readErr := conn.readPacket(r, h)
 			if readErr != nil {
 				t.Fatalf("Unexpected read error\n%v", readErr)
 			}
@@ -134,10 +134,10 @@ func TestConnectionReadFixedHeaderOnNilConnection(t *testing.T) {
 	}
 }
 
-func TestConnectionReceivePacketOnNilConnection(t *testing.T) {
+func TestConnectionReadPacketOnNilConnection(t *testing.T) {
 	var conn *Connection
 
-	_, n, err := conn.receivePacket(bufio.NewReader(nil), packet.FixedHeader{})
+	_, n, err := conn.readPacket(bufio.NewReader(nil), packet.FixedHeader{})
 	if !errors.Is(err, io.EOF) {
 		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
 	}
@@ -146,7 +146,7 @@ func TestConnectionReceivePacketOnNilConnection(t *testing.T) {
 	}
 }
 
-func TestConnectionReceivePacketError(t *testing.T) {
+func TestConnectionReadPacketError(t *testing.T) {
 	testCases := []struct {
 		name string
 		data []byte
@@ -189,7 +189,7 @@ func TestConnectionReceivePacketError(t *testing.T) {
 				t.Errorf("Unexpected number of bytes read\nwant: %v\ngot:  %v", 2, hSize)
 			}
 
-			_, n, readErr := conn.receivePacket(r, h)
+			_, n, readErr := conn.readPacket(r, h)
 			if !errors.Is(readErr, tc.err) {
 				t.Errorf("Unexpected read error\nwant: %v\ngot:  %v", tc.err, readErr)
 			}
@@ -205,7 +205,7 @@ func TestConnectionReceivePacketError(t *testing.T) {
 	}
 }
 
-func TestConnectionSendPacket(t *testing.T) {
+func TestConnectionWritePacket(t *testing.T) {
 	fixture, err := testdata.ReadPacketFixture("connack.json", "V5.0 Success")
 	if err != nil {
 		t.Fatalf("Unexpected error\n%v", err)
@@ -227,9 +227,9 @@ func TestConnectionSendPacket(t *testing.T) {
 		_, readErr = nc.Read(buf)
 	}()
 
-	n, sendErr := conn.sendPacket(p)
-	if sendErr != nil {
-		t.Fatalf("Unexpected send error\n%v", sendErr)
+	n, writeErr := conn.writePacket(p)
+	if writeErr != nil {
+		t.Fatalf("Unexpected send error\n%v", writeErr)
 	}
 	if n != len(fixture.Packet) {
 		t.Errorf("Unexpected number of bytes sent\nwant: %v\ngot:  %v", len(fixture.Packet), n)
@@ -244,10 +244,10 @@ func TestConnectionSendPacket(t *testing.T) {
 	}
 }
 
-func TestConnectionSendPacketOnNilConnection(t *testing.T) {
+func TestConnectionWritePacketOnNilConnection(t *testing.T) {
 	var conn *Connection
 
-	n, err := conn.sendPacket(nil)
+	n, err := conn.writePacket(nil)
 	if !errors.Is(err, io.EOF) {
 		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
 	}
@@ -256,12 +256,12 @@ func TestConnectionSendPacketOnNilConnection(t *testing.T) {
 	}
 }
 
-func TestConnectionSendPacketError(t *testing.T) {
+func TestConnectionWritePacketError(t *testing.T) {
 	nc, conn := newConnection(t)
 	defer func() { _ = nc.Close() }()
 
 	p := &packet.ConnAck{}
-	n, err := conn.sendPacket(p)
+	n, err := conn.writePacket(p)
 	if !errors.Is(err, packet.ErrMalformedPacket) {
 		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", packet.ErrMalformedPacket, err)
 	}
@@ -270,13 +270,13 @@ func TestConnectionSendPacketError(t *testing.T) {
 	}
 }
 
-func TestConnectSendPacketTimeout(t *testing.T) {
+func TestConnectWritePacketTimeout(t *testing.T) {
 	nc, conn := newConnection(t)
 	defer func() { _ = nc.Close() }()
 	conn.sendTimeoutMs = 10
 
 	p := &packet.ConnAck{Version: packet.MQTT50}
-	_, err := conn.sendPacket(p)
+	_, err := conn.writePacket(p)
 	if !errors.Is(err, os.ErrDeadlineExceeded) {
 		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", os.ErrDeadlineExceeded, err)
 	}

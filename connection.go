@@ -74,7 +74,7 @@ func (c *Connection) readFixedHeader(r *bufio.Reader, h *packet.FixedHeader) (n 
 	return n, nil
 }
 
-func (c *Connection) receivePacket(r *bufio.Reader, h packet.FixedHeader) (p Packet, n int, err error) {
+func (c *Connection) readPacket(r *bufio.Reader, h packet.FixedHeader) (p Packet, n int, err error) {
 	if c == nil {
 		return nil, 0, io.EOF
 	}
@@ -111,7 +111,7 @@ func (c *Connection) receivePacket(r *bufio.Reader, h packet.FixedHeader) (p Pac
 	return p, n, nil
 }
 
-func (c *Connection) sendPacket(p PacketEncodable) (n int, err error) {
+func (c *Connection) writePacket(p PacketEncodable) (n int, err error) {
 	if c == nil {
 		return 0, io.EOF
 	}

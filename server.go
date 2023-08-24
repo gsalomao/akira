@@ -590,7 +590,7 @@ func (s *Server) receivePacket(ctx context.Context, c *Client) (Packet, error) {
 		n int
 	)
 
-	p, n, err = c.Connection.receivePacket(r, h)
+	p, n, err = c.Connection.readPacket(r, h)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read packet: %w", err)
 	}
@@ -1051,7 +1051,7 @@ func (s *Server) sendPacket(ctx context.Context, c *Client, p PacketEncodable) e
 
 	var pSize int
 
-	pSize, err = c.Connection.sendPacket(p)
+	pSize, err = c.Connection.writePacket(p)
 	if err != nil {
 		s.logger.Log("Failed to send packet to client",
 			"address", c.Connection.Address,
