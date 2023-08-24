@@ -418,11 +418,12 @@ func (s *Server) Serve(c *Connection) error {
 		client.setState(ClientDisconnected)
 		client.Session.DisconnectedAt = time.Now().UnixMilli()
 
+		if state == ClientConnected || state == ClientReAuthenticating {
 			saveErr := s.sessionStore.SaveSession(inboundCtx, client.ID, &client.Session)
 			if saveErr != nil {
 				s.logger.Log("Failed to save session on close",
 					"address", c.Address,
-					"error", err,
+					"error", saveErr,
 					"id", string(client.ID),
 					"state", s.State().String(),
 					"version", c.Version.String(),
@@ -735,7 +736,9 @@ func (s *Server) handlePacketConnect(ctx context.Context, c *Client, connect *pa
 		return err
 	}
 
-	c.connected.Store(true)
+	if c.State() != ClientConnected {
+		return nil
+	}
 
 	s.Metrics.ClientsConnected.value.Add(1)
 	if c.PersistentSession {
@@ -867,6 +870,7 @@ func (s *Server) connectClient(ctx context.Context, c *Client, connect *packet.C
 		return err
 	}
 
+	c.setState(ClientConnected)
 	return nil
 }
 
