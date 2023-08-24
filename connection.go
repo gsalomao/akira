@@ -63,12 +63,12 @@ func (c *Connection) readFixedHeader(r *bufio.Reader, h *packet.FixedHeader) (n 
 	r.Reset(c.netConn)
 	err = c.setReadDeadline()
 	if err != nil {
-		return 0, fmt.Errorf("failed to set read deadline: %w", err)
+		return 0, err
 	}
 
 	n, err = h.Read(r)
 	if err != nil {
-		return n, fmt.Errorf("failed to read fixed header: %w", err)
+		return n, err
 	}
 
 	return n, nil
@@ -92,7 +92,10 @@ func (c *Connection) readPacket(r *bufio.Reader, h packet.FixedHeader) (p Packet
 
 	buf := make([]byte, h.RemainingLength)
 	if _, err = io.ReadFull(r, buf); err != nil {
-		return nil, n, fmt.Errorf("failed to read remaining bytes: %w", err)
+		if errors.Is(err, io.ErrUnexpectedEOF) {
+			err = io.EOF
+		}
+		return nil, n, err
 	}
 
 	p = pd
@@ -102,7 +105,7 @@ func (c *Connection) readPacket(r *bufio.Reader, h packet.FixedHeader) (p Packet
 
 	dSize, err = pd.Decode(buf, h)
 	if err != nil {
-		return nil, n, fmt.Errorf("decode error: %s: %w", p.Type(), err)
+		return nil, n, fmt.Errorf("decode packet: %s: %w", p.Type(), err)
 	}
 	if dSize != h.RemainingLength {
 		return nil, n, fmt.Errorf("%w: %s: packet size mismatch", packet.ErrMalformedPacket, p.Type())
@@ -120,12 +123,12 @@ func (c *Connection) writePacket(p PacketEncodable) (n int, err error) {
 
 	_, err = p.Encode(buf)
 	if err != nil {
-		return n, fmt.Errorf("failed to encode packet: %w", err)
+		return n, fmt.Errorf("encode packet: %w", err)
 	}
 
 	err = c.setWriteDeadline()
 	if err != nil {
-		return 0, fmt.Errorf("failed to set write deadline: %w", err)
+		return 0, fmt.Errorf("set write deadline: %w", err)
 	}
 
 	return c.netConn.Write(buf)

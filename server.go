@@ -410,9 +410,18 @@ func (s *Server) Serve(c *Connection) error {
 	// The inbound goroutine is responsible for receive and handle the received packets from client.
 	go func() {
 		defer s.wg.Done()
+		s.logger.Log("Inbound goroutine started", "address", c.Address)
 
-		s.logger.Log("Running inbound loop", "address", c.Address)
 		err := s.inboundLoop(clientCtx, client)
+		if err != nil && !errors.Is(err, io.EOF) {
+			s.logger.Log("Stopping inbound goroutine due to an error",
+				"address", c.Address,
+				"error", err,
+				"id", string(client.ID),
+				"state", s.State().String(),
+				"version", c.Version.String(),
+			)
+		}
 
 		state := client.State()
 		client.setState(ClientDisconnected)
@@ -421,7 +430,7 @@ func (s *Server) Serve(c *Connection) error {
 		if state == ClientConnected || state == ClientReAuthenticating {
 			saveErr := s.sessionStore.SaveSession(inboundCtx, client.ID, &client.Session)
 			if saveErr != nil {
-				s.logger.Log("Failed to save session on close",
+				s.logger.Log("Failed to save session before closing client",
 					"address", c.Address,
 					"error", saveErr,
 					"id", string(client.ID),
@@ -434,7 +443,7 @@ func (s *Server) Serve(c *Connection) error {
 		cancelClientCtx(err)
 		cancelInboundCtx()
 
-		s.logger.Log("Stopping inbound loop",
+		s.logger.Log("Inbound goroutine stopped",
 			"address", c.Address,
 			"id", string(client.ID),
 			"state", s.State().String(),
@@ -445,23 +454,11 @@ func (s *Server) Serve(c *Connection) error {
 	// The outbound goroutine is responsible to send outbound packets to client.
 	go func() {
 		defer s.wg.Done()
+		s.logger.Log("Outbound goroutine started", "address", c.Address)
 
-		s.logger.Log("Running outbound loop", "address", c.Address)
 		err := s.outboundLoop(clientCtx)
-		s.hooks.onClientClose(client, err)
-
-		_ = client.Connection.netConn.Close()
-		<-inboundCtx.Done()
-
-		if errors.Is(err, io.EOF) || errors.Is(err, ErrServerStopped) {
-			s.logger.Log("Client closed",
-				"address", c.Address,
-				"id", string(client.ID),
-				"state", s.State().String(),
-				"version", c.Version.String(),
-			)
-		} else {
-			s.logger.Log("Client closed due to an error",
+		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, ErrServerStopped) {
+			s.logger.Log("Outbound goroutine stopping due to an error",
 				"address", c.Address,
 				"error", err,
 				"id", string(client.ID),
@@ -470,11 +467,15 @@ func (s *Server) Serve(c *Connection) error {
 			)
 		}
 
+		s.hooks.onClientClose(client, err)
+		_ = client.Connection.netConn.Close()
+		<-inboundCtx.Done()
+
 		conn := client.Connection
 		client.Connection = nil
 		s.hooks.onConnectionClosed(conn, err)
 
-		s.logger.Log("Stopping outbound loop",
+		s.logger.Log("Outbound goroutine stopped",
 			"address", c.Address,
 			"id", string(client.ID),
 			"state", s.State().String(),
@@ -531,7 +532,7 @@ func (s *Server) inboundLoop(ctx context.Context, c *Client) error {
 
 		err := s.hooks.onReceivePacket(ctx, c)
 		if err != nil {
-			return err
+			return fmt.Errorf("OnReceivePacket: %w", err)
 		}
 
 		p, err = s.receivePacket(ctx, c)
@@ -539,18 +540,19 @@ func (s *Server) inboundLoop(ctx context.Context, c *Client) error {
 			if errors.Is(err, io.EOF) || errors.Is(err, os.ErrDeadlineExceeded) {
 				return err
 			}
+			err = fmt.Errorf("receive packet: %w", err)
 			s.hooks.onPacketReceiveFailed(ctx, c, err)
 			return err
 		}
 
 		err = s.hooks.onPacketReceived(ctx, c, p)
 		if err != nil {
-			return err
+			return fmt.Errorf("OnPacketReceived: %w", err)
 		}
 
 		err = s.handlePacket(ctx, c, p)
 		if err != nil {
-			return err
+			return fmt.Errorf("handle packet %s: %w", p.Type(), err)
 		}
 	}
 }
@@ -572,7 +574,7 @@ func (s *Server) receivePacket(ctx context.Context, c *Client) (Packet, error) {
 
 	headerSize, err := c.Connection.readFixedHeader(r, &h)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read fixed header: %w", err)
+		return nil, fmt.Errorf("read fixed header: %w", err)
 	}
 
 	pSize := headerSize + h.RemainingLength
@@ -582,7 +584,7 @@ func (s *Server) receivePacket(ctx context.Context, c *Client) (Packet, error) {
 
 	err = s.hooks.onPacketReceive(ctx, c, h)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("OnPacketReceive: %w", err)
 	}
 
 	var (
@@ -592,7 +594,7 @@ func (s *Server) receivePacket(ctx context.Context, c *Client) (Packet, error) {
 
 	p, n, err = c.Connection.readPacket(r, h)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read packet: %w", err)
+		return nil, fmt.Errorf("read packet: %w", err)
 	}
 
 	pSize = headerSize + n
@@ -616,12 +618,6 @@ func (s *Server) handlePacket(ctx context.Context, c *Client, p Packet) error {
 	switch pkt := p.(type) {
 	case *packet.Connect:
 		if c.State() != ClientDisconnected {
-			s.logger.Log("Duplicate CONNECT packet",
-				"address", c.Connection.Address,
-				"id", string(c.ID),
-				"version", pkt.Version.String(),
-			)
-
 			if pkt.Version == packet.MQTT50 {
 				// As the client is going to be closed, there's nothing else to do with the error returned from the
 				// sendConnAck, as it was already logged.
@@ -654,79 +650,54 @@ func (s *Server) handlePacketConnect(ctx context.Context, c *Client, connect *pa
 
 	err := s.hooks.onConnectPacket(ctx, c, connect)
 	if err != nil {
-		s.logger.Log("Stopping to connect client due to an error from OnConnectPacket",
-			"address", c.Connection.Address,
-			"error", err,
-			"version", connect.Version.String(),
-		)
-
-		var pktErr packet.Error
-		if errors.As(err, &pktErr) {
-			if pktErr.Code != packet.ReasonCodeSuccess && pktErr.Code != packet.ReasonCodeMalformedPacket {
+		var pErr packet.Error
+		if errors.As(err, &pErr) {
+			if pErr.Code != packet.ReasonCodeSuccess && pErr.Code != packet.ReasonCodeMalformedPacket {
 				// As the client is going to be closed, there's nothing else to do with the error returned from the
 				// sendConnAck, as it was already logged.
-				_ = s.sendConnAck(ctx, c, pktErr.Code, nil)
+				_ = s.sendConnAck(ctx, c, pErr.Code, nil)
 			}
 		}
-		return err
+		return fmt.Errorf("OnConnectPacket: %w", err)
 	}
 
 	if !isClientIDValid(connect.Version, len(connect.ClientID), &s.config) {
-		s.logger.Log("Failed to connect client due to invalid client ID",
-			"address", c.Connection.Address,
-			"id", string(connect.ClientID),
-			"version", connect.Version.String(),
-		)
+		pErr := packet.ErrClientIDNotValid
 
 		// As the client is going to be closed, there's nothing else to do with the error returned from the
 		// sendConnAck, as it was already logged.
-		_ = s.sendConnAck(ctx, c, packet.ReasonCodeClientIDNotValid, nil)
+		_ = s.sendConnAck(ctx, c, pErr.Code, nil)
 
+		err = fmt.Errorf("%w: %v", pErr, connect.ClientID)
 		s.hooks.onConnectFailed(ctx, c, err)
-		return packet.ErrClientIDNotValid
+		return err
 	}
 
 	if !isKeepAliveValid(connect.Version, connect.KeepAlive, s.config.MaxKeepAliveSec) {
-		s.logger.Log("Failed to connect client due to invalid keep alive",
-			"address", c.Connection.Address,
-			"id", string(connect.ClientID),
-			"keep_alive", connect.KeepAlive,
-			"version", connect.Version.String(),
-		)
-
 		// For MQTT v3.1 and v3.1.1, there is no mechanism to tell the clients what Keep Alive value they should use.
 		// If an MQTT v3.1 or v3.1.1 client specifies a Keep Alive time greater than maximum keep alive, the CONNACK
 		// packet shall be sent with the reason code "identifier rejected".
+		pErr := packet.ErrClientIDNotValid
+
 		// As the client is going to be closed, there's nothing else to do with the error returned from the
 		// sendConnAck, as it was already logged.
-		_ = s.sendConnAck(ctx, c, packet.ReasonCodeClientIDNotValid, nil)
+		_ = s.sendConnAck(ctx, c, pErr.Code, nil)
 
 		s.hooks.onConnectFailed(ctx, c, err)
-		return packet.ErrClientIDNotValid
+		return fmt.Errorf("%w: invalid keep alive: %v", pErr, connect.KeepAlive)
 	}
 
 	if !connect.Flags.CleanStart() {
 		err = s.getSession(ctx, connect.ClientID, c)
 		if err != nil && !errors.Is(err, ErrSessionNotFound) {
-			s.logger.Log("Failed to get session",
-				"address", c.Connection.Address,
-				"clean_start", connect.Flags.CleanStart(),
-				"id", string(connect.ClientID),
-				"error", err,
-				"version", connect.Version.String(),
-			)
-
 			// If the session store fails to get the session, or to delete the session, the server replies to client
 			// indicating that the service is unavailable.
-			pErr := packet.ErrServerUnavailable
-
 			// As the client is going to be closed, there's nothing else to do with the error returned from the
 			// sendConnAck, as it was already logged.
-			_ = s.sendConnAck(ctx, c, pErr.Code, nil)
+			_ = s.sendConnAck(ctx, c, packet.ReasonCodeServerUnavailable, nil)
 
-			err = fmt.Errorf("%w: %s", pErr, err.Error())
 			s.hooks.onConnectFailed(ctx, c, err)
-			return err
+			return fmt.Errorf("get session: %w", err)
 		}
 	}
 
@@ -771,14 +742,7 @@ func (s *Server) connectClient(ctx context.Context, c *Client, connect *packet.C
 
 		pkt, err = s.authenticateEnhanced(ctx, c, connect, connect.Properties.AuthenticationMethod)
 		if err != nil {
-			s.logger.Log("Failed to authenticate using enhanced authentication",
-				"address", c.Connection.Address,
-				"clean_start", connect.Flags.CleanStart(),
-				"id", string(connect.ClientID),
-				"error", err,
-				"version", connect.Version.String(),
-			)
-			return err
+			return fmt.Errorf("authenticate enhanced: %w", err)
 		}
 
 		if pkt != nil {
@@ -795,43 +759,23 @@ func (s *Server) connectClient(ctx context.Context, c *Client, connect *packet.C
 	if connect.Flags.CleanStart() {
 		err = s.sessionStore.DeleteSession(ctx, c.ID)
 		if err != nil && !errors.Is(err, ErrSessionNotFound) {
-			s.logger.Log("Failed to delete session",
-				"address", c.Connection.Address,
-				"clean_start", connect.Flags.CleanStart(),
-				"id", string(connect.ClientID),
-				"error", err,
-				"version", connect.Version.String(),
-			)
-
 			// If the session store fails to get the session, or to delete the session, the server replies to client
 			// indicating that the service is unavailable.
-			pErr := packet.ErrServerUnavailable
-
 			// As the client is going to be closed, there's nothing else to do with the error returned from the
 			// sendConnAck, as it was already logged.
-			_ = s.sendConnAck(ctx, c, pErr.Code, nil)
-			return fmt.Errorf("%w: %s", pErr, err.Error())
+			_ = s.sendConnAck(ctx, c, packet.ReasonCodeServerUnavailable, nil)
+			return fmt.Errorf("delete session: %w", err)
 		}
 	}
 
 	err = s.saveSession(ctx, c)
 	if err != nil {
-		s.logger.Log("Failed save session",
-			"address", c.Connection.Address,
-			"error", err,
-			"id", string(c.ID),
-			"session_present", c.SessionPresent,
-			"version", connect.Version.String(),
-		)
-
 		// If the session store fails to save the session, the server replies to client indicating that the
 		// service is unavailable.
-		pErr := packet.ErrServerUnavailable
-
 		// As the client is going to be closed, there's nothing else to do with the error returned from the
 		// sendConnAck, as it was already logged.
-		_ = s.sendConnAck(ctx, c, pErr.Code, nil)
-		return fmt.Errorf("%w: %s", pErr, err.Error())
+		_ = s.sendConnAck(ctx, c, packet.ReasonCodeServerUnavailable, nil)
+		return fmt.Errorf("save session: %w", err)
 	}
 
 	var (
@@ -859,15 +803,7 @@ func (s *Server) connectClient(ctx context.Context, c *Client, connect *packet.C
 	}
 
 	if code != packet.ReasonCodeSuccess {
-		err = fmt.Errorf("connack packet: reason code: %v", code)
-		s.logger.Log("Failed to connect client",
-			"address", c.Connection.Address,
-			"error", err,
-			"id", string(c.ID),
-			"session_present", c.SessionPresent,
-			"version", c.Connection.Version.String(),
-		)
-		return err
+		return fmt.Errorf("reason code: %v", code)
 	}
 
 	c.setState(ClientConnected)
@@ -881,32 +817,28 @@ func (s *Server) authenticateEnhanced(ctx context.Context, c *Client, p Packet, 
 		props.AuthenticationMethod = c.Connection.AuthenticationMethod
 
 		pErr := packet.ErrBadAuthenticationMethod
+
+		// As the client is going to be closed, there's nothing else to do with the error returned from the
+		// sendConnAck, as it was already logged.
 		_ = s.sendConnAck(ctx, c, pErr.Code, props)
 		return nil, pErr
 	}
 
 	pkt, err := s.auths.authenticateEnhanced(ctx, c, p, name)
 	if err != nil {
-		s.logger.Log("Failed to authenticate using enhanced authentication",
-			"address", c.Connection.Address,
-			"id", string(c.ID),
-			"error", err,
-			"version", c.Connection.Version.String(),
-		)
-
-		var pktErr packet.Error
-		if errors.As(err, &pktErr) {
-			if pktErr.Code != packet.ReasonCodeSuccess && pktErr.Code != packet.ReasonCodeMalformedPacket {
+		var pErr packet.Error
+		if errors.As(err, &pErr) {
+			if pErr.Code != packet.ReasonCodeSuccess && pErr.Code != packet.ReasonCodeMalformedPacket {
 				props := &packet.ConnAckProperties{}
 				props.Set(packet.PropertyAuthenticationMethod)
 				props.AuthenticationMethod = name
 
 				// As the client is going to be closed, there's nothing else to do with the error returned from the
 				// sendConnAck, as it was already logged.
-				_ = s.sendConnAck(ctx, c, pktErr.Code, props)
+				_ = s.sendConnAck(ctx, c, pErr.Code, props)
 			}
 		}
-		return nil, fmt.Errorf("enhanced authentication: %w", err)
+		return nil, err
 	}
 
 	if pkt == nil {
@@ -920,43 +852,26 @@ func (s *Server) authenticateEnhanced(ctx context.Context, c *Client, p Packet, 
 	case packet.TypeConnAck:
 		return pkt, nil
 	default:
-		s.logger.Log("Enhanced authentication returned invalid packet type",
-			"address", c.Connection.Address,
-			"id", string(c.ID),
-			"type", pType.String(),
-			"version", c.Connection.Version.String(),
-		)
-		return nil, fmt.Errorf("enhanced authentication: invalid packet type: %s", pType.String())
+		return nil, fmt.Errorf("invalid packet type: %s", pType)
 	}
 }
 
 func (s *Server) handlePacketAuth(ctx context.Context, c *Client, auth *packet.Auth) error {
 	st := c.State()
 	if st == ClientDisconnected {
-		err := fmt.Errorf("%w: client disconnected", packet.ErrProtocolError)
-		s.logger.Log("Failed to handle packet auth",
-			"address", c.Connection.Address,
-			"id", string(c.ID),
-			"error", err,
-			"version", c.Connection.Version.String(),
-		)
-		return err
+		return fmt.Errorf("%w: client disconnected", packet.ErrProtocolError)
 	}
 
-	err := s.hooks.onAuthPacket(ctx, c, auth)
+	if err := s.hooks.onAuthPacket(ctx, c, auth); err != nil {
+		return fmt.Errorf("OnAuthPacket: %w", err)
+	}
+
+	pkt, err := s.authenticateEnhanced(ctx, c, auth, auth.Properties.AuthenticationMethod)
 	if err != nil {
-		return fmt.Errorf("%w from OnAuthPacket", err)
+		return fmt.Errorf("authenticate enhanced: %w", err)
 	}
 
-	var (
-		pkt     PacketEncodable
-		connack *packet.ConnAck
-	)
-
-	pkt, err = s.authenticateEnhanced(ctx, c, auth, auth.Properties.AuthenticationMethod)
-	if err != nil {
-		return err
-	}
+	var connack *packet.ConnAck
 
 	if pkt != nil {
 		pType := pkt.Type()
@@ -967,8 +882,7 @@ func (s *Server) handlePacketAuth(ctx context.Context, c *Client, auth *packet.A
 			return nil
 		}
 		if st != ClientAuthenticating {
-			err = fmt.Errorf("%w: packet of type %s with client state %s", packet.ErrProtocolError, pType, st)
-			return err
+			return fmt.Errorf("%w: packet of type %s with client state %s", packet.ErrProtocolError, pType, st)
 		}
 		connack = pkt.(*packet.ConnAck)
 	}
@@ -1000,15 +914,7 @@ func (s *Server) handlePacketAuth(ctx context.Context, c *Client, auth *packet.A
 	}
 
 	if code != packet.ReasonCodeSuccess {
-		err = fmt.Errorf("packet: reason code: %v", code)
-		s.logger.Log("Failed to authenticate client",
-			"address", c.Connection.Address,
-			"error", err,
-			"id", string(c.ID),
-			"session_present", c.SessionPresent,
-			"version", c.Connection.Version.String(),
-		)
-		return err
+		return fmt.Errorf("reason code: %v", code)
 	}
 
 	c.setState(ClientConnected)
@@ -1019,8 +925,8 @@ func (s *Server) handlePacketAuth(ctx context.Context, c *Client, auth *packet.A
 	return nil
 }
 
-func (s *Server) sendConnAck(
-	ctx context.Context, c *Client, code packet.ReasonCode, props *packet.ConnAckProperties,
+func (s *Server) sendConnAck(ctx context.Context, c *Client, code packet.ReasonCode,
+	props *packet.ConnAckProperties,
 ) error {
 	if code == packet.ReasonCodeClientIDNotValid && c.Connection.Version != packet.MQTT50 {
 		code = packet.ReasonCodeV3IdentifierRejected
@@ -1040,31 +946,17 @@ func (s *Server) sendConnAck(
 func (s *Server) sendPacket(ctx context.Context, c *Client, p PacketEncodable) error {
 	err := s.hooks.onPacketSend(ctx, c, p)
 	if err != nil {
-		s.logger.Log("Stopping to send packet to client due to an error from OnPacketSend",
-			"address", c.Connection.Address,
-			"error", err,
-			"id", string(c.ID),
-			"packet", p.Type().String(),
-		)
-		return err
+		return fmt.Errorf("OnPacketSend: %w", err)
 	}
 
 	var pSize int
 
 	pSize, err = c.Connection.writePacket(p)
 	if err != nil {
-		s.logger.Log("Failed to send packet to client",
-			"address", c.Connection.Address,
-			"error", err,
-			"id", string(c.ID),
-			"packet", p.Type().String(),
-			"version", c.Connection.Version.String(),
-		)
-
 		if !errors.Is(err, io.EOF) {
 			s.hooks.onPacketSendFailed(ctx, c, p, err)
 		}
-		return err
+		return fmt.Errorf("write packet %s: %w", p.Type(), err)
 	}
 
 	s.hooks.onPacketSent(ctx, c, p)
