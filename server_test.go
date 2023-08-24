@@ -1088,7 +1088,7 @@ func TestServerConnectAccepted(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-			_ = receivePacket(t, nc, connack.Packet)
+			receivePacket(t, nc, connack.Packet)
 		})
 	}
 }
@@ -1125,7 +1125,7 @@ func TestServerConnectAcceptedWithHooks(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-			_ = receivePacket(t, nc, connack.Packet)
+			receivePacket(t, nc, connack.Packet)
 
 			client := <-clients
 			if client.State() != ClientConnected {
@@ -1179,7 +1179,7 @@ func TestServerConnectAcceptedMetrics(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-			_ = receivePacket(t, nc, connack.Packet)
+			receivePacket(t, nc, connack.Packet)
 
 			<-connected
 			if s.Metrics.ClientsConnected.Value() != 1 {
@@ -1275,7 +1275,7 @@ func TestServerConnectRejectedDueToConfig(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-			_ = receivePacket(t, nc, connack.Packet)
+			receivePacket(t, nc, connack.Packet)
 		})
 	}
 }
@@ -1304,7 +1304,7 @@ func TestServerConnectRejectedDueToEmptyClientID(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-			_ = receivePacket(t, nc, connack.Packet)
+			receivePacket(t, nc, connack.Packet)
 		})
 	}
 }
@@ -1334,7 +1334,7 @@ func TestServerConnectConnectionClosedWhenRejected(t *testing.T) {
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-	_ = receivePacket(t, nc, connack.Packet)
+	receivePacket(t, nc, connack.Packet)
 
 	<-closed
 	_, err := nc.Read(nil)
@@ -1380,7 +1380,7 @@ func TestServerConnectPersistentSession(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-			_ = receivePacket(t, nc, connack.Packet)
+			receivePacket(t, nc, connack.Packet)
 
 			<-connected
 			if ss.saveCalls() != 1 {
@@ -1423,7 +1423,7 @@ func TestServerConnectNoSessionPersistence(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-			_ = receivePacket(t, nc, connack.Packet)
+			receivePacket(t, nc, connack.Packet)
 
 			<-connected
 			if ss.saveCalls() != 0 {
@@ -1461,7 +1461,7 @@ func TestServerConnectCleanStart(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-			_ = receivePacket(t, nc, connack.Packet)
+			receivePacket(t, nc, connack.Packet)
 		})
 	}
 }
@@ -1491,7 +1491,7 @@ func TestServerConnectNoCleanStart(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-			_ = receivePacket(t, nc, connack.Packet)
+			receivePacket(t, nc, connack.Packet)
 
 			if ss.deleteCalls() != 0 {
 				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 0, ss.deleteCalls())
@@ -1527,7 +1527,7 @@ func TestServerConnectWithSessionPresent(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-			_ = receivePacket(t, nc, connack.Packet)
+			receivePacket(t, nc, connack.Packet)
 
 			if ss.getCalls() != 1 {
 				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, ss.getCalls())
@@ -1570,7 +1570,7 @@ func TestServerConnectWithExpiredSession(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-			_ = receivePacket(t, nc, connack.Packet)
+			receivePacket(t, nc, connack.Packet)
 
 			if ss.deleteCalls() != 1 {
 				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, ss.deleteCalls())
@@ -1691,7 +1691,7 @@ func TestServerConnectWithConfig(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-			_ = receivePacket(t, nc, connack.Packet)
+			receivePacket(t, nc, connack.Packet)
 		})
 	}
 }
@@ -1726,7 +1726,7 @@ func TestServerConnectWithAllProperties(t *testing.T) {
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-	_ = receivePacket(t, nc, connack.Packet)
+	receivePacket(t, nc, connack.Packet)
 
 	client := <-clients
 	if client == nil {
@@ -1773,7 +1773,7 @@ func TestServerConnectWithLastWill(t *testing.T) {
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-	_ = receivePacket(t, nc, connack.Packet)
+	receivePacket(t, nc, connack.Packet)
 
 	client := <-clients
 	if client == nil {
@@ -1844,7 +1844,7 @@ func TestServerConnectWithEnhancedAuth(t *testing.T) {
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-	_ = receivePacket(t, nc, auth.Packet)
+	receivePacket(t, nc, auth.Packet)
 
 	pkt := <-packets
 	if pkt == nil {
@@ -1905,7 +1905,7 @@ func TestServerConnectWithEnhancedAuthReturningConnAck(t *testing.T) {
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-	_ = receivePacket(t, nc, connack.Packet)
+	receivePacket(t, nc, connack.Packet)
 }
 
 func TestServerConnectWithEnhancedAuthNotAuthorized(t *testing.T) {
@@ -1924,7 +1924,7 @@ func TestServerConnectWithEnhancedAuthNotAuthorized(t *testing.T) {
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-	_ = receivePacket(t, nc, connack.Packet)
+	receivePacket(t, nc, connack.Packet)
 
 	_, err := nc.Read(nil)
 	if !errors.Is(err, io.EOF) {
@@ -1959,7 +1959,7 @@ func TestServerConnectWithEnhancedAuthReturningConnAckNotAuthorized(t *testing.T
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-	_ = receivePacket(t, nc, connack.Packet)
+	receivePacket(t, nc, connack.Packet)
 
 	_, err := nc.Read(nil)
 	if !errors.Is(err, io.EOF) {
@@ -2009,7 +2009,7 @@ func TestServerConnectWithUnknownEnhancedAuthMethod(t *testing.T) {
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-	_ = receivePacket(t, nc, connack.Packet)
+	receivePacket(t, nc, connack.Packet)
 
 	_, err := nc.Read(nil)
 	if !errors.Is(err, io.EOF) {
@@ -2045,7 +2045,7 @@ func TestServerAuthPacket(t *testing.T) {
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-	_ = receivePacket(t, nc, auth.Packet)
+	receivePacket(t, nc, auth.Packet)
 
 	var client *Client
 	packets := make(chan Packet, 1)
@@ -2059,7 +2059,7 @@ func TestServerAuthPacket(t *testing.T) {
 	onConnected.cb = func(_ *Client) { close(connected) }
 
 	sendPacket(t, nc, auth.Packet)
-	_ = receivePacket(t, nc, connack.Packet)
+	receivePacket(t, nc, connack.Packet)
 
 	pkt := <-packets
 	if pkt == nil {
@@ -2113,7 +2113,7 @@ func TestServerAuthPacketHookError(t *testing.T) {
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-	_ = receivePacket(t, nc, auth.Packet)
+	receivePacket(t, nc, auth.Packet)
 
 	h.cb = func(_ *Client, _ *packet.Auth) error { return errHookFailed }
 	sendPacket(t, nc, auth.Packet)
@@ -2153,11 +2153,11 @@ func TestServerAuthPacketEnhancedAuthReturningAuth(t *testing.T) {
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-	_ = receivePacket(t, nc, auth.Packet)
+	receivePacket(t, nc, auth.Packet)
 	<-packets
 
 	sendPacket(t, nc, auth.Packet)
-	_ = receivePacket(t, nc, auth.Packet)
+	receivePacket(t, nc, auth.Packet)
 
 	pkt := <-packets
 	if pkt == nil {
@@ -2217,7 +2217,7 @@ func TestServerAuthPacketEnhancedAuthReturningConnAck(t *testing.T) {
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-	_ = receivePacket(t, nc, auth.Packet)
+	receivePacket(t, nc, auth.Packet)
 
 	var client *Client
 	e.cb = func(c *Client, p Packet) (PacketEncodable, error) {
@@ -2233,7 +2233,7 @@ func TestServerAuthPacketEnhancedAuthReturningConnAck(t *testing.T) {
 	}
 
 	sendPacket(t, nc, auth.Packet)
-	_ = receivePacket(t, nc, connack.Packet)
+	receivePacket(t, nc, connack.Packet)
 
 	if client == nil {
 		t.Fatal("A client was expected")
@@ -2281,11 +2281,11 @@ func TestServerAuthPacketEnhancedAuthReturningNotAuthorized(t *testing.T) {
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-	_ = receivePacket(t, nc, auth.Packet)
+	receivePacket(t, nc, auth.Packet)
 
 	e.cb = func(_ *Client, p Packet) (PacketEncodable, error) { return nil, packet.ErrNotAuthorized }
 	sendPacket(t, nc, auth.Packet)
-	_ = receivePacket(t, nc, connack.Packet)
+	receivePacket(t, nc, connack.Packet)
 
 	_, err := nc.Read(nil)
 	if !errors.Is(err, io.EOF) {
@@ -2331,7 +2331,7 @@ func TestServerAuthPacketEnhancedAuthReturningAnyError(t *testing.T) {
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-	_ = receivePacket(t, nc, auth.Packet)
+	receivePacket(t, nc, auth.Packet)
 
 	e.cb = func(_ *Client, p Packet) (PacketEncodable, error) { return nil, errors.New("failed") }
 	sendPacket(t, nc, auth.Packet)
@@ -2368,7 +2368,7 @@ func TestServerAuthPacketEnhancedAuthReturningConnAckNotAuthorized(t *testing.T)
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-	_ = receivePacket(t, nc, auth.Packet)
+	receivePacket(t, nc, auth.Packet)
 
 	e.cb = func(_ *Client, p Packet) (PacketEncodable, error) {
 		pkt := &packet.ConnAck{Code: packet.ReasonCodeNotAuthorized, Properties: &packet.ConnAckProperties{}}
@@ -2382,7 +2382,7 @@ func TestServerAuthPacketEnhancedAuthReturningConnAckNotAuthorized(t *testing.T)
 	}
 
 	sendPacket(t, nc, auth.Packet)
-	_ = receivePacket(t, nc, connack.Packet)
+	receivePacket(t, nc, connack.Packet)
 
 	_, err := nc.Read(nil)
 	if !errors.Is(err, io.EOF) {
@@ -2417,10 +2417,10 @@ func TestServerAuthPacketEnhancedAuthMethodNotMatching(t *testing.T) {
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-	_ = receivePacket(t, nc, auth1.Packet)
+	receivePacket(t, nc, auth1.Packet)
 
 	sendPacket(t, nc, auth2.Packet)
-	_ = receivePacket(t, nc, connack.Packet)
+	receivePacket(t, nc, connack.Packet)
 
 	_, err := nc.Read(nil)
 	if !errors.Is(err, io.EOF) {
@@ -2444,7 +2444,7 @@ func TestServerAuthPacketReAuthenticate(t *testing.T) {
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-	_ = receivePacket(t, nc, connack.Packet)
+	receivePacket(t, nc, connack.Packet)
 
 	var client *Client
 	e.cb = func(c *Client, p Packet) (PacketEncodable, error) {
@@ -2453,7 +2453,7 @@ func TestServerAuthPacketReAuthenticate(t *testing.T) {
 	}
 
 	sendPacket(t, nc, auth1.Packet)
-	_ = receivePacket(t, nc, auth2.Packet)
+	receivePacket(t, nc, auth2.Packet)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
@@ -2485,7 +2485,7 @@ func TestServerAuthPacketReAuthenticating(t *testing.T) {
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-	_ = receivePacket(t, nc, connack.Packet)
+	receivePacket(t, nc, connack.Packet)
 
 	var client *Client
 	e.cb = func(c *Client, p Packet) (PacketEncodable, error) {
@@ -2501,7 +2501,7 @@ func TestServerAuthPacketReAuthenticating(t *testing.T) {
 	}
 
 	sendPacket(t, nc, auth1.Packet)
-	_ = receivePacket(t, nc, auth2.Packet)
+	receivePacket(t, nc, auth2.Packet)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
@@ -2571,11 +2571,11 @@ func TestServerConnectUnavailableWhenGetSessionReturnsError(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-			_ = receivePacket(t, nc, connack.Packet)
+			receivePacket(t, nc, connack.Packet)
 
 			err := <-connectErr
-			if !errors.Is(err, packet.ErrServerUnavailable) {
-				t.Errorf("Unexpected error\nwant: %v\ngot:  %v", packet.ErrServerUnavailable, err)
+			if !errors.Is(err, errSessionStoreFailed) {
+				t.Errorf("Unexpected error\nwant: %v\ngot:  %v", errSessionStoreFailed, err)
 			}
 
 			_, err = nc.Read(nil)
@@ -2616,15 +2616,15 @@ func TestServerConnectUnavailableWhenDeleteSessionReturnsError(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-			_ = receivePacket(t, nc, connack.Packet)
+			receivePacket(t, nc, connack.Packet)
 
 			if ss.deleteCalls() != 1 {
 				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, ss.deleteCalls())
 			}
 
 			err := <-connectErr
-			if !errors.Is(err, packet.ErrServerUnavailable) {
-				t.Errorf("Unexpected error\nwant: %v\ngot:  %v", packet.ErrServerUnavailable, err)
+			if !errors.Is(err, errSessionStoreFailed) {
+				t.Errorf("Unexpected error\nwant: %v\ngot:  %v", errSessionStoreFailed, err)
 			}
 
 			_, err = nc.Read(nil)
@@ -2665,11 +2665,11 @@ func TestServerConnectUnavailableWhenSaveSessionReturnsError(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-			_ = receivePacket(t, nc, connack.Packet)
+			receivePacket(t, nc, connack.Packet)
 
 			err := <-connectErr
-			if !errors.Is(err, packet.ErrServerUnavailable) {
-				t.Errorf("Unexpected error\nwant: %v\ngot:  %v", packet.ErrServerUnavailable, err)
+			if !errors.Is(err, errSessionStoreFailed) {
+				t.Errorf("Unexpected error\nwant: %v\ngot:  %v", errSessionStoreFailed, err)
 			}
 
 			_, err = nc.Read(nil)
@@ -2712,11 +2712,11 @@ func TestServerConnectProtocolErrorOnDuplicatePacket(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-			_ = receivePacket(t, nc, connack[0].Packet)
+			receivePacket(t, nc, connack[0].Packet)
 
 			sendPacket(t, nc, connect.Packet)
 			if len(connack) > 1 {
-				_ = receivePacket(t, nc, connack[1].Packet)
+				receivePacket(t, nc, connack[1].Packet)
 			}
 
 			_, err := nc.Read(nil)
@@ -2757,7 +2757,7 @@ func TestServerConnectWithOnConnectReturningValidPacketError(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-			_ = receivePacket(t, nc, connack.Packet)
+			receivePacket(t, nc, connack.Packet)
 
 			_, err := nc.Read(nil)
 			if !errors.Is(err, io.EOF) {
@@ -2859,7 +2859,7 @@ func TestServerUpdateSessionWhenClosingConnectedClient(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-			_ = receivePacket(t, nc, connack.Packet)
+			receivePacket(t, nc, connack.Packet)
 			<-connected
 
 			sessionStream := make(chan *Session, 1)
@@ -2918,7 +2918,7 @@ func BenchmarkHandleConnect(b *testing.B) {
 				}
 
 				sendPacket(b, nc, connect.Packet)
-				_ = receivePacket(b, nc, connack.Packet)
+				receivePacket(b, nc, connack.Packet)
 
 				err = nc.Close()
 				if err != nil {
@@ -2985,7 +2985,7 @@ func sendPacket(tb testing.TB, nc net.Conn, p []byte) {
 	}
 }
 
-func receivePacket(tb testing.TB, nc net.Conn, pkt []byte) []byte {
+func receivePacket(tb testing.TB, nc net.Conn, pkt []byte) {
 	tb.Helper()
 	p := make([]byte, len(pkt))
 	n, err := nc.Read(p)
@@ -2998,5 +2998,4 @@ func receivePacket(tb testing.TB, nc net.Conn, pkt []byte) []byte {
 	if !bytes.Equal(pkt, p) {
 		tb.Errorf("Unexpected packet\nwant: %v\ngot:  %v", pkt, p)
 	}
-	return p
 }
