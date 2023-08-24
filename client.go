@@ -119,9 +119,8 @@ type SessionProperties struct {
 	// UserProperties is a list of user properties.
 	UserProperties []packet.UserProperty `json:"user_properties"`
 
-	// SessionExpiryInterval represents the time, in seconds, which the server must store the Session State after
-	// the network connection is closed.
-	SessionExpiryInterval uint32 `json:"session_expiry_interval"`
+	// SessionExpiryInterval represents the time which the server must store the Session after the connection is closed.
+	SessionExpiryInterval time.Duration `json:"session_expiry_interval"`
 
 	// MaximumPacketSize represents the maximum packet size, in bytes, the client is willing to accept.
 	MaximumPacketSize uint32 `json:"maximum_packet_size"`

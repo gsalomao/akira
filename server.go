@@ -385,7 +385,7 @@ func (s *Server) Serve(c *Connection) error {
 	}
 
 	c.Address = c.netConn.RemoteAddr().String()
-	c.KeepAliveMs = s.config.ConnectTimeoutMs
+	c.KeepAlive = time.Duration(s.config.ConnectTimeoutMs) * time.Millisecond
 	c.sendTimeoutMs = s.config.SendPacketTimeoutMs
 
 	clientCtx, cancelClientCtx := context.WithCancelCause(s.ctx)
@@ -638,9 +638,18 @@ func (s *Server) handlePacket(ctx context.Context, c *Client, p Packet) error {
 }
 
 func (s *Server) handlePacketConnect(ctx context.Context, c *Client, connect *packet.Connect) error {
-	// The first step must be to set the version of the MQTT connection as this information is required for further
-	// processing.
+	c.ID = connect.ClientID
 	c.Connection.Version = connect.Version
+	c.keepAlive = time.Duration(connect.KeepAlive) * time.Second
+	c.Connection.KeepAlive = time.Duration(sessionKeepAlive(connect.KeepAlive, s.config.MaxKeepAliveSec)) * time.Second
+	c.Session.Properties = newSessionProperties(connect.Properties, &s.config)
+	c.Session.LastWill = newLastWill(connect)
+	c.Session.ConnectedAt = time.Now().UnixMilli()
+	c.PersistentSession = isPersistentSession(c, connect.Flags.CleanStart())
+
+	if connect.Properties.Has(packet.PropertySessionExpiryInterval) {
+		c.sessionExpiryInterval = time.Duration(connect.Properties.SessionExpiryInterval) * time.Second
+	}
 
 	err := s.hooks.onConnectPacket(ctx, c, connect)
 	if err != nil {
@@ -738,7 +747,7 @@ func (s *Server) handlePacketConnect(ctx context.Context, c *Client, connect *pa
 		"address", c.Connection.Address,
 		"clean_start", connect.Flags.CleanStart(),
 		"id", string(c.ID),
-		"keep_alive", c.Connection.KeepAliveMs/1000,
+		"keep_alive", int(c.Connection.KeepAlive.Seconds()),
 		"persistent_session", c.PersistentSession,
 		"session_present", c.SessionPresent,
 		"version", c.Connection.Version.String(),
@@ -752,13 +761,6 @@ func (s *Server) connectClient(ctx context.Context, c *Client, connect *packet.C
 		connack *packet.ConnAck
 		err     error
 	)
-
-	c.ID = connect.ClientID
-	c.Connection.KeepAliveMs = uint32(sessionKeepAlive(connect.KeepAlive, s.config.MaxKeepAliveSec)) * 1000
-	c.Session.Properties = newSessionProperties(connect.Properties, &s.config)
-	c.Session.LastWill = newLastWill(connect)
-	c.Session.ConnectedAt = time.Now().UnixMilli()
-	c.PersistentSession = isPersistentSession(c, connect.Flags.CleanStart())
 
 	if connect.Properties.Has(packet.PropertyAuthenticationMethod) {
 		var pkt PacketEncodable

@@ -1742,7 +1742,7 @@ func TestServerConnectWithAllProperties(t *testing.T) {
 			Set(packet.PropertyRequestResponseInfo).
 			Set(packet.PropertyRequestProblemInfo).
 			Set(packet.PropertyUserProperty),
-		SessionExpiryInterval: c.MaxSessionExpiryIntervalSec,
+		SessionExpiryInterval: time.Duration(c.MaxSessionExpiryIntervalSec) * time.Second,
 		ReceiveMaximum:        c.MaxInflightMessages,
 		MaximumPacketSize:     c.MaxPacketSize,
 		TopicAliasMaximum:     c.TopicAliasMax,

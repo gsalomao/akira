@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net"
 	"time"
 
@@ -43,9 +42,9 @@ type Connection struct {
 	// AuthenticationMethod is the name of the enhanced authentication method.
 	AuthenticationMethod []byte `json:"authentication_method,omitempty"`
 
-	// KeepAliveMs is a time interval, measured in milliseconds, that is permitted to elapse between the point
-	// at which the client finishes transmitting one control packet and the point it starts sending the next.
-	KeepAliveMs uint32 `json:"keep_alive_ms"`
+	// KeepAlive is a time interval that is permitted to elapse between the point at which the client finishes
+	// transmitting one control packet and the point it starts sending the next.
+	KeepAlive time.Duration `json:"keep_alive"`
 
 	// Version represents the MQTT version.
 	Version packet.Version `json:"version"`
@@ -134,8 +133,8 @@ func (c *Connection) sendPacket(p PacketEncodable) (n int, err error) {
 
 func (c *Connection) setReadDeadline() error {
 	var deadline time.Time
-	if c.KeepAliveMs > 0 {
-		timeout := math.Ceil(float64(c.KeepAliveMs) * 1.5)
+	if c.KeepAlive > 0 {
+		timeout := float64(c.KeepAlive.Milliseconds()) * 1.5
 		deadline = time.Now().Add(time.Duration(timeout) * time.Millisecond)
 	}
 	return c.netConn.SetReadDeadline(deadline)

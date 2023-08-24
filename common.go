@@ -14,7 +14,11 @@
 
 package akira
 
-import "github.com/gsalomao/akira/packet"
+import (
+	"time"
+
+	"github.com/gsalomao/akira/packet"
+)
 
 func newIfNotExists[T any](v *T) *T {
 	if v != nil {
@@ -61,15 +65,6 @@ func sessionKeepAlive(keepAlive, maxKeepAlive uint16) uint16 {
 	return keepAlive
 }
 
-func hasSessionExpiryInterval(s *Session, connect *packet.Connect) bool {
-	if s != nil && s.Properties.Has(packet.PropertySessionExpiryInterval) {
-		if connect != nil && s.Properties.SessionExpiryInterval != connect.Properties.SessionExpiryInterval {
-			return true
-		}
-	}
-	return false
-}
-
 func isPersistentSession(c *Client, cleanStart bool) bool {
 	if (c.Connection.Version != packet.MQTT50 && !cleanStart) || sessionExpiryInterval(&c.Session) > 0 {
 		return true
@@ -77,7 +72,7 @@ func isPersistentSession(c *Client, cleanStart bool) bool {
 	return false
 }
 
-func sessionExpiryInterval(s *Session) uint32 {
+func sessionExpiryInterval(s *Session) time.Duration {
 	if !s.Properties.Has(packet.PropertySessionExpiryInterval) {
 		return 0
 	}
@@ -139,8 +134,8 @@ func newSessionProperties(props *packet.ConnectProperties, conf *Config) *Sessio
 	p := &SessionProperties{}
 
 	if props.Has(packet.PropertySessionExpiryInterval) {
-		interval := props.SessionExpiryInterval
-		p.SessionExpiryInterval = maxIfExceeded(interval, conf.MaxSessionExpiryIntervalSec)
+		interval := maxIfExceeded(props.SessionExpiryInterval, conf.MaxSessionExpiryIntervalSec)
+		p.SessionExpiryInterval = time.Duration(interval) * time.Second
 		p.Set(packet.PropertySessionExpiryInterval)
 	}
 	if props.Has(packet.PropertyMaximumPacketSize) {
@@ -174,23 +169,21 @@ func newSessionProperties(props *packet.ConnectProperties, conf *Config) *Sessio
 	return p
 }
 
-func newConnAckProperties(c *Client, conf *Config, connect *packet.Connect) *packet.ConnAckProperties {
+func newConnAckProperties(c *Client, conf *Config) *packet.ConnAckProperties {
 	var props *packet.ConnAckProperties
+	sProps := c.Session.Properties
 
-	if hasSessionExpiryInterval(&c.Session, connect) {
-		props = newIfNotExists(props)
-		props.Set(packet.PropertySessionExpiryInterval)
-		props.SessionExpiryInterval = c.Session.Properties.SessionExpiryInterval
+	if sProps.Has(packet.PropertySessionExpiryInterval) {
+		if c.sessionExpiryInterval != sProps.SessionExpiryInterval {
+			props = newIfNotExists(props)
+			props.Set(packet.PropertySessionExpiryInterval)
+			props.SessionExpiryInterval = uint32(c.Session.Properties.SessionExpiryInterval.Seconds())
+		}
 	}
-	if uint32(connect.KeepAlive) != c.Connection.KeepAliveMs/1000 {
+	if c.keepAlive != c.Connection.KeepAlive {
 		props = newIfNotExists(props)
 		props.Set(packet.PropertyServerKeepAlive)
-		props.ServerKeepAlive = uint16(c.Connection.KeepAliveMs / 1000)
-	}
-	if connect.Properties.Has(packet.PropertyAuthenticationMethod) {
-		props = newIfNotExists(props)
-		props.Set(packet.PropertyAuthenticationMethod)
-		props.AuthenticationMethod = connect.Properties.AuthenticationMethod
+		props.ServerKeepAlive = uint16(c.Connection.KeepAlive.Seconds())
 	}
 	if conf.MaxInflightMessages > 0 {
 		props = newIfNotExists(props)
