@@ -23,7 +23,9 @@ import (
 
 // Client represents a MQTT client.
 type Client struct {
-	connected atomic.Bool
+	state                 atomic.Uint32
+	keepAlive             time.Duration
+	sessionExpiryInterval time.Duration
 
 	// ID represents the client identifier.
 	ID []byte `json:"id"`
@@ -41,9 +43,46 @@ type Client struct {
 	PersistentSession bool `json:"persistent_session"`
 }
 
-// Connected returns whether the client is connected or not.
-func (c *Client) Connected() bool {
-	return c.connected.Load()
+// State returns the current state of the client.
+func (c *Client) State() ClientState {
+	return ClientState(c.state.Load())
+}
+
+func (c *Client) setState(st ClientState) {
+	c.state.Store(uint32(st))
+}
+
+const (
+	// ClientDisconnected indicates that the client is disconnected.
+	ClientDisconnected ClientState = iota
+
+	// ClientAuthenticating indicates that the client is in the authentication process.
+	ClientAuthenticating
+
+	// ClientConnected indicates that the client is connected.
+	ClientConnected
+
+	// ClientReAuthenticating indicates that the client is re-authenticating.
+	ClientReAuthenticating
+)
+
+// ClientState represents the state of the client.
+type ClientState uint32
+
+// String returns the human-friendly name of the client state.
+func (c ClientState) String() string {
+	switch c {
+	case ClientDisconnected:
+		return "Disconnected"
+	case ClientAuthenticating:
+		return "Authenticating"
+	case ClientConnected:
+		return "Connected"
+	case ClientReAuthenticating:
+		return "Re-authenticating"
+	default:
+		return "Invalid"
+	}
 }
 
 // Session represents the MQTT session.

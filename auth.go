@@ -80,11 +80,11 @@ func (a *auths) addEnhancedAuth(e EnhancedAuth) error {
 	return nil
 }
 
-func (a *auths) authenticateEnhanced(ctx context.Context, c *Client, p Packet, method string) (PacketEncodable, error) {
+func (a *auths) authenticateEnhanced(ctx context.Context, c *Client, p Packet, method []byte) (PacketEncodable, error) {
 	a.mutex.RLock()
 	defer a.mutex.RUnlock()
 
-	auth, ok := a.enhanced[method]
+	auth, ok := a.enhanced[string(method)]
 	if !ok {
 		return nil, packet.ErrBadAuthenticationMethod
 	}

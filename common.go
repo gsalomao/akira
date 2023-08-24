@@ -236,7 +236,7 @@ func newConnAckProperties(c *Client, conf *Config, connect *packet.Connect) *pac
 	return props
 }
 
-func setConnAckAuthProperties(props *packet.ConnAckProperties, connack *packet.ConnAck) *packet.ConnAckProperties {
+func setConnAckPropertiesWithAuth(props *packet.ConnAckProperties, connack *packet.ConnAck) *packet.ConnAckProperties {
 	if props == nil || connack == nil || connack.Properties == nil {
 		return props
 	}

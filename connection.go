@@ -85,6 +85,8 @@ func (c *Connection) receivePacket(r *bufio.Reader, h packet.FixedHeader) (p Pac
 	switch h.PacketType {
 	case packet.TypeConnect:
 		pd = &packet.Connect{}
+	case packet.TypeAuth:
+		pd = &packet.Auth{}
 	default:
 		return nil, n, fmt.Errorf("%w: %v: unsupported packet", packet.ErrProtocolError, h.PacketType)
 	}

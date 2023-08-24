@@ -45,6 +45,7 @@ const (
 	onConnectPacketHook
 	onConnectFailedHook
 	onConnectedHook
+	onAuthPacketHook
 	maxHooks
 )
 
@@ -205,6 +206,14 @@ type OnConnectedHook interface {
 	OnConnected(ctx context.Context, c *Client)
 }
 
+// OnAuthPacketHook is the hook interface that wraps the OnAuthPacket method. The OnAuthPacket method is called by the
+// server when it receives an AUTH Packet. If this method returns an error, the server closes the connection.
+// When this method returns an error, no packet is sent to the client before closing the connection, regardless if
+// error is a packet.Error or not.
+type OnAuthPacketHook interface {
+	OnAuthPacket(ctx context.Context, c *Client, p *packet.Auth) error
+}
+
 var hooksRegistryFunc = map[hookType]func(*hooks, Hook, hookType){
 	onStartHook:               registerHook[OnStartHook],
 	onStopHook:                registerHook[OnStopHook],
@@ -227,6 +236,7 @@ var hooksRegistryFunc = map[hookType]func(*hooks, Hook, hookType){
 	onConnectPacketHook:       registerHook[OnConnectPacketHook],
 	onConnectFailedHook:       registerHook[OnConnectFailedHook],
 	onConnectedHook:           registerHook[OnConnectedHook],
+	onAuthPacketHook:          registerHook[OnAuthPacketHook],
 }
 
 func registerHook[T any](h *hooks, hook Hook, t hookType) {
@@ -602,4 +612,24 @@ func (h *hooks) onConnected(ctx context.Context, c *Client) {
 		hk := hook.(OnConnectedHook)
 		hk.OnConnected(ctx, c)
 	}
+}
+
+func (h *hooks) onAuthPacket(ctx context.Context, c *Client, p *packet.Auth) error {
+	if !h.hasHook(onAuthPacketHook) {
+		return nil
+	}
+
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+
+	for _, hook := range h.hooks[onAuthPacketHook] {
+		hk := hook.(OnAuthPacketHook)
+
+		err := hk.OnAuthPacket(ctx, c, p)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

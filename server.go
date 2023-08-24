@@ -16,6 +16,7 @@ package akira
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -413,9 +414,9 @@ func (s *Server) Serve(c *Connection) error {
 		s.logger.Log("Running inbound loop", "address", c.Address)
 		err := s.inboundLoop(clientCtx, client)
 
-		if client.Connected() {
-			client.Session.DisconnectedAt = time.Now().UnixMilli()
-			client.connected.Store(false)
+		state := client.State()
+		client.setState(ClientDisconnected)
+		client.Session.DisconnectedAt = time.Now().UnixMilli()
 
 			saveErr := s.sessionStore.SaveSession(inboundCtx, client.ID, &client.Session)
 			if saveErr != nil {
@@ -613,7 +614,7 @@ func (s *Server) handlePacket(ctx context.Context, c *Client, p Packet) error {
 
 	switch pkt := p.(type) {
 	case *packet.Connect:
-		if c.Connected() {
+		if c.State() != ClientDisconnected {
 			s.logger.Log("Duplicate CONNECT packet",
 				"address", c.Connection.Address,
 				"id", string(c.ID),
@@ -629,6 +630,8 @@ func (s *Server) handlePacket(ctx context.Context, c *Client, p Packet) error {
 		}
 
 		return s.handlePacketConnect(ctx, c, pkt)
+	case *packet.Auth:
+		return s.handlePacketAuth(ctx, c, pkt)
 	default:
 		return errors.New("unsupported packet")
 	}
@@ -761,7 +764,7 @@ func (s *Server) connectClient(ctx context.Context, c *Client, connect *packet.C
 		var pkt PacketEncodable
 		c.Connection.AuthenticationMethod = connect.Properties.AuthenticationMethod
 
-		pkt, err = s.authenticateEnhanced(ctx, c, connect)
+		pkt, err = s.authenticateEnhanced(ctx, c, connect, connect.Properties.AuthenticationMethod)
 		if err != nil {
 			s.logger.Log("Failed to authenticate using enhanced authentication",
 				"address", c.Connection.Address,
@@ -774,23 +777,11 @@ func (s *Server) connectClient(ctx context.Context, c *Client, connect *packet.C
 		}
 
 		if pkt != nil {
-			pType := pkt.Type()
-			switch pType {
-			case packet.TypeAuth:
-				return s.sendPacket(ctx, c, pkt)
-			case packet.TypeConnAck:
-				connack = pkt.(*packet.ConnAck)
-			default:
-				err = fmt.Errorf("enhanced authentication: invalid packet type: %s", pType.String())
-				s.logger.Log("Enhanced authentication returned invalid packet type",
-					"address", c.Connection.Address,
-					"clean_start", connect.Flags.CleanStart(),
-					"id", string(connect.ClientID),
-					"error", err,
-					"version", connect.Version.String(),
-				)
-				return err
+			if pkt.Type() == packet.TypeAuth {
+				c.setState(ClientAuthenticating)
+				return nil
 			}
+			connack = pkt.(*packet.ConnAck)
 		}
 	}
 
@@ -847,8 +838,14 @@ func (s *Server) connectClient(ctx context.Context, c *Client, connect *packet.C
 		code = connack.Code
 	}
 	if c.Connection.Version == packet.MQTT50 {
-		props = newConnAckProperties(c, &s.config, connect)
-		props = setConnAckAuthProperties(props, connack)
+		props = newConnAckProperties(c, &s.config)
+
+		if connect.Properties.Has(packet.PropertyAuthenticationMethod) {
+			props = newIfNotExists(props)
+			props.Set(packet.PropertyAuthenticationMethod)
+			props.AuthenticationMethod = connect.Properties.AuthenticationMethod
+		}
+		props = setConnAckPropertiesWithAuth(props, connack)
 	}
 
 	err = s.sendConnAck(ctx, c, code, props)
@@ -863,7 +860,7 @@ func (s *Server) connectClient(ctx context.Context, c *Client, connect *packet.C
 			"error", err,
 			"id", string(c.ID),
 			"session_present", c.SessionPresent,
-			"version", connect.Version.String(),
+			"version", c.Connection.Version.String(),
 		)
 		return err
 	}
@@ -871,25 +868,149 @@ func (s *Server) connectClient(ctx context.Context, c *Client, connect *packet.C
 	return nil
 }
 
-func (s *Server) authenticateEnhanced(ctx context.Context, c *Client, p Packet) (PacketEncodable, error) {
-	pkt, err := s.auths.authenticateEnhanced(ctx, c, p, string(c.Connection.AuthenticationMethod))
+func (s *Server) authenticateEnhanced(ctx context.Context, c *Client, p Packet, name []byte) (PacketEncodable, error) {
+	if c.State() != ClientDisconnected && !bytes.Equal(name, c.Connection.AuthenticationMethod) {
+		props := &packet.ConnAckProperties{}
+		props.Set(packet.PropertyAuthenticationMethod)
+		props.AuthenticationMethod = c.Connection.AuthenticationMethod
+
+		pErr := packet.ErrBadAuthenticationMethod
+		_ = s.sendConnAck(ctx, c, pErr.Code, props)
+		return nil, pErr
+	}
+
+	pkt, err := s.auths.authenticateEnhanced(ctx, c, p, name)
 	if err != nil {
+		s.logger.Log("Failed to authenticate using enhanced authentication",
+			"address", c.Connection.Address,
+			"id", string(c.ID),
+			"error", err,
+			"version", c.Connection.Version.String(),
+		)
+
 		var pktErr packet.Error
 		if errors.As(err, &pktErr) {
 			if pktErr.Code != packet.ReasonCodeSuccess && pktErr.Code != packet.ReasonCodeMalformedPacket {
 				props := &packet.ConnAckProperties{}
 				props.Set(packet.PropertyAuthenticationMethod)
-				props.AuthenticationMethod = c.Connection.AuthenticationMethod
+				props.AuthenticationMethod = name
 
 				// As the client is going to be closed, there's nothing else to do with the error returned from the
 				// sendConnAck, as it was already logged.
 				_ = s.sendConnAck(ctx, c, pktErr.Code, props)
 			}
 		}
-		return nil, err
+		return nil, fmt.Errorf("enhanced authentication: %w", err)
 	}
 
-	return pkt, nil
+	if pkt == nil {
+		return nil, nil
+	}
+
+	pType := pkt.Type()
+	switch pType {
+	case packet.TypeAuth:
+		return pkt, s.sendPacket(ctx, c, pkt)
+	case packet.TypeConnAck:
+		return pkt, nil
+	default:
+		s.logger.Log("Enhanced authentication returned invalid packet type",
+			"address", c.Connection.Address,
+			"id", string(c.ID),
+			"type", pType.String(),
+			"version", c.Connection.Version.String(),
+		)
+		return nil, fmt.Errorf("enhanced authentication: invalid packet type: %s", pType.String())
+	}
+}
+
+func (s *Server) handlePacketAuth(ctx context.Context, c *Client, auth *packet.Auth) error {
+	st := c.State()
+	if st == ClientDisconnected {
+		err := fmt.Errorf("%w: client disconnected", packet.ErrProtocolError)
+		s.logger.Log("Failed to handle packet auth",
+			"address", c.Connection.Address,
+			"id", string(c.ID),
+			"error", err,
+			"version", c.Connection.Version.String(),
+		)
+		return err
+	}
+
+	err := s.hooks.onAuthPacket(ctx, c, auth)
+	if err != nil {
+		return fmt.Errorf("%w from OnAuthPacket", err)
+	}
+
+	var (
+		pkt     PacketEncodable
+		connack *packet.ConnAck
+	)
+
+	pkt, err = s.authenticateEnhanced(ctx, c, auth, auth.Properties.AuthenticationMethod)
+	if err != nil {
+		return err
+	}
+
+	if pkt != nil {
+		pType := pkt.Type()
+		if pType == packet.TypeAuth {
+			if p := pkt.(*packet.Auth); p.Code != packet.ReasonCodeSuccess {
+				c.setState(ClientReAuthenticating)
+			}
+			return nil
+		}
+		if st != ClientAuthenticating {
+			err = fmt.Errorf("%w: packet of type %s with client state %s", packet.ErrProtocolError, pType, st)
+			return err
+		}
+		connack = pkt.(*packet.ConnAck)
+	}
+
+	code := packet.ReasonCodeSuccess
+	if connack != nil {
+		code = connack.Code
+	}
+
+	if st == ClientAuthenticating {
+		props := newConnAckProperties(c, &s.config)
+		props = newIfNotExists(props)
+		props = setConnAckPropertiesWithAuth(props, connack)
+
+		props.Set(packet.PropertyAuthenticationMethod)
+		props.AuthenticationMethod = auth.Properties.AuthenticationMethod
+
+		err = s.sendConnAck(ctx, c, code, props)
+	} else {
+		props := &packet.AuthProperties{}
+		props.Set(packet.PropertyAuthenticationMethod)
+		props.AuthenticationMethod = auth.Properties.AuthenticationMethod
+
+		p := &packet.Auth{Code: packet.ReasonCodeSuccess, Properties: props}
+		err = s.sendPacket(ctx, c, p)
+	}
+	if err != nil {
+		return err
+	}
+
+	if code != packet.ReasonCodeSuccess {
+		err = fmt.Errorf("packet: reason code: %v", code)
+		s.logger.Log("Failed to authenticate client",
+			"address", c.Connection.Address,
+			"error", err,
+			"id", string(c.ID),
+			"session_present", c.SessionPresent,
+			"version", c.Connection.Version.String(),
+		)
+		return err
+	}
+
+	c.setState(ClientConnected)
+	if st == ClientAuthenticating {
+		s.hooks.onConnected(ctx, c)
+	}
+
+	return nil
 }
 
 func (s *Server) sendConnAck(

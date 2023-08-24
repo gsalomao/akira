@@ -39,3 +39,7 @@ func (m *mockEnhancedAuth) Authenticate(_ context.Context, c *Client, p Packet) 
 	}
 	return m.cb(c, p)
 }
+
+func (m *mockEnhancedAuth) calls() int {
+	return int(m._calls.Load())
+}

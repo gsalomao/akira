@@ -1088,11 +1088,7 @@ func TestServerConnectAccepted(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-
-			p := receivePacket(t, nc, len(connack.Packet))
-			if !bytes.Equal(connack.Packet, p) {
-				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-			}
+			_ = receivePacket(t, nc, connack.Packet)
 		})
 	}
 }
@@ -1129,14 +1125,10 @@ func TestServerConnectAcceptedWithHooks(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-
-			p := receivePacket(t, nc, len(connack.Packet))
-			if !bytes.Equal(connack.Packet, p) {
-				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-			}
+			_ = receivePacket(t, nc, connack.Packet)
 
 			client := <-clients
-			if !client.Connected() {
+			if client.State() != ClientConnected {
 				t.Error("It was expected the client to be connected")
 			}
 			if onConnect.calls() != 1 {
@@ -1187,11 +1179,7 @@ func TestServerConnectAcceptedMetrics(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-
-			p := receivePacket(t, nc, len(connack.Packet))
-			if !bytes.Equal(connack.Packet, p) {
-				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-			}
+			_ = receivePacket(t, nc, connack.Packet)
 
 			<-connected
 			if s.Metrics.ClientsConnected.Value() != 1 {
@@ -1287,11 +1275,7 @@ func TestServerConnectRejectedDueToConfig(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-
-			p := receivePacket(t, nc, len(connack.Packet))
-			if !bytes.Equal(connack.Packet, p) {
-				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-			}
+			_ = receivePacket(t, nc, connack.Packet)
 		})
 	}
 }
@@ -1320,11 +1304,7 @@ func TestServerConnectRejectedDueToEmptyClientID(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-
-			p := receivePacket(t, nc, len(connack.Packet))
-			if !bytes.Equal(connack.Packet, p) {
-				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-			}
+			_ = receivePacket(t, nc, connack.Packet)
 		})
 	}
 }
@@ -1354,11 +1334,7 @@ func TestServerConnectConnectionClosedWhenRejected(t *testing.T) {
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-
-	p := receivePacket(t, nc, len(connack.Packet))
-	if !bytes.Equal(connack.Packet, p) {
-		t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-	}
+	_ = receivePacket(t, nc, connack.Packet)
 
 	<-closed
 	_, err := nc.Read(nil)
@@ -1367,8 +1343,8 @@ func TestServerConnectConnectionClosedWhenRejected(t *testing.T) {
 	}
 
 	c := <-clientStream
-	if c.Connected() {
-		t.Error("The connection should be closed")
+	if c.State() != ClientDisconnected {
+		t.Error("The connection should be disconnected")
 	}
 	if c.Connection != nil {
 		t.Errorf("Unexpected connection pointer\nwant: %v\ngot:  %+v", nil, c.Connection)
@@ -1404,11 +1380,7 @@ func TestServerConnectPersistentSession(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-
-			p := receivePacket(t, nc, len(connack.Packet))
-			if !bytes.Equal(connack.Packet, p) {
-				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-			}
+			_ = receivePacket(t, nc, connack.Packet)
 
 			<-connected
 			if ss.saveCalls() != 1 {
@@ -1451,11 +1423,7 @@ func TestServerConnectNoSessionPersistence(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-
-			p := receivePacket(t, nc, len(connack.Packet))
-			if !bytes.Equal(connack.Packet, p) {
-				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-			}
+			_ = receivePacket(t, nc, connack.Packet)
 
 			<-connected
 			if ss.saveCalls() != 0 {
@@ -1493,11 +1461,7 @@ func TestServerConnectCleanStart(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-
-			p := receivePacket(t, nc, len(connack.Packet))
-			if !bytes.Equal(connack.Packet, p) {
-				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-			}
+			_ = receivePacket(t, nc, connack.Packet)
 		})
 	}
 }
@@ -1527,11 +1491,8 @@ func TestServerConnectNoCleanStart(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
+			_ = receivePacket(t, nc, connack.Packet)
 
-			p := receivePacket(t, nc, len(connack.Packet))
-			if !bytes.Equal(connack.Packet, p) {
-				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-			}
 			if ss.deleteCalls() != 0 {
 				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 0, ss.deleteCalls())
 			}
@@ -1566,11 +1527,8 @@ func TestServerConnectWithSessionPresent(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
+			_ = receivePacket(t, nc, connack.Packet)
 
-			p := receivePacket(t, nc, len(connack.Packet))
-			if !bytes.Equal(connack.Packet, p) {
-				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-			}
 			if ss.getCalls() != 1 {
 				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, ss.getCalls())
 			}
@@ -1612,11 +1570,8 @@ func TestServerConnectWithExpiredSession(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
+			_ = receivePacket(t, nc, connack.Packet)
 
-			p := receivePacket(t, nc, len(connack.Packet))
-			if !bytes.Equal(connack.Packet, p) {
-				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-			}
 			if ss.deleteCalls() != 1 {
 				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, ss.deleteCalls())
 			}
@@ -1736,11 +1691,7 @@ func TestServerConnectWithConfig(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-
-			p := receivePacket(t, nc, len(connack.Packet))
-			if !bytes.Equal(connack.Packet, p) {
-				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-			}
+			_ = receivePacket(t, nc, connack.Packet)
 		})
 	}
 }
@@ -1775,11 +1726,7 @@ func TestServerConnectWithAllProperties(t *testing.T) {
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-
-	p := receivePacket(t, nc, len(connack.Packet))
-	if !bytes.Equal(connack.Packet, p) {
-		t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-	}
+	_ = receivePacket(t, nc, connack.Packet)
 
 	client := <-clients
 	if client == nil {
@@ -1826,11 +1773,7 @@ func TestServerConnectWithLastWill(t *testing.T) {
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-
-	p := receivePacket(t, nc, len(connack.Packet))
-	if !bytes.Equal(connack.Packet, p) {
-		t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-	}
+	_ = receivePacket(t, nc, connack.Packet)
 
 	client := <-clients
 	if client == nil {
@@ -1874,16 +1817,20 @@ func TestServerConnectWithEnhancedAuth(t *testing.T) {
 	connect := readPacketFixture(t, "connect.json", "V5.0 Enhanced Authentication")
 	auth := readPacketFixture(t, "auth.json", "Continue With Auth Method and Data")
 	e := &mockEnhancedAuth{}
+	onConnected := &mockOnConnectedHook{}
+	onConnectFailed := &mockOnConnectFailedHook{}
 
-	s := newServer(t, WithEnhancedAuths([]EnhancedAuth{e}))
+	s := newServer(t, WithHooks([]Hook{onConnected, onConnectFailed}), WithEnhancedAuths([]EnhancedAuth{e}))
 	defer s.Close()
 	startServer(t, s)
 
 	nc, conn := newConnection(t)
 	defer func() { _ = nc.Close() }()
 
+	var client *Client
 	packets := make(chan Packet, 1)
-	e.cb = func(_ *Client, p Packet) (PacketEncodable, error) {
+	e.cb = func(c *Client, p Packet) (PacketEncodable, error) {
+		client = c
 		packets <- p
 		pkt := &packet.Auth{Code: packet.ReasonCodeContinueAuthentication, Properties: &packet.AuthProperties{}}
 
@@ -1897,11 +1844,7 @@ func TestServerConnectWithEnhancedAuth(t *testing.T) {
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-
-	p := receivePacket(t, nc, len(auth.Packet))
-	if !bytes.Equal(auth.Packet, p) {
-		t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", auth.Packet, p)
-	}
+	_ = receivePacket(t, nc, auth.Packet)
 
 	pkt := <-packets
 	if pkt == nil {
@@ -1915,6 +1858,25 @@ func TestServerConnectWithEnhancedAuth(t *testing.T) {
 	}
 	if !props.Has(packet.PropertyAuthenticationData) && !bytes.Equal([]byte{1}, props.AuthenticationData) {
 		t.Errorf("Unexpected authentication data\nwant: %v\ngot:  %v", []byte{1}, props.AuthenticationData)
+	}
+	if onConnected.calls() != 0 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 0, onConnected.calls())
+	}
+	if onConnectFailed.calls() != 0 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 0, onConnectFailed.calls())
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	for ctx.Err() == nil {
+		if client.State() == ClientAuthenticating {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if client.State() != ClientAuthenticating {
+		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ClientAuthenticating, client.State())
 	}
 }
 
@@ -1943,11 +1905,7 @@ func TestServerConnectWithEnhancedAuthReturningConnAck(t *testing.T) {
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-
-	p := receivePacket(t, nc, len(connack.Packet))
-	if !bytes.Equal(connack.Packet, p) {
-		t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-	}
+	_ = receivePacket(t, nc, connack.Packet)
 }
 
 func TestServerConnectWithEnhancedAuthNotAuthorized(t *testing.T) {
@@ -1966,11 +1924,7 @@ func TestServerConnectWithEnhancedAuthNotAuthorized(t *testing.T) {
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-
-	p := receivePacket(t, nc, len(connack.Packet))
-	if !bytes.Equal(connack.Packet, p) {
-		t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-	}
+	_ = receivePacket(t, nc, connack.Packet)
 
 	_, err := nc.Read(nil)
 	if !errors.Is(err, io.EOF) {
@@ -1982,8 +1936,10 @@ func TestServerConnectWithEnhancedAuthReturningConnAckNotAuthorized(t *testing.T
 	connect := readPacketFixture(t, "connect.json", "V5.0 Enhanced Authentication")
 	connack := readPacketFixture(t, "connack.json", "V5.0 Not Authorized + Auth Method and Reason String")
 	e := &mockEnhancedAuth{}
+	onConnected := &mockOnConnectedHook{}
+	onConnectFailed := &mockOnConnectFailedHook{}
 
-	s := newServer(t, WithEnhancedAuths([]EnhancedAuth{e}))
+	s := newServer(t, WithHooks([]Hook{onConnected, onConnectFailed}), WithEnhancedAuths([]EnhancedAuth{e}))
 	defer s.Close()
 	startServer(t, s)
 
@@ -2003,15 +1959,18 @@ func TestServerConnectWithEnhancedAuthReturningConnAckNotAuthorized(t *testing.T
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-
-	p := receivePacket(t, nc, len(connack.Packet))
-	if !bytes.Equal(connack.Packet, p) {
-		t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-	}
+	_ = receivePacket(t, nc, connack.Packet)
 
 	_, err := nc.Read(nil)
 	if !errors.Is(err, io.EOF) {
 		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+	}
+
+	if onConnected.calls() != 0 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 0, onConnected.calls())
+	}
+	if onConnectFailed.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onConnectFailed.calls())
 	}
 }
 
@@ -2050,15 +2009,535 @@ func TestServerConnectWithUnknownEnhancedAuthMethod(t *testing.T) {
 
 	serveConnection(t, s, conn)
 	sendPacket(t, nc, connect.Packet)
-
-	p := receivePacket(t, nc, len(connack.Packet))
-	if !bytes.Equal(connack.Packet, p) {
-		t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-	}
+	_ = receivePacket(t, nc, connack.Packet)
 
 	_, err := nc.Read(nil)
 	if !errors.Is(err, io.EOF) {
 		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+	}
+}
+
+func TestServerAuthPacket(t *testing.T) {
+	connect := readPacketFixture(t, "connect.json", "V5.0 Enhanced Authentication")
+	auth := readPacketFixture(t, "auth.json", "Continue With Auth Method and Data")
+	connack := readPacketFixture(t, "connack.json", "V5.0 Success + Auth Method")
+	e := &mockEnhancedAuth{}
+	onAuth := &mockOnAuthPacketHook{}
+	onConnected := &mockOnConnectedHook{}
+
+	s := newServer(t, WithHooks([]Hook{onAuth, onConnected}), WithEnhancedAuths([]EnhancedAuth{e}))
+	defer s.Close()
+	startServer(t, s)
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+
+	e.cb = func(_ *Client, p Packet) (PacketEncodable, error) {
+		pkt := &packet.Auth{Code: packet.ReasonCodeContinueAuthentication, Properties: &packet.AuthProperties{}}
+
+		pkt.Properties.Set(packet.PropertyAuthenticationMethod)
+		pkt.Properties.AuthenticationMethod = []byte(e.Name())
+
+		pkt.Properties.Set(packet.PropertyAuthenticationData)
+		pkt.Properties.AuthenticationData = []byte{2}
+		return pkt, nil
+	}
+
+	serveConnection(t, s, conn)
+	sendPacket(t, nc, connect.Packet)
+	_ = receivePacket(t, nc, auth.Packet)
+
+	var client *Client
+	packets := make(chan Packet, 1)
+	e.cb = func(c *Client, p Packet) (PacketEncodable, error) {
+		client = c
+		packets <- p
+		return nil, nil
+	}
+
+	connected := make(chan struct{})
+	onConnected.cb = func(_ *Client) { close(connected) }
+
+	sendPacket(t, nc, auth.Packet)
+	_ = receivePacket(t, nc, connack.Packet)
+
+	pkt := <-packets
+	if pkt == nil {
+		t.Fatalf("A packet was expected")
+	}
+
+	props := pkt.(*packet.Auth).Properties
+	if !props.Has(packet.PropertyAuthenticationMethod) && e.Name() != string(props.AuthenticationMethod) {
+		t.Errorf("Unexpected authentication method\nwant: %s\ngot:  %s", e.Name(),
+			string(props.AuthenticationMethod))
+	}
+	if !props.Has(packet.PropertyAuthenticationData) && !bytes.Equal([]byte{1}, props.AuthenticationData) {
+		t.Errorf("Unexpected authentication data\nwant: %v\ngot:  %v", []byte{1}, props.AuthenticationData)
+	}
+	if onAuth.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onAuth.calls())
+	}
+
+	<-connected
+	if onConnected.calls() != 1 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, onConnected.calls())
+	}
+	if client.State() != ClientConnected {
+		t.Errorf("Unexpected client state\nwant: %v\ngot:  %v", ClientConnected, client.State())
+	}
+}
+
+func TestServerAuthPacketHookError(t *testing.T) {
+	connect := readPacketFixture(t, "connect.json", "V5.0 Enhanced Authentication")
+	auth := readPacketFixture(t, "auth.json", "Continue With Auth Method and Data")
+	e := &mockEnhancedAuth{}
+	h := &mockOnAuthPacketHook{}
+
+	s := newServer(t, WithHooks([]Hook{h}), WithEnhancedAuths([]EnhancedAuth{e}))
+	defer s.Close()
+	startServer(t, s)
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+
+	e.cb = func(_ *Client, p Packet) (PacketEncodable, error) {
+		pkt := &packet.Auth{Code: packet.ReasonCodeContinueAuthentication, Properties: &packet.AuthProperties{}}
+
+		pkt.Properties.Set(packet.PropertyAuthenticationMethod)
+		pkt.Properties.AuthenticationMethod = []byte(e.Name())
+
+		pkt.Properties.Set(packet.PropertyAuthenticationData)
+		pkt.Properties.AuthenticationData = []byte{2}
+		return pkt, nil
+	}
+
+	serveConnection(t, s, conn)
+	sendPacket(t, nc, connect.Packet)
+	_ = receivePacket(t, nc, auth.Packet)
+
+	h.cb = func(_ *Client, _ *packet.Auth) error { return errHookFailed }
+	sendPacket(t, nc, auth.Packet)
+
+	_, err := nc.Read(nil)
+	if !errors.Is(err, io.EOF) {
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+	}
+}
+
+func TestServerAuthPacketEnhancedAuthReturningAuth(t *testing.T) {
+	connect := readPacketFixture(t, "connect.json", "V5.0 Enhanced Authentication")
+	auth := readPacketFixture(t, "auth.json", "Continue With Auth Method and Data")
+	e := &mockEnhancedAuth{}
+
+	s := newServer(t, WithEnhancedAuths([]EnhancedAuth{e}))
+	defer s.Close()
+	startServer(t, s)
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+
+	var client *Client
+	packets := make(chan Packet, 1)
+	e.cb = func(c *Client, p Packet) (PacketEncodable, error) {
+		client = c
+		packets <- p
+		pkt := &packet.Auth{Code: packet.ReasonCodeContinueAuthentication, Properties: &packet.AuthProperties{}}
+
+		pkt.Properties.Set(packet.PropertyAuthenticationMethod)
+		pkt.Properties.AuthenticationMethod = []byte(e.Name())
+
+		pkt.Properties.Set(packet.PropertyAuthenticationData)
+		pkt.Properties.AuthenticationData = []byte{2}
+		return pkt, nil
+	}
+
+	serveConnection(t, s, conn)
+	sendPacket(t, nc, connect.Packet)
+	_ = receivePacket(t, nc, auth.Packet)
+	<-packets
+
+	sendPacket(t, nc, auth.Packet)
+	_ = receivePacket(t, nc, auth.Packet)
+
+	pkt := <-packets
+	if pkt == nil {
+		t.Fatalf("A packet was expected")
+	}
+
+	props := pkt.(*packet.Auth).Properties
+	if !props.Has(packet.PropertyAuthenticationMethod) && e.Name() != string(props.AuthenticationMethod) {
+		t.Errorf("Unexpected authentication method\nwant: %s\ngot:  %s", e.Name(),
+			string(props.AuthenticationMethod))
+	}
+	if !props.Has(packet.PropertyAuthenticationData) && !bytes.Equal([]byte{1}, props.AuthenticationData) {
+		t.Errorf("Unexpected authentication data\nwant: %v\ngot:  %v", []byte{1}, props.AuthenticationData)
+	}
+
+	if client == nil {
+		t.Fatal("A client was expected")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	for ctx.Err() == nil {
+		if client.State() == ClientAuthenticating {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if client.State() != ClientAuthenticating {
+		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ClientAuthenticating, client.State())
+	}
+}
+
+func TestServerAuthPacketEnhancedAuthReturningConnAck(t *testing.T) {
+	connect := readPacketFixture(t, "connect.json", "V5.0 Enhanced Authentication")
+	auth := readPacketFixture(t, "auth.json", "Continue With Auth Method and Data")
+	connack := readPacketFixture(t, "connack.json", "V5.0 Success + Enhanced Auth")
+	e := &mockEnhancedAuth{}
+
+	s := newServer(t, WithEnhancedAuths([]EnhancedAuth{e}))
+	defer s.Close()
+	startServer(t, s)
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+
+	e.cb = func(_ *Client, p Packet) (PacketEncodable, error) {
+		pkt := &packet.Auth{Code: packet.ReasonCodeContinueAuthentication, Properties: &packet.AuthProperties{}}
+
+		pkt.Properties.Set(packet.PropertyAuthenticationMethod)
+		pkt.Properties.AuthenticationMethod = []byte(e.Name())
+
+		pkt.Properties.Set(packet.PropertyAuthenticationData)
+		pkt.Properties.AuthenticationData = []byte{2}
+		return pkt, nil
+	}
+
+	serveConnection(t, s, conn)
+	sendPacket(t, nc, connect.Packet)
+	_ = receivePacket(t, nc, auth.Packet)
+
+	var client *Client
+	e.cb = func(c *Client, p Packet) (PacketEncodable, error) {
+		client = c
+		pkt := &packet.ConnAck{Properties: &packet.ConnAckProperties{}}
+
+		pkt.Properties.Set(packet.PropertyAuthenticationMethod)
+		pkt.Properties.AuthenticationMethod = []byte(e.Name())
+
+		pkt.Properties.Set(packet.PropertyAuthenticationData)
+		pkt.Properties.AuthenticationData = []byte{2}
+		return pkt, nil
+	}
+
+	sendPacket(t, nc, auth.Packet)
+	_ = receivePacket(t, nc, connack.Packet)
+
+	if client == nil {
+		t.Fatal("A client was expected")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	for ctx.Err() == nil {
+		if client.State() == ClientConnected {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if client.State() != ClientConnected {
+		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ClientConnected, client.State())
+	}
+}
+
+func TestServerAuthPacketEnhancedAuthReturningNotAuthorized(t *testing.T) {
+	connect := readPacketFixture(t, "connect.json", "V5.0 Enhanced Authentication")
+	auth := readPacketFixture(t, "auth.json", "Continue With Auth Method and Data")
+	connack := readPacketFixture(t, "connack.json", "V5.0 Not Authorized + Auth Method")
+	e := &mockEnhancedAuth{}
+
+	s := newServer(t, WithEnhancedAuths([]EnhancedAuth{e}))
+	defer s.Close()
+	startServer(t, s)
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+
+	var client *Client
+	e.cb = func(c *Client, p Packet) (PacketEncodable, error) {
+		client = c
+		pkt := &packet.Auth{Code: packet.ReasonCodeContinueAuthentication, Properties: &packet.AuthProperties{}}
+
+		pkt.Properties.Set(packet.PropertyAuthenticationMethod)
+		pkt.Properties.AuthenticationMethod = []byte(e.Name())
+
+		pkt.Properties.Set(packet.PropertyAuthenticationData)
+		pkt.Properties.AuthenticationData = []byte{2}
+		return pkt, nil
+	}
+
+	serveConnection(t, s, conn)
+	sendPacket(t, nc, connect.Packet)
+	_ = receivePacket(t, nc, auth.Packet)
+
+	e.cb = func(_ *Client, p Packet) (PacketEncodable, error) { return nil, packet.ErrNotAuthorized }
+	sendPacket(t, nc, auth.Packet)
+	_ = receivePacket(t, nc, connack.Packet)
+
+	_, err := nc.Read(nil)
+	if !errors.Is(err, io.EOF) {
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	for ctx.Err() == nil {
+		if client.State() == ClientDisconnected {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if client.State() != ClientDisconnected {
+		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ClientDisconnected, client.State())
+	}
+}
+
+func TestServerAuthPacketEnhancedAuthReturningAnyError(t *testing.T) {
+	connect := readPacketFixture(t, "connect.json", "V5.0 Enhanced Authentication")
+	auth := readPacketFixture(t, "auth.json", "Continue With Auth Method and Data")
+	e := &mockEnhancedAuth{}
+
+	s := newServer(t, WithEnhancedAuths([]EnhancedAuth{e}))
+	defer s.Close()
+	startServer(t, s)
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+
+	e.cb = func(_ *Client, p Packet) (PacketEncodable, error) {
+		pkt := &packet.Auth{Code: packet.ReasonCodeContinueAuthentication, Properties: &packet.AuthProperties{}}
+
+		pkt.Properties.Set(packet.PropertyAuthenticationMethod)
+		pkt.Properties.AuthenticationMethod = []byte(e.Name())
+
+		pkt.Properties.Set(packet.PropertyAuthenticationData)
+		pkt.Properties.AuthenticationData = []byte{2}
+		return pkt, nil
+	}
+
+	serveConnection(t, s, conn)
+	sendPacket(t, nc, connect.Packet)
+	_ = receivePacket(t, nc, auth.Packet)
+
+	e.cb = func(_ *Client, p Packet) (PacketEncodable, error) { return nil, errors.New("failed") }
+	sendPacket(t, nc, auth.Packet)
+
+	_, err := nc.Read(nil)
+	if !errors.Is(err, io.EOF) {
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+	}
+}
+
+func TestServerAuthPacketEnhancedAuthReturningConnAckNotAuthorized(t *testing.T) {
+	connect := readPacketFixture(t, "connect.json", "V5.0 Enhanced Authentication")
+	auth := readPacketFixture(t, "auth.json", "Continue With Auth Method and Data")
+	connack := readPacketFixture(t, "connack.json", "V5.0 Not Authorized + Auth Method and Reason String")
+	e := &mockEnhancedAuth{}
+
+	s := newServer(t, WithEnhancedAuths([]EnhancedAuth{e}))
+	defer s.Close()
+	startServer(t, s)
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+
+	e.cb = func(_ *Client, p Packet) (PacketEncodable, error) {
+		pkt := &packet.Auth{Code: packet.ReasonCodeContinueAuthentication, Properties: &packet.AuthProperties{}}
+
+		pkt.Properties.Set(packet.PropertyAuthenticationMethod)
+		pkt.Properties.AuthenticationMethod = []byte(e.Name())
+
+		pkt.Properties.Set(packet.PropertyAuthenticationData)
+		pkt.Properties.AuthenticationData = []byte{2}
+		return pkt, nil
+	}
+
+	serveConnection(t, s, conn)
+	sendPacket(t, nc, connect.Packet)
+	_ = receivePacket(t, nc, auth.Packet)
+
+	e.cb = func(_ *Client, p Packet) (PacketEncodable, error) {
+		pkt := &packet.ConnAck{Code: packet.ReasonCodeNotAuthorized, Properties: &packet.ConnAckProperties{}}
+
+		pkt.Properties.Set(packet.PropertyAuthenticationMethod)
+		pkt.Properties.AuthenticationMethod = []byte(e.Name())
+
+		pkt.Properties.Set(packet.PropertyReasonString)
+		pkt.Properties.ReasonString = []byte("a")
+		return pkt, nil
+	}
+
+	sendPacket(t, nc, auth.Packet)
+	_ = receivePacket(t, nc, connack.Packet)
+
+	_, err := nc.Read(nil)
+	if !errors.Is(err, io.EOF) {
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+	}
+}
+
+func TestServerAuthPacketEnhancedAuthMethodNotMatching(t *testing.T) {
+	connect := readPacketFixture(t, "connect.json", "V5.0 Enhanced Authentication")
+	auth1 := readPacketFixture(t, "auth.json", "Continue With Auth Method and Data")
+	auth2 := readPacketFixture(t, "auth.json", "Continue With Auth Method")
+	connack := readPacketFixture(t, "connack.json", "V5.0 Bad Authentication Method")
+	e := &mockEnhancedAuth{}
+
+	s := newServer(t, WithEnhancedAuths([]EnhancedAuth{e}))
+	defer s.Close()
+	startServer(t, s)
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+
+	e.cb = func(_ *Client, p Packet) (PacketEncodable, error) {
+		pkt := &packet.Auth{Code: packet.ReasonCodeContinueAuthentication, Properties: &packet.AuthProperties{}}
+
+		pkt.Properties.Set(packet.PropertyAuthenticationMethod)
+		pkt.Properties.AuthenticationMethod = []byte(e.Name())
+
+		pkt.Properties.Set(packet.PropertyAuthenticationData)
+		pkt.Properties.AuthenticationData = []byte{2}
+		return pkt, nil
+	}
+
+	serveConnection(t, s, conn)
+	sendPacket(t, nc, connect.Packet)
+	_ = receivePacket(t, nc, auth1.Packet)
+
+	sendPacket(t, nc, auth2.Packet)
+	_ = receivePacket(t, nc, connack.Packet)
+
+	_, err := nc.Read(nil)
+	if !errors.Is(err, io.EOF) {
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+	}
+}
+
+func TestServerAuthPacketReAuthenticate(t *testing.T) {
+	connect := readPacketFixture(t, "connect.json", "V5.0 Enhanced Authentication")
+	connack := readPacketFixture(t, "connack.json", "V5.0 Success + Auth Method")
+	auth1 := readPacketFixture(t, "auth.json", "Re-authenticate With Auth Method and Data")
+	auth2 := readPacketFixture(t, "auth.json", "Success With Auth Method")
+	e := &mockEnhancedAuth{}
+
+	s := newServer(t, WithEnhancedAuths([]EnhancedAuth{e}))
+	defer s.Close()
+	startServer(t, s)
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+
+	serveConnection(t, s, conn)
+	sendPacket(t, nc, connect.Packet)
+	_ = receivePacket(t, nc, connack.Packet)
+
+	var client *Client
+	e.cb = func(c *Client, p Packet) (PacketEncodable, error) {
+		client = c
+		return nil, nil
+	}
+
+	sendPacket(t, nc, auth1.Packet)
+	_ = receivePacket(t, nc, auth2.Packet)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	for ctx.Err() == nil {
+		if client.State() == ClientConnected {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if client.State() != ClientConnected {
+		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ClientConnected, client.State())
+	}
+}
+
+func TestServerAuthPacketReAuthenticating(t *testing.T) {
+	connect := readPacketFixture(t, "connect.json", "V5.0 Enhanced Authentication")
+	connack := readPacketFixture(t, "connack.json", "V5.0 Success + Auth Method")
+	auth1 := readPacketFixture(t, "auth.json", "Re-authenticate With Auth Method and Data")
+	auth2 := readPacketFixture(t, "auth.json", "Continue With Auth Method and Data")
+	e := &mockEnhancedAuth{}
+
+	s := newServer(t, WithEnhancedAuths([]EnhancedAuth{e}))
+	defer s.Close()
+	startServer(t, s)
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+
+	serveConnection(t, s, conn)
+	sendPacket(t, nc, connect.Packet)
+	_ = receivePacket(t, nc, connack.Packet)
+
+	var client *Client
+	e.cb = func(c *Client, p Packet) (PacketEncodable, error) {
+		client = c
+		pkt := &packet.Auth{Code: packet.ReasonCodeContinueAuthentication, Properties: &packet.AuthProperties{}}
+
+		pkt.Properties.Set(packet.PropertyAuthenticationMethod)
+		pkt.Properties.AuthenticationMethod = []byte(e.Name())
+
+		pkt.Properties.Set(packet.PropertyAuthenticationData)
+		pkt.Properties.AuthenticationData = []byte{2}
+		return pkt, nil
+	}
+
+	sendPacket(t, nc, auth1.Packet)
+	_ = receivePacket(t, nc, auth2.Packet)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	for ctx.Err() == nil {
+		if client.State() == ClientReAuthenticating {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if client.State() != ClientReAuthenticating {
+		t.Fatalf("Unexpected state\nwant: %v\ngot:  %v", ClientReAuthenticating, client.State())
+	}
+}
+
+func TestServerAuthPacketInvalidState(t *testing.T) {
+	auth := readPacketFixture(t, "auth.json", "Re-authenticate With Auth Method and Data")
+	e := &mockEnhancedAuth{}
+
+	s := newServer(t, WithEnhancedAuths([]EnhancedAuth{e}))
+	defer s.Close()
+	startServer(t, s)
+
+	nc, conn := newConnection(t)
+	defer func() { _ = nc.Close() }()
+
+	serveConnection(t, s, conn)
+	sendPacket(t, nc, auth.Packet)
+
+	_, err := nc.Read(nil)
+	if !errors.Is(err, io.EOF) {
+		t.Errorf("Unexpected error\nwant: %v\ngot:  %v", io.EOF, err)
+	}
+
+	if e.calls() != 0 {
+		t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 0, e.calls())
 	}
 }
 
@@ -2092,11 +2571,7 @@ func TestServerConnectUnavailableWhenGetSessionReturnsError(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-
-			p := receivePacket(t, nc, len(connack.Packet))
-			if !bytes.Equal(connack.Packet, p) {
-				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-			}
+			_ = receivePacket(t, nc, connack.Packet)
 
 			err := <-connectErr
 			if !errors.Is(err, packet.ErrServerUnavailable) {
@@ -2141,11 +2616,8 @@ func TestServerConnectUnavailableWhenDeleteSessionReturnsError(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
+			_ = receivePacket(t, nc, connack.Packet)
 
-			p := receivePacket(t, nc, len(connack.Packet))
-			if !bytes.Equal(connack.Packet, p) {
-				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-			}
 			if ss.deleteCalls() != 1 {
 				t.Errorf("Unexpected calls\nwant: %v\ngot:  %v", 1, ss.deleteCalls())
 			}
@@ -2193,11 +2665,7 @@ func TestServerConnectUnavailableWhenSaveSessionReturnsError(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-
-			p := receivePacket(t, nc, len(connack.Packet))
-			if !bytes.Equal(connack.Packet, p) {
-				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-			}
+			_ = receivePacket(t, nc, connack.Packet)
 
 			err := <-connectErr
 			if !errors.Is(err, packet.ErrServerUnavailable) {
@@ -2244,18 +2712,11 @@ func TestServerConnectProtocolErrorOnDuplicatePacket(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-
-			p := receivePacket(t, nc, len(connack[0].Packet))
-			if !bytes.Equal(connack[0].Packet, p) {
-				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack[0].Packet, p)
-			}
+			_ = receivePacket(t, nc, connack[0].Packet)
 
 			sendPacket(t, nc, connect.Packet)
 			if len(connack) > 1 {
-				p = receivePacket(t, nc, len(connack[1].Packet))
-				if !bytes.Equal(connack[1].Packet, p) {
-					t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack[1].Packet, p)
-				}
+				_ = receivePacket(t, nc, connack[1].Packet)
 			}
 
 			_, err := nc.Read(nil)
@@ -2296,11 +2757,7 @@ func TestServerConnectWithOnConnectReturningValidPacketError(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-
-			p := receivePacket(t, nc, len(connack.Packet))
-			if !bytes.Equal(connack.Packet, p) {
-				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-			}
+			_ = receivePacket(t, nc, connack.Packet)
 
 			_, err := nc.Read(nil)
 			if !errors.Is(err, io.EOF) {
@@ -2402,11 +2859,7 @@ func TestServerUpdateSessionWhenClosingConnectedClient(t *testing.T) {
 
 			serveConnection(t, s, conn)
 			sendPacket(t, nc, connect.Packet)
-
-			p := receivePacket(t, nc, len(connack.Packet))
-			if !bytes.Equal(connack.Packet, p) {
-				t.Errorf("Unexpected packet\nwant: %v\ngot:  %v", connack.Packet, p)
-			}
+			_ = receivePacket(t, nc, connack.Packet)
 			<-connected
 
 			sessionStream := make(chan *Session, 1)
@@ -2465,7 +2918,7 @@ func BenchmarkHandleConnect(b *testing.B) {
 				}
 
 				sendPacket(b, nc, connect.Packet)
-				_ = receivePacket(b, nc, len(connack.Packet))
+				_ = receivePacket(b, nc, connack.Packet)
 
 				err = nc.Close()
 				if err != nil {
@@ -2532,15 +2985,18 @@ func sendPacket(tb testing.TB, nc net.Conn, p []byte) {
 	}
 }
 
-func receivePacket(tb testing.TB, nc net.Conn, size int) []byte {
+func receivePacket(tb testing.TB, nc net.Conn, pkt []byte) []byte {
 	tb.Helper()
-	p := make([]byte, size)
+	p := make([]byte, len(pkt))
 	n, err := nc.Read(p)
 	if err != nil {
 		tb.Fatalf("Unexpected error\n%v", err)
 	}
-	if n != size {
-		tb.Errorf("Unexpected number of bytes read\nwant: %v\ngot:  %v", size, n)
+	if n != len(pkt) {
+		tb.Errorf("Unexpected number of bytes read\nwant: %v\ngot:  %v", len(pkt), n)
+	}
+	if !bytes.Equal(pkt, p) {
+		tb.Errorf("Unexpected packet\nwant: %v\ngot:  %v", pkt, p)
 	}
 	return p
 }

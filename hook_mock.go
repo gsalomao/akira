@@ -419,3 +419,20 @@ func (m *mockOnConnectedHook) OnConnected(_ context.Context, c *Client) {
 	}
 	m.cb(c)
 }
+
+type mockOnAuthPacketHook struct {
+	mockHook
+	cb func(c *Client, p *packet.Auth) error
+}
+
+func (m *mockOnAuthPacketHook) Name() string {
+	return reflect.TypeOf(m).String()
+}
+
+func (m *mockOnAuthPacketHook) OnAuthPacket(_ context.Context, c *Client, p *packet.Auth) error {
+	m.called()
+	if m.cb == nil {
+		return nil
+	}
+	return m.cb(c, p)
+}
